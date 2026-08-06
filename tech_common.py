@@ -1,0 +1,190 @@
+import customtkinter as ctk
+from tkinter import messagebox, ttk
+import subprocess as _subprocess
+import functools
+
+def _no_window(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        kwargs.setdefault('creationflags', 0x08000000)
+        return func(*args, **kwargs)
+    return wrapper
+
+_subprocess.Popen = _no_window(_subprocess.Popen)
+subprocess = _subprocess
+
+import threading
+import os
+import json
+import time
+import re
+import tempfile
+import hashlib
+import sys
+import requests
+import datetime
+import shutil
+from PIL import Image, ImageDraw, ImageFont
+
+# Application Global Styling Configurations
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
+
+# Scale UI for high-DPI / small font compensation
+ctk.set_widget_scaling(1.15)
+
+
+def get_bundle_dir():
+    """Directory for bundled read-only resources (gelotech_database_v3.json, scrcpy zip).
+    When frozen by PyInstaller (--onefile), this is the temp extraction folder
+    (sys._MEIPASS), which is created fresh and deleted after each run. When
+    running as a plain .py script, this is just the script's own directory."""
+    return getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+
+
+def get_app_dir():
+    """Directory for persistent, writable app data (APK backups, whitelist file).
+    _MEIPASS is wrong for this: it's temporary and wiped after every run, so
+    anything written there would vanish. When frozen, this instead resolves to
+    the folder containing the actual .exe, so data survives between launches.
+    When running as a plain .py script, this is the script's own directory."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_cache_dir():
+    """Directory for temporary cache files (app icons) in the user's temp
+    folder, so the exe directory stays clean."""
+    return os.path.join(tempfile.gettempdir(), "GeloTechTool", "icon_cache")
+
+
+def get_settings_dir():
+    """Directory for persistent settings (gelotech_settings.json, whitelist).
+    Lives in the hidden per-user AppData folder so it survives reboots and
+    disk cleanup, while keeping the exe directory clean. Falls back to the
+    exe/script folder if APPDATA is unavailable."""
+    base = os.environ.get("APPDATA")
+    if base:
+        path = os.path.join(base, "GeloTechTool")
+        os.makedirs(path, exist_ok=True)
+        return path
+    return get_app_dir()
+
+
+def get_live_database_path():
+    """Directory holding the newest available database. A copy pulled from the
+    update server (stored beside the settings file) wins over the bundled
+    copy, unless the bundled copy is newer (e.g. a fresh exe build)."""
+    live = os.path.join(get_settings_dir(), "gelotech_database_v3.json")
+    bundled = os.path.join(get_bundle_dir(), "gelotech_database_v3.json")
+    if os.path.isfile(live):
+        if not os.path.isfile(bundled):
+            return get_settings_dir()
+        if os.path.getmtime(live) >= os.path.getmtime(bundled):
+            return get_settings_dir()
+    return get_bundle_dir()
+
+
+def has_icon_cache():
+    """True if an icon export manifest already exists (root or subfolder),
+    so the helper APK sync only runs once instead of every launch."""
+    root = get_cache_dir()
+    return os.path.isfile(os.path.join(root, "packages.jsonl")) or os.path.isfile(
+        os.path.join(root, "apk_icon_export", "packages.jsonl"))
+
+class Tooltip:
+    """Hover hint that shows the help text in the LOG CONSOLE instead of a
+    floating window (no more stuck tooltips). Drops to no-op if the widget's
+    toplevel has no log_message() (e.g. dialogs without a console)."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        widget.bind("<Enter>", self._show)
+
+    def _show(self, _event=None):
+        if not self.text:
+            return
+        try:
+            tl = self.widget.winfo_toplevel()
+            lm = getattr(tl, "log_message", None)
+            if callable(lm) and self.text != getattr(tl, "_last_hint", None):
+                tl._last_hint = self.text
+                lm(f"[HINT] {self.text}")
+        except Exception:
+            pass
+
+
+REMOVAL_DISPLAY_MAP = {
+    "delete": "Recommended", "replace": "Advanced",
+    "caution": "Expert", "unsafe": "Unsafe",
+}
+REMOVAL_DISPLAY_VALUES = {"Recommended", "Advanced", "Expert", "Unsafe"}
+
+
+def _display_removal(raw):
+    if not isinstance(raw, str) or not raw.strip():
+        return "Unknown"
+    value = raw.strip()
+    if value in REMOVAL_DISPLAY_VALUES:
+        return value
+    return REMOVAL_DISPLAY_MAP.get(value, "Unknown")
+
+
+def _first_line(value):
+    text = (value or "").strip()
+    return text.splitlines()[0].strip() if "\n" in text else text
+
+
+def load_package_database(base_directory):
+    """Load package metadata from the bundled merged database
+    (gelotech_database_v3.json). Falls back to gelotech_database_v2.json when
+    the v3 file is absent. Returns {package_name: record} with display-string
+    removal levels, or {} if the database is missing."""
+    db_path = os.path.join(base_directory, "gelotech_database_v3.json")
+    if not os.path.isfile(db_path):
+        db_path = os.path.join(base_directory, "gelotech_database_v2.json")
+    try:
+        with open(db_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        return {}
+    packages = payload.get("packages") or {}
+    out = {}
+    for pid, p in packages.items():
+        if not pid or not isinstance(p, dict):
+            continue
+        gelotech = p.get("gelotech") if isinstance(p.get("gelotech"), dict) else {}
+        exclude = p.get("exclude") if isinstance(p.get("exclude"), dict) else {}
+        status = p.get("status") if isinstance(p.get("status"), dict) else {}
+        label = _first_line(p.get("label") or p.get("name"))
+        name = _first_line(p.get("name"))
+        warnings = list(p.get("warnings") or [])
+        suggestions = p.get("suggestions")
+        if isinstance(suggestions, list):
+            suggestions = ", ".join(str(item) for item in suggestions)
+        out[pid] = {
+            "id": pid,
+            "label": label,
+            "labels": [label] if label else [],
+            "name": name or label,
+            "description": (p.get("description") or "").strip(),
+            "removal": _display_removal(p.get("removal")),
+            "risk": p.get("risk") or "unknown",
+            "manufacturer": p.get("manufacturer") or "Unknown",
+            "category": p.get("category") or "Other",
+            "source": (p.get("source") or "Unknown").strip(),
+            "warning": (p.get("notes") or "").strip(),
+            "web": [],
+            "dependencies": list(p.get("dependencies") or []),
+            "required_by": warnings,
+            "suggestions": suggestions or "",
+            "tags": list(p.get("tags") or []),
+            "safe_alternatives": list(p.get("alternatives") or p.get("safe_alternatives") or []),
+            "exclude_clean": bool(gelotech.get("clean_excluded", exclude.get("clean", False))),
+            "exclude_uninstall": bool(gelotech.get("uninstall_excluded", exclude.get("uninstall", False))),
+            "debloated": bool(gelotech.get("debloated", status.get("debloated", False))),
+        }
+    return out
+
