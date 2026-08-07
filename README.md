@@ -17,6 +17,14 @@ color in the list legend filters the list to that group (click again to
 reset). The toolbar keeps Clean, Uninstall Virus, Fix Popup Ad, Restore/Backup,
 All, Disabled, and Filter.
 
+## Download
+
+**Latest release:** [GeloTechTool.exe (v1.0.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+
+Windows only. Download the exe and run it — no installation needed. The
+built-in updater pulls database / banking-list / credentials updates
+automatically from this repo on each login.
+
 ## What's in this folder
 
 | Item | Purpose |
