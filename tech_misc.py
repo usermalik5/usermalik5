@@ -238,6 +238,7 @@ class MiscMixin:
                     })
                 self.sec_list_mode = mode
                 self.sec_packages = entries
+                self.sec_legend_filter = None
                 self.after(0, self._sec_render_rows)
                 self.after(0, lambda: self.sec_threats_label.configure(text=f"{label}: {len(entries)} apps", text_color="#58a6ff"))
                 self.after(0, lambda: self._sec_status(f"{label} packages: {len(entries)} loaded. Use the action buttons below on the apps you check.", "#58a6ff"))
@@ -307,6 +308,7 @@ class MiscMixin:
                     })
                 self.sec_list_mode = "filter"
                 self.sec_packages = entries
+                self.sec_legend_filter = None
                 self.after(0, self._sec_render_rows)
                 if entries:
                     self.after(0, lambda: self.sec_threats_label.configure(text=f"Filter: {len(entries)} apps", text_color="#58a6ff"))

@@ -32,6 +32,29 @@ class SecOpsMixin:
             return "#2a2010", "orange"
         return "#10151d", "lightgreen"
 
+    def _sec_legend_category(self, entry):
+        ex_c = entry.get("excluded_clean")
+        ex_u = entry.get("excluded_uninstall")
+        if ex_c and ex_u:
+            return "both"
+        if ex_u:
+            return "uninstall"
+        if ex_c:
+            return "clean"
+        return "removable"
+
+    def _sec_toggle_legend_filter(self, mode):
+        if getattr(self, "sec_legend_filter", None) == mode:
+            self.sec_legend_filter = None
+        else:
+            self.sec_legend_filter = mode
+        for m, (dot, lbl) in getattr(self, "sec_legend_widgets", {}).items():
+            active = m == self.sec_legend_filter
+            lbl.configure(text_color="#e6edf3" if active else "#8b949e",
+                          font=ctk.CTkFont(size=9, weight="bold") if active else ctk.CTkFont(size=9))
+            dot.configure(font=ctk.CTkFont(size=12 if active else 10))
+        self._sec_render_rows()
+
     def _sec_render_rows(self):
         for child in self.sec_list_frame.winfo_children():
             child.destroy()
@@ -46,6 +69,8 @@ class SecOpsMixin:
         for entry in self.sec_packages:
             label = entry.get("label", entry["id"])
             if query and query not in entry["id"].lower() and query not in label.lower():
+                continue
+            if getattr(self, "sec_legend_filter", None) and self._sec_legend_category(entry) != self.sec_legend_filter:
                 continue
             total += 1
             bg, text_color = self._sec_row_color(entry)
@@ -180,7 +205,9 @@ class SecOpsMixin:
         if not pkgs:
             self._sec_status("Nothing to disable. Check apps you want to disable.", "#f39c12")
             return
-        if not messagebox.askyesno("Disable (Checked)", f"Disable {len(pkgs)} checked app(s) for the current user?\n\nApps can be re-enabled later. Use with care on system apps."):
+        if not self._sec_typed_confirm("Disable (Checked)",
+                f"Disable {len(pkgs)} checked app(s) for the current user?\n\n"
+                "Apps can be re-enabled later, but disabling critical system apps can make the phone unstable."):
             return
         self._sec_log(f"[GeloTech] Disabling {len(pkgs)} checked app(s)...", "#58a6ff")
         self._sec_run_disable(pkgs)
@@ -193,7 +220,9 @@ class SecOpsMixin:
         if not pkgs:
             self._sec_status("Nothing to uninstall. Check apps you want to remove.", "#f39c12")
             return
-        if not messagebox.askyesno("Uninstall (Checked)", f"Uninstall {len(pkgs)} checked 3rd-party app(s)?\n\nUsed to remove APK Pop-up Virus. Apps in your exclusion lists are safe."):
+        if not self._sec_typed_confirm("Uninstall (Checked)",
+                f"Uninstall {len(pkgs)} checked 3rd-party app(s)?\n\nUsed to remove APK Pop-up Virus. "
+                "Apps in your exclusion lists are safe.\n\nThis CANNOT be undone easily — a backup is recommended."):
             return
         self._sec_log(f"[GeloTech] Uninstalling {len(pkgs)} checked app(s)...", "#58a6ff")
         self._sec_run_uninstall(pkgs)

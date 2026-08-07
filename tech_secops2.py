@@ -17,6 +17,40 @@ from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings
 
 
 class SecOps2Mixin:
+    def _sec_typed_confirm(self, title, message):
+        """Require the user to type YES before a destructive action proceeds."""
+        result = {"ok": False}
+        dlg = ctk.CTkToplevel(self)
+        dlg.title(title)
+        dlg.geometry("+%d+%d" % (self.winfo_rootx() + 140, self.winfo_rooty() + 140))
+        dlg.attributes("-topmost", True)
+        dlg.resizable(False, False)
+        dlg.transient(self)
+        body = ctk.CTkFrame(dlg, fg_color="#161b22", corner_radius=8, border_width=1, border_color="#30363d")
+        body.pack(padx=16, pady=16)
+        ctk.CTkLabel(body, text=message, font=ctk.CTkFont(size=11), text_color="#e6edf3",
+                     wraplength=420, justify="left").pack(padx=14, pady=(14, 6))
+        ctk.CTkLabel(body, text="Type YES to confirm:", font=ctk.CTkFont(size=10), text_color="#8b949e").pack(padx=14, pady=(0, 2))
+        entry = ctk.CTkEntry(body, width=220, font=ctk.CTkFont(size=12), fg_color="#0d1117", border_color="#30363d")
+        entry.pack(padx=14, pady=4)
+        entry.focus_set()
+
+        def on_key(_=None):
+            btn_ok.configure(state="normal" if entry.get().strip() == "YES" else "disabled")
+        entry.bind("<KeyRelease>", on_key)
+
+        btn_row = ctk.CTkFrame(body, fg_color="transparent")
+        btn_row.pack(pady=(8, 12))
+        btn_ok = ctk.CTkButton(btn_row, text="Confirm", fg_color="#e74c3c", hover_color="#b91c1c",
+                               width=110, state="disabled", command=lambda: (result.update(ok=True), dlg.destroy()))
+        btn_ok.pack(side="left", padx=6)
+        ctk.CTkButton(btn_row, text="Cancel", fg_color="#21262d", hover_color="#30363d",
+                      width=110, command=dlg.destroy).pack(side="left", padx=6)
+        entry.bind("<Return>", lambda e: (result.update(ok=True), dlg.destroy()) if entry.get().strip() == "YES" else None)
+        dlg.bind("<Escape>", lambda e: dlg.destroy())
+        dlg.wait_window()
+        return result["ok"]
+
     def action_sec_uninstall_checked(self):
         if not self._can("cleaner"):
             self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
@@ -25,7 +59,9 @@ class SecOps2Mixin:
         if not pkgs:
             self._sec_status("Nothing to uninstall. Check apps you want to remove.", "#f39c12")
             return
-        if not messagebox.askyesno("Uninstall (Checked)", f"Uninstall {len(pkgs)} checked 3rd-party app(s)?\n\nUsed to remove APK Pop-up Virus. Apps in your exclusion lists are safe."):
+        if not self._sec_typed_confirm("Uninstall (Checked)",
+                f"Uninstall {len(pkgs)} checked 3rd-party app(s)?\n\nUsed to remove APK Pop-up Virus. "
+                "Apps in your exclusion lists are safe.\n\nThis CANNOT be undone easily — a backup is recommended."):
             return
         self._sec_log(f"[GeloTech] Uninstalling {len(pkgs)} checked app(s)...", "#58a6ff")
         self._sec_run_uninstall(pkgs)
@@ -38,7 +74,9 @@ class SecOps2Mixin:
         if not pkgs:
             self._sec_status("Nothing to disable. Check apps you want to disable.", "#f39c12")
             return
-        if not messagebox.askyesno("Disable (Checked)", f"Disable {len(pkgs)} checked app(s) for the current user?\n\nApps can be re-enabled later. Use with care on system apps."):
+        if not self._sec_typed_confirm("Disable (Checked)",
+                f"Disable {len(pkgs)} checked app(s) for the current user?\n\n"
+                "Apps can be re-enabled later, but disabling critical system apps can make the phone unstable."):
             return
         self._sec_log(f"[GeloTech] Disabling {len(pkgs)} checked app(s)...", "#58a6ff")
         self._sec_run_disable(pkgs)
@@ -70,8 +108,11 @@ class SecOps2Mixin:
         if not pkgs:
             self._sec_status("Nothing to process. Check apps first.", "#f39c12")
             return
-        if not messagebox.askyesno("Fix Popup Ad",
-            f"Fix Popup Ad will process {len(pkgs)} checked app(s).\n\nPhase 1: Clean (clear storage) checked apps + built-in browsers.\nPhase 2: Uninstall checked 3rd-party apps only (system/browsers are not removed).\n\nOnly apps you check are affected — nothing runs by default."):
+        if not self._sec_typed_confirm("Fix Popup Ad",
+            f"Fix Popup Ad will process {len(pkgs)} checked app(s).\n\n"
+            "Phase 1: Clean (clear storage) checked apps + built-in browsers.\n"
+            "Phase 2: Uninstall checked 3rd-party apps only (system/browsers are not removed).\n\n"
+            "Only apps you check are affected — nothing runs by default."):
             return
         self._sec_log(f"[GeloTech] Fix Popup Ad: phase 1 cleaning {len(pkgs)} app(s)...", "#f39c12")
         self._sec_run_clean(pkgs, auto_refresh=False)

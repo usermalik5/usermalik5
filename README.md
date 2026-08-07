@@ -11,6 +11,9 @@ Access is protected by a login system with per-user permissions and tabs
 hover hints appear in a red attention banner at the bottom of the window.
 The package-list context menu (right-click) offers per-app actions plus
 batch actions for all checked apps (disable / uninstall / APK backup).
+Destructive batch actions ask you to type YES to confirm, and clicking a
+color in the list legend filters the list to that group (click again to
+reset).
 
 ## What's in this folder
 

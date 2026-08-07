@@ -144,13 +144,25 @@ class UiMixin:
         self.sec_select_all_btn = ctk.CTkButton(toolbar, text="\u2610 Select All", width=120, height=30, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(size=10, weight="bold"), command=self.action_sec_toggle_all)
         self.sec_select_all_btn.grid(row=0, column=3, padx=(8, 6), pady=6)
         Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones Clean / Uninstall Virus / Fix Popup Ad act on.")
-        ctk.CTkLabel(toolbar, text="\u25cf", text_color="lightgreen", font=ctk.CTkFont(size=10)).grid(row=0, column=4, padx=(4, 0), pady=6)
-        ctk.CTkLabel(toolbar, text="Removable", font=ctk.CTkFont(size=9), text_color="#8b949e").grid(row=0, column=5, padx=(2, 8), pady=6)
-        ctk.CTkLabel(toolbar, text="\u25cf", text_color="orange", font=ctk.CTkFont(size=10)).grid(row=0, column=6, padx=(4, 0), pady=6)
-        ctk.CTkLabel(toolbar, text="Clean Excluded", font=ctk.CTkFont(size=9), text_color="#8b949e").grid(row=0, column=7, padx=(2, 8), pady=6)
-        ctk.CTkLabel(toolbar, text="\u25cf", text_color="red", font=ctk.CTkFont(size=10)).grid(row=0, column=8, padx=(4, 0), pady=6)
-        ctk.CTkLabel(toolbar, text="Uninstall Excluded", font=ctk.CTkFont(size=9), text_color="#8b949e").grid(row=0, column=9, padx=(2, 10), pady=6)
-        toolbar.grid_columnconfigure(10, weight=0)
+
+        legend_items = [
+            ("lightgreen", "Removable", "removable"),
+            ("orange", "Clean Excluded", "clean"),
+            ("red", "Uninstall Excluded", "uninstall"),
+            ("#8957e5", "Both Excluded", "both"),
+        ]
+        self.sec_legend_widgets = {}
+        for i, (color, text, mode) in enumerate(legend_items):
+            col = 4 + i * 2
+            dot = ctk.CTkLabel(toolbar, text="\u25cf", text_color=color, font=ctk.CTkFont(size=10), cursor="hand2")
+            dot.grid(row=0, column=col, padx=(4, 0), pady=6)
+            lbl = ctk.CTkLabel(toolbar, text=text, font=ctk.CTkFont(size=9), text_color="#8b949e", cursor="hand2")
+            lbl.grid(row=0, column=col + 1, padx=(2, 8), pady=6)
+            for w in (dot, lbl):
+                w.bind("<Button-1>", lambda e, m=mode: self._sec_toggle_legend_filter(m))
+                Tooltip(w, f"Click to show only {text} apps. Click again to reset.")
+            self.sec_legend_widgets[mode] = (dot, lbl)
+        toolbar.grid_columnconfigure(4 + len(legend_items) * 2, weight=0)
 
         # Row 3 - Package list (icon rows)
         self.sec_list_frame = ctk.CTkScrollableFrame(tab, fg_color="#0d1117", corner_radius=8, border_width=1, border_color="#30363d")
