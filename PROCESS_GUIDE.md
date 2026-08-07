@@ -83,7 +83,7 @@ Every action:
 
 ```
 DATA update (no new exe needed):
-  edit gelotech_database_v3.json / gelotech_settings.json
+  edit gelotech_database_v3.json / gelotech_settings.json / banking_apps.json
   → python bump_version.py        (or bump version.json manually)
   → git push
   → user app: on login → _check_updates() → GitHub API fetch version.json
@@ -108,15 +108,17 @@ CODE update (needs new exe):
 AppData settings dir (get_settings_dir())  → persistent, writable:
   gelotech_settings.json   (users, hashes, permissions, exclusions, debloated, update_state)
   gelotech_database_v3.json (downloaded override, .bak kept)
+  banking_apps.json        (downloaded override, .bak kept)
   apk_backups\*.apk
   sec_whitelist.txt
 
 Bundled (inside exe / repo root):
   gelotech_database_v3.json  (fallback if not in AppData)
+  banking_apps.json          (banking apps auto-protection list)
   scrcpy-win64-v3.3.4.zip, ApkIconHelper.apk, gelotech_icon.ico
 
 Repo root (update source):
-  version.json, gelotech_database_v3.json, gelotech_settings.json
+  version.json, gelotech_database_v3.json, gelotech_settings.json, banking_apps.json
 ```
 
 ---

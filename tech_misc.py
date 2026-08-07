@@ -13,7 +13,7 @@ import requests
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, Tooltip, subprocess
+from tech_common import get_bundle_dir, get_app_dir, load_banking_apps, Tooltip, subprocess
 
 
 class MiscMixin:
@@ -223,6 +223,7 @@ class MiscMixin:
                 uad = self._build_uad_lookup()
                 excl_clean = self._load_excluded_clean()
                 excl_uninstall = self._load_excluded_uninstall()
+                banking = load_banking_apps()
                 entries = []
                 for p in sorted(pkgs):
                     entries.append({
@@ -231,6 +232,7 @@ class MiscMixin:
                         "system": False,
                         "excluded_clean": p in excl_clean,
                         "excluded_uninstall": p in excl_uninstall,
+                        "banking": p in banking,
                         "threat_level": 0,
                         "threat_labels": [],
                         "removal": uad.get(p, {}).get("removal", ""),
@@ -270,6 +272,7 @@ class MiscMixin:
                 labels = self._load_app_labels()
                 excl_clean = self._load_excluded_clean()
                 excl_uninstall = self._load_excluded_uninstall()
+                banking = load_banking_apps()
                 selection = {
                     "removal": criteria.get("removal", "Any"),
                     "risk": criteria.get("risk", "Any"),
@@ -293,7 +296,7 @@ class MiscMixin:
                         continue
                     if selection["source"] != "Any" and entry.get("source") != selection["source"]:
                         continue
-                    if respect_exclude and entry.get("exclude_uninstall"):
+                    if respect_exclude and (entry.get("exclude_uninstall") or p in banking):
                         continue
                     entries.append({
                         "id": p,
@@ -301,6 +304,7 @@ class MiscMixin:
                         "system": False,
                         "excluded_clean": p in excl_clean,
                         "excluded_uninstall": p in excl_uninstall,
+                        "banking": p in banking,
                         "threat_level": 0,
                         "threat_labels": [],
                         "removal": entry.get("removal", ""),

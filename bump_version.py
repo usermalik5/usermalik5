@@ -1,9 +1,10 @@
 """Bump the version.json update manifest and push to GitHub.
 
 Usage:
-    python bump_version.py            # bump both database and settings
+    python bump_version.py            # bump database, settings, and banking
     python bump_version.py db         # bump database only
     python bump_version.py settings   # bump settings only
+    python bump_version.py banking    # bump banking apps list only
     python bump_version.py db 5       # set database to 5
 
 Bumps the numbers, commits version.json, and pushes to origin/main.
@@ -41,10 +42,13 @@ def main():
     if not args:
         bump("database")
         bump("settings")
+        bump("banking")
     elif args[0] == "db":
         bump("database")
     elif args[0] == "settings":
         bump("settings")
+    elif args[0] == "banking":
+        bump("banking")
     else:
         print("Unknown target:", args[0])
         print(__doc__)

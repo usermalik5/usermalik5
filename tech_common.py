@@ -100,6 +100,34 @@ def has_icon_cache():
     return os.path.isfile(os.path.join(root, "packages.jsonl")) or os.path.isfile(
         os.path.join(root, "apk_icon_export", "packages.jsonl"))
 
+
+def get_live_banking_path():
+    """Path of the newest banking-apps exclusion list. A copy pulled from the
+    update server (beside the settings file) wins over the bundled copy,
+    unless the bundled copy is newer (e.g. a fresh exe build)."""
+    live = os.path.join(get_settings_dir(), "banking_apps.json")
+    bundled = os.path.join(get_bundle_dir(), "banking_apps.json")
+    if os.path.isfile(live):
+        if not os.path.isfile(bundled):
+            return live
+        if os.path.getmtime(live) >= os.path.getmtime(bundled):
+            return live
+    return bundled
+
+
+def load_banking_apps():
+    """Return {package_id: display_name} from the newest banking-apps list.
+    These packages are protected: uninstall skips them and the cleaner shows
+    a banking badge. Returns {} if the file is missing or invalid."""
+    try:
+        with open(get_live_banking_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {}
+        return {str(k).strip(): str(v).strip() for k, v in data.items() if str(k).strip()}
+    except Exception:
+        return {}
+
 class Tooltip:
     """Hover hint that shows help text in a dedicated attention banner
     (red strip at the bottom of the window) instead of flooding the log

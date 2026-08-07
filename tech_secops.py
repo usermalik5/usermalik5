@@ -14,7 +14,7 @@ import requests
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, Tooltip, subprocess
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, load_banking_apps, Tooltip, subprocess
 
 
 class SecOpsMixin:
@@ -110,6 +110,8 @@ class SecOpsMixin:
                 badges.append(("🚨 High Risk", "#7f1d1d"))
             elif entry.get("threat_labels"):
                 badges.append(("🚨", "#7f1d1d"))
+            if entry.get("banking"):
+                badges.append(("🏦 Banking", "#0d5c46"))
             if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
                 badges.append(("Both Excluded", "#2c3e50"))
             elif entry.get("excluded_clean"):
@@ -348,9 +350,13 @@ class SecOpsMixin:
             self._sec_log("[GeloTech] No apps to clean.", "#f39c12")
             return
         excluded = self._load_excluded_clean()
+        banking = load_banking_apps()
         def worker():
             ok, fail = 0, 0
             for pkg in packages:
+                if pkg in banking:
+                    self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Skipped (banking app): {p}", "#2ecc71"))
+                    continue
                 if pkg in excluded:
                     self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Skipped (clean excluded): {p}", "#f39c12"))
                     continue
@@ -376,10 +382,14 @@ class SecOpsMixin:
             self._sec_log("[GeloTech] No apps to uninstall.", "#f39c12")
             return
         excluded = self._load_excluded_uninstall()
+        banking = load_banking_apps()
         def worker():
             ok, fail = 0, 0
             removed = []
             for pkg in packages:
+                if pkg in banking:
+                    self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Skipped (banking app): {p}", "#2ecc71"))
+                    continue
                 if pkg in excluded:
                     self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Skipped (uninstall excluded): {p}", "#f39c12"))
                     continue
@@ -452,7 +462,7 @@ class SecOpsMixin:
             menus[key] = ctk.CTkOptionMenu(body, values=values, width=220, height=28, font=ctk.CTkFont(size=11), fg_color="#21262d", button_color="#30363d", button_hover_color="#3d444d")
             menus[key].grid(row=1 + i, column=1, padx=(0, 10), pady=6, sticky="ew")
         respect_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(body, text="Respect database uninstall-exclusion flags", variable=respect_var, font=ctk.CTkFont(size=11), text_color="#c9d1d9").grid(row=1 + len(rows), column=0, columnspan=2, padx=10, pady=(10, 4), sticky="w")
+        ctk.CTkCheckBox(body, text="Respect database uninstall-exclusion flags + banking apps list", variable=respect_var, font=ctk.CTkFont(size=11), text_color="#c9d1d9").grid(row=1 + len(rows), column=0, columnspan=2, padx=10, pady=(10, 4), sticky="w")
         ctk.CTkLabel(body, text="Matching apps load into the list (unchecked). Review, then use Check All / Uninstall.", font=ctk.CTkFont(size=9), text_color="#8b949e").grid(row=2 + len(rows), column=0, columnspan=2, padx=10, pady=(0, 10), sticky="w")
 
         def apply():

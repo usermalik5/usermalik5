@@ -547,7 +547,8 @@ class SettingsMixin(AdminPanelMixin):
             changed = False
             new_state = dict(last)
             for fname, key in (("gelotech_database_v3.json", "database"),
-                               ("gelotech_settings.json", "settings")):
+                               ("gelotech_settings.json", "settings"),
+                               ("banking_apps.json", "banking")):
                 new_v = manifest.get(key)
                 if new_v is None or last.get(key) == new_v:
                     continue
