@@ -40,6 +40,12 @@ ctk.set_widget_scaling(1.15)
 EMBEDDED_UPDATE_URL = "https://github.com/usermalik5/GeloTech-Tool"
 EMBEDDED_UPDATE_TOKEN = "REDACTED"
 
+# Ed25519 public key (base64, raw 32-byte key) used to verify the signed
+# update manifest (version.json + version.json.sig) fetched from the update
+# server. The matching private key lives ONLY on the maintainer's machine
+# (outside this repo) and is used by bump_version.py to sign releases.
+UPDATE_SIGN_PUBLIC_KEY = "UtgC4BXYtuFX4GfEhxmXTpThdY0g1av1GQ7KEU/79K4="
+
 
 def get_bundle_dir():
     """Directory for bundled read-only resources (gelotech_database_v3.json, scrcpy zip).

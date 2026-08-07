@@ -16,8 +16,8 @@ GeloTechTool (techtool.py)
 | File | Class / Role | Owns |
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, tabview, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks |
-| `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, paths (bundle/app/settings/cache dirs), `load_package_database`, `Tooltip` (routes to hint banner), adb subprocess wrapper |
-| `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save, login + PBKDF2 password hashes, permissions, users, `_check_updates` (GitHub API pull), first-run migration + seeding |
+| `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, `Tooltip` (routes to hint banner), adb subprocess wrapper |
+| `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save, login + PBKDF2 password hashes, forced password change, permissions, users, `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify), first-run migration + seeding |
 | `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: add/edit users, per-user permissions + tabs |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions) |
@@ -25,7 +25,7 @@ GeloTechTool (techtool.py)
 | `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Fix Popup Ad, APK Info (+permissions), Restore/Backup dialog, device info |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps tab (process/package tables) |
 | `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter), scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
-| `bump_version.py` | helper script | bumps `version.json` and pushes the new manifest |
+| `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
 
 ---
 
@@ -84,20 +84,26 @@ Every action:
 ```
 DATA update (no new exe needed):
   edit gelotech_database_v3.json / secret.json / banking_apps.json
-  → python bump_version.py        (or bump version.json manually)
-  → git push
+  → python bump_version.py        (bump + re-hash + SIGN; --no-commit to stage)
+  → git push (bump_version.py does this unless --no-commit)
   → user app: on login → _check_updates() → GitHub API fetch version.json
-       → newer? download JSON → write to settings dir (+ .bak of old)
-       → secret.json is MERGED into local state (users only; local lists/
-         debloated/update_state preserved)
-       → record only successful files in update_state → prompt restart
+       → verify version.json.sig with embedded Ed25519 public key (reject if bad)
+       → for each newer file: fetch → verify SHA-256 vs signed manifest sha256
+       → write to settings dir (+ .bak of old)
+       → secret.json users MERGED per-user (local password hash/must_change_pw
+         always win; new repo users added; local lists/debloated/update_state
+         preserved)
+       → record only verified+successful files in update_state → prompt restart
+  NOTE: update_url / update_token are PINNED to EMBEDDED_* in tech_common.py;
+        never read from settings or the repo secret.json.
 
 CODE update (needs new exe):
   edit *.py
-  → update README.md (project rule)
+  → update README.md + PROCESS_GUIDE.md (project rules)
   → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
         tech_settings.py tech_admin.py tech_secscan.py tech_secops.py
         tech_secops2.py tech_vtop.py tech_misc.py
+        (ALWAYS re-run over ALL modules; obfuscation applies to all builds)
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe  → distribute
 ```
@@ -122,16 +128,25 @@ Bundled (inside exe / repo root):
   scrcpy-win64-v3.3.4.zip, ApkIconHelper.apk, gelotech_icon.ico
 
 Repo root (update source):
-  version.json, gelotech_database_v3.json, secret.json, banking_apps.json
+  version.json, version.json.sig, gelotech_database_v3.json, secret.json, banking_apps.json
 ```
 
 ---
 
 ## 6. Security Notes (embedded in app)
 
-- GitHub token (`tech_common.py::EMBEDDED_UPDATE_TOKEN`) — read-only pull from the
-  private repo; keep repo private, swap to a fine-grained token before public distribution.
+- GitHub token (`tech_common.py::EMBEDDED_UPDATE_TOKEN`) — fine-grained READ-ONLY
+  pull from the public repo. Update source is PINNED to embedded constants;
+  never overridable via settings or the repo secret.json.
+- Updates are signed (Ed25519): `version.json.sig` verified against
+  `UPDATE_SIGN_PUBLIC_KEY`, then per-file SHA-256 verified against the signed
+  manifest — tampered or unsigned updates are rejected.
+- Signing private key: `%USERPROFILE%\.gelotech_signing\update_ed25519.pem`
+  (never committed; loaded by bump_version.py).
 - Passwords: salted PBKDF2 hashes only, never plaintext.
+- Default `admin` account is forced to change its password on first login
+  (`must_change_pw` flag); no credential hints shown in the app.
 - Settings copy next to exe is set as a hidden Windows file.
 - Type-YES confirmation gates destructive batch actions.
+- All release builds are PyArmor-obfuscated (`GeloTechTool_obf.spec`).
 ```

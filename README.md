@@ -35,8 +35,9 @@ automatically from this repo on each login.
 | `gelotech_database_v3.json` | **The package database the tool loads at runtime** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags) |
 | `banking_apps.json` | Banking apps exclusion list — banking apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
 | `secret.json` | Hashed login credentials only (users). Runtime state like excluded lists / debloated history lives in the user's local copy, which is merged on update, never replaced |
-| `version.json` | Update manifest: bump `database` / `settings` / `banking` to publish a new release |
-| `bump_version.py` | Helper that bumps `version.json` and pushes the new manifest to the repo |
+| `version.json` | Update manifest: bump `database` / `settings` / `banking` to publish a new release; carries the signed SHA-256 hashes of the data files |
+| `version.json.sig` | Ed25519 signature (base64) over `version.json` — the app rejects unsigned/tampered manifests |
+| `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
 
 Build-time resources (ADB/fastboot tools, scrcpy zip, drivers, icon cache)
@@ -50,20 +51,22 @@ pip install customtkinter pillow requests pyinstaller
 python techtool.py
 ```
 
-Default login: `admin` / `admin123` (change it in the Admin Panel after
-logging in).
+Default login: `admin` / `admin123` (the default account is forced to change
+its password on first login).
 
 ## Building the exe
 
 Obfuscated build (requires PyArmor — re-runs `pyarmor gen` into
-`build/pyarmor_out` before running `GeloTechTool_obf.spec`):
+`build/pyarmor_out` before running `GeloTechTool_obf.spec`). **This is the
+only supported release build** — obfuscation applies to all modules and all
+release exes:
 
 ```bash
 pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_secscan.py tech_secops.py tech_secops2.py tech_vtop.py tech_misc.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 
-Standard (non-obfuscated) build:
+Standard (non-obfuscated) build — debugging only, never distribute:
 
 ```bash
 python -m PyInstaller GeloTechTool.spec --noconfirm
@@ -72,7 +75,9 @@ python -m PyInstaller GeloTechTool.spec --noconfirm
 ## Updating the app on other PCs
 
 The update URL and GitHub token are embedded in the app (`tech_common.py`),
-so users need no configuration. On every login the app checks
+so users need no configuration — the update source is **pinned** to those
+embedded constants and can never be redirected by settings or by the repo's
+`secret.json`. On every login the app checks
 `version.json` in this repo and pulls a newer `gelotech_database_v3.json` /
 `secret.json` / `banking_apps.json` into the user's settings folder,
 overriding the bundled copies until the exe is rebuilt. The repo `secret.json`
@@ -80,14 +85,24 @@ only carries hashed user credentials — on download it is merged into the
 user's local file, so local state (excluded lists, debloated history, update
 tracking) is never wiped by an update.
 
+Every update is cryptographically verified before it is applied:
+
+1. `version.json` must be signed — the app verifies `version.json.sig`
+   against the embedded Ed25519 public key (`tech_common.py`), otherwise the
+   update is rejected.
+2. Each downloaded data file must match the signed SHA-256 hash listed inside
+   `version.json`, otherwise that file is rejected.
+
 To publish a data update:
 
 1. Replace `gelotech_database_v3.json` (and/or `secret.json` and/or
    `banking_apps.json`) at the repo root.
-2. Bump the matching `database` / `settings` / `banking` number in
-   `version.json` — or just run `python bump_version.py` (add `db`,
-   `settings`, or `banking` to bump only one).
-3. Commit and push. Users' apps download it automatically on their next login.
+2. Run `python bump_version.py` (add `db`, `settings`, or `banking` to bump
+   only one; `sign` to re-hash/re-sign without bumping). This computes the
+   file hashes, writes `version.json`, signs it into `version.json.sig`, and
+   commits + pushes both.
+3. Users' apps download it automatically on their next login — and only if
+   the signature and hashes verify.
 
 Each downloaded file keeps a `.bak` of the previous copy in the settings
 folder, so a bad update can be rolled back manually. A file that fails to
@@ -102,10 +117,14 @@ redistribute the new exe — code only changes when a new exe is built.
 
 - Settings store salted PBKDF2 password hashes; the exe-side settings copy is
   marked as a hidden Windows file.
-- The embedded GitHub token gives read access to this repo from the app.
-  Keep the repo private; if you ever share the exe publicly, replace the
-  token in `tech_common.py` with a fine-grained read-only token scoped to
-  this repository.
+- Updates are signed (Ed25519): the manifest signature and per-file SHA-256
+  hashes are verified before anything is applied, and the update source is
+  pinned to the embedded constants in `tech_common.py`.
+- The embedded GitHub token gives read-only access to this repo from the app
+  (fine-grained, scoped to this repository). Write-capable tokens are never
+  embedded.
+- The default `admin` account is forced to change its password on first
+  login; the password hint is not shown anywhere in the app.
 
 ## The package database
 

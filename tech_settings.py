@@ -14,7 +14,7 @@ import base64
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, UPDATE_SIGN_PUBLIC_KEY
 from tech_admin import AdminPanelMixin
 
 
@@ -272,7 +272,8 @@ class SettingsMixin(AdminPanelMixin):
         if not isinstance(users, dict):
             users = {}
         if "admin" not in users:
-            users["admin"] = {"hash": self._hash_pw("admin123"), "permissions": {}}
+            users["admin"] = {"hash": self._hash_pw("admin123"), "permissions": {},
+                              "must_change_pw": True}
             data["users"] = users
             self._save_settings(data)
 
@@ -407,6 +408,10 @@ class SettingsMixin(AdminPanelMixin):
                 if rec.get("hash") and "$" not in str(rec.get("hash")):
                     users[name]["hash"] = self._hash_pw(pw)
                     self._save_settings({**self._load_settings(), "users": users})
+                if rec.get("must_change_pw"):
+                    if not self._force_password_change(win, name):
+                        return
+                    rec = (self._load_settings().get("users") or {}).get(name) or rec
                 self.current_user = name
                 self.is_admin = (name == "admin")
                 self.user_perms = None if self.is_admin else set((rec.get("permissions") or {}).keys())
@@ -424,8 +429,6 @@ class SettingsMixin(AdminPanelMixin):
 
         ctk.CTkButton(win, text="\U0001f511  LOGIN", width=220, height=40, fg_color="#1a8cff", hover_color="#155bb5",
                       font=ctk.CTkFont(size=13, weight="bold"), command=do_login).pack(pady=(14, 4))
-        ctk.CTkLabel(win, text="Default admin: admin / admin123  \u00b7  change it in the Admin Panel after login",
-                     font=ctk.CTkFont(size=9), text_color="#484f58").pack(pady=(6, 14))
 
         username_entry.bind("<Return>", do_login)
         password_entry.bind("<Return>", do_login)
@@ -445,6 +448,76 @@ class SettingsMixin(AdminPanelMixin):
                     self._login_entry_username.delete(0, "end")
         except Exception:
             pass
+
+    def _force_password_change(self, parent, name):
+        """Show a blocking dialog that requires the user to set a new password
+        (used when the account record carries must_change_pw). The dialog can
+        only be dismissed by successfully setting a strong password; returns
+        True if the password was changed, False if the user closed the dialog
+        (login is refused in that case)."""
+        result = {"ok": False}
+        dlg = ctk.CTkToplevel(parent)
+        dlg.title("Password Change Required")
+        dlg.configure(fg_color="#0d1117")
+        dlg.resizable(False, False)
+        dlg.transient(parent)
+        dlg.grab_set()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        dlg.geometry(f"440x400+{(sw - 440) // 2}+{max(0, (sh - 400) // 3)}")
+
+        ctk.CTkLabel(dlg, text="\U0001f511  PASSWORD CHANGE REQUIRED", font=ctk.CTkFont(size=16, weight="bold"),
+                     text_color="#d4af37").pack(pady=(24, 4))
+        ctk.CTkLabel(dlg, text=f"Account '{name}' must use a new password\n(minimum 8 characters).",
+                     font=ctk.CTkFont(size=11), text_color="#8b949e").pack(pady=(0, 14))
+
+        form = ctk.CTkFrame(dlg, fg_color="#16191e", corner_radius=10)
+        form.pack(padx=32, fill="x")
+        ctk.CTkLabel(form, text="NEW PASSWORD", font=ctk.CTkFont(size=9, weight="bold"), text_color="#7a8699"
+                     ).pack(anchor="w", padx=16, pady=(14, 2))
+        pw_entry = ctk.CTkEntry(form, fg_color="#0d1117", border_color="#30363d", height=34,
+                                font=ctk.CTkFont(size=12), show="\u2022")
+        pw_entry.pack(fill="x", padx=16)
+        ctk.CTkLabel(form, text="CONFIRM PASSWORD", font=ctk.CTkFont(size=9, weight="bold"), text_color="#7a8699"
+                     ).pack(anchor="w", padx=16, pady=(12, 2))
+        confirm_entry = ctk.CTkEntry(form, fg_color="#0d1117", border_color="#30363d", height=34,
+                                     font=ctk.CTkFont(size=12), show="\u2022")
+        confirm_entry.pack(fill="x", padx=16, pady=(0, 14))
+
+        error_label = ctk.CTkLabel(dlg, text="", font=ctk.CTkFont(size=10), text_color="#ff6b6b")
+        error_label.pack(pady=(8, 0))
+
+        def submit(event=None):
+            pw = pw_entry.get()
+            if len(pw) < 8:
+                error_label.configure(text="\u26a0 Password must be at least 8 characters.")
+                return
+            if pw != confirm_entry.get():
+                error_label.configure(text="\u26a0 Passwords do not match.")
+                return
+            users = self._load_settings().get("users") or {}
+            if isinstance(users.get(name), dict):
+                users[name]["hash"] = self._hash_pw(pw)
+                users[name].pop("must_change_pw", None)
+                self._save_settings({**self._load_settings(), "users": users})
+            result["ok"] = True
+            dlg.destroy()
+
+        def on_close():
+            dlg.destroy()
+
+        ctk.CTkButton(dlg, text="\u2713 SET NEW PASSWORD", width=220, height=40, fg_color="#1a8cff",
+                      hover_color="#155bb5", font=ctk.CTkFont(size=12, weight="bold"),
+                      command=submit).pack(pady=(12, 4))
+        ctk.CTkButton(dlg, text="Cancel Login", width=220, height=32, fg_color="#21262d", hover_color="#30363d",
+                      font=ctk.CTkFont(size=11), command=on_close).pack(pady=(0, 16))
+
+        pw_entry.bind("<Return>", submit)
+        confirm_entry.bind("<Return>", submit)
+        dlg.protocol("WM_DELETE_WINDOW", on_close)
+        pw_entry.focus_set()
+        dlg.wait_window()
+        return result["ok"]
 
 
     @staticmethod
@@ -467,7 +540,7 @@ class SettingsMixin(AdminPanelMixin):
                     for key in data:
                         if isinstance(loaded.get(key), type(data[key])):
                             data[key] = loaded[key]
-                    for key in ("update_url", "update_token", "update_state"):
+                    for key in ("update_state",):
                         if isinstance(loaded.get(key), type(data.get(key, ""))):
                             data[key] = loaded[key]
             except Exception:
@@ -521,13 +594,17 @@ class SettingsMixin(AdminPanelMixin):
     # WEB UPDATES (pull from GitHub repo)
     # ----------------------------------------------------
     def _check_updates(self, manual=False, status_cb=None):
-        """Check the update server configured in settings ('update_url', a
-        GitHub repo URL like https://github.com/USER/REPO). Expects
-        version.json hosting {"database": N, "settings": N} plus the two
-        files at the repo root. Downloads a newer database or settings into
-        the settings folder so it overrides the bundled copy; restarting the
-        app applies them. Private repos need 'update_token' (a classic GitHub
-        PAT with repo scope). Runs in a background thread."""
+        """Check the embedded update server (EMBEDDED_UPDATE_URL /
+        EMBEDDED_UPDATE_TOKEN, pinned in tech_common.py). The update source
+        is NEVER read from settings/secret.json, so a compromised local or
+        repo settings file cannot redirect clients to a malicious server.
+        Expects version.json hosting {"database": N, "settings": N,
+        "banking": N, "sha256": {file: hex}} plus a version.json.sig
+        (base64 Ed25519 signature over the exact bytes of version.json) and
+        the data files at the repo root. The manifest signature is verified
+        with the embedded public key (tech_common.UPDATE_SIGN_PUBLIC_KEY),
+        and every downloaded file's SHA-256 must match the signed manifest
+        before it is applied. Runs in a background thread."""
         def report(msg):
             if status_cb is not None:
                 self.after(0, lambda: status_cb(msg))
@@ -545,29 +622,41 @@ class SettingsMixin(AdminPanelMixin):
                 url = f"https://api.github.com/repos/{owner}/{repo}/contents/{fname}?ref={branch}"
                 resp = requests.get(url, headers={**headers, "Accept": "application/vnd.github+json"}, timeout=60)
                 resp.raise_for_status()
-                return base64.b64decode(resp.json()["content"]).decode("utf-8")
+                return base64.b64decode(resp.json()["content"])
             url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{fname}"
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
-            return resp.text
+            return resp.content
+
+        def verify_sig(manifest_bytes, sig_b64):
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                pub = ed25519.Ed25519PublicKey.from_public_bytes(
+                    base64.b64decode(UPDATE_SIGN_PUBLIC_KEY))
+                pub.verify(base64.b64decode(sig_b64), manifest_bytes)
+                return True
+            except Exception:
+                return False
 
         def work():
             data = self._load_settings()
-            base = (data.get("update_url") or EMBEDDED_UPDATE_URL).strip().rstrip("/")
-            tok = (data.get("update_token") or EMBEDDED_UPDATE_TOKEN).strip()
+            # Update source is pinned to the embedded constants only.
+            base = EMBEDDED_UPDATE_URL.strip().rstrip("/")
+            tok = EMBEDDED_UPDATE_TOKEN.strip()
             if not base:
                 if manual:
-                    report("\u26a0 No update URL configured. Set it in the Admin Panel first.")
+                    report("\u26a0 No update URL embedded. Rebuild the exe.")
                 return
             parsed = parse_repo(base)
             if not parsed:
                 if manual:
-                    report("\u26a0 That URL is not a GitHub repo URL.")
+                    report("\u26a0 Embedded update URL is not a GitHub repo URL.")
                 return
             owner, repo, branch = parsed
             headers = {"Authorization": f"Bearer {tok}"} if tok else {}
             try:
-                manifest = json.loads(api_fetch(owner, repo, branch, "version.json", headers))
+                manifest_bytes = api_fetch(owner, repo, branch, "version.json", headers)
+                sig_text = api_fetch(owner, repo, branch, "version.json.sig", headers)
             except Exception as e:
                 if manual:
                     msg = f"\u26a0 Could not reach update server: {type(e).__name__}"
@@ -576,6 +665,18 @@ class SettingsMixin(AdminPanelMixin):
                         if e.response.status_code == 404:
                             msg += " - file missing, or token lacks access"
                     report(msg)
+                return
+            if not verify_sig(manifest_bytes, sig_text.decode("utf-8")):
+                report("\u26a0 Update rejected: manifest signature is invalid.")
+                return
+            try:
+                manifest = json.loads(manifest_bytes.decode("utf-8"))
+            except Exception:
+                report("\u26a0 Update rejected: corrupt version.json.")
+                return
+            sha_map = manifest.get("sha256")
+            if not isinstance(sha_map, dict):
+                report("\u26a0 Update rejected: manifest has no signed sha256 map.")
                 return
             last = self._load_settings().get("update_state") or {}
             changed = False
@@ -587,8 +688,11 @@ class SettingsMixin(AdminPanelMixin):
                 if new_v is None or last.get(key) == new_v:
                     continue
                 try:
-                    text = api_fetch(owner, repo, branch, fname, headers)
-                    parsed = json.loads(text)
+                    raw = api_fetch(owner, repo, branch, fname, headers)
+                    expected = sha_map.get(fname)
+                    if not expected or hashlib.sha256(raw).hexdigest() != expected:
+                        report(f"\u26a0 Update rejected: sha256 mismatch for {fname}.")
+                        continue
                     dest = os.path.join(get_settings_dir(), fname)
                     if os.path.exists(dest):
                         with open(dest, "rb") as f:
@@ -597,16 +701,41 @@ class SettingsMixin(AdminPanelMixin):
                         with open(bak, "wb") as f:
                             f.write(data_bak)
                     if fname == "secret.json":
-                        # The repo copy only carries users; merge it into the
-                        # local file so runtime state (excluded lists, debloated,
-                        # update_state) survives updates.
+                        # The repo copy carries the centrally-managed account
+                        # list. New users and permission/tab changes propagate
+                        # from the repo, but the local password hash and
+                        # must_change_pw flag ALWAYS win: a compromised repo can
+                        # never silently replace a user's password. Runtime
+                        # state (excluded lists, debloated, update_state) is
+                        # preserved, and update_url / update_token are never
+                        # accepted from the repo.
                         local = self._load_settings()
-                        for k in ("users", "update_url", "update_token"):
-                            if isinstance(parsed.get(k), type(local.get(k))):
-                                local[k] = parsed[k]
-                        parsed = local
-                    with open(dest, "w", encoding="utf-8") as f:
-                        json.dump(parsed, f, indent=2)
+                        parsed = json.loads(raw.decode("utf-8"))
+                        repo_users = parsed.get("users") if isinstance(parsed.get("users"), dict) else {}
+                        local_users = local.get("users") if isinstance(local.get("users"), dict) else {}
+                        merged = dict(local_users)
+                        for uname, urec in repo_users.items():
+                            if not isinstance(urec, dict):
+                                continue
+                            if uname not in merged:
+                                merged[uname] = urec
+                                continue
+                            loc = merged[uname] if isinstance(merged[uname], dict) else {}
+                            keep = dict(loc)
+                            # Local keys win; repo supplies defaults for keys
+                            # the local record does not define.
+                            if "must_change_pw" in urec:
+                                on_default = "hash" not in loc or loc.get("hash") == urec.get("hash")
+                                keep["must_change_pw"] = bool(on_default and urec["must_change_pw"])
+                            elif "must_change_pw" in loc:
+                                keep["must_change_pw"] = bool(loc["must_change_pw"])
+                            merged[uname] = {**urec, **keep}
+                        local["users"] = merged
+                        with open(dest, "w", encoding="utf-8") as f:
+                            json.dump(local, f, indent=2)
+                    else:
+                        with open(dest, "wb") as f:
+                            f.write(raw)
                     new_state[key] = new_v
                     changed = True
                 except Exception:
