@@ -1,6 +1,7 @@
 # Project Instructions
 
 - Whenever a major change is made to the source code, update `README.md` accordingly before committing.
+- When a major change is made to the source code, also update `PROCESS_GUIDE.md` (the process tree visual guide) when necessary — e.g. new modules, changed architecture, changed update/release flow, or new data locations.
 
 ## Build Exe Agent
 
