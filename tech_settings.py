@@ -14,8 +14,13 @@ import base64
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, UPDATE_SIGN_PUBLIC_KEY
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, EMBEDDED_UPDATE_WRITE_TOKEN, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, ADMIN_SECRET_PHRASE, UPDATE_SIGN_PUBLIC_KEY
 from tech_admin import AdminPanelMixin
+
+import smtplib
+import secrets
+from email.message import EmailMessage
+from email.utils import formataddr
 
 
 def _parse_repo(base):
@@ -69,11 +74,13 @@ def _verify_manifest_sig(manifest_bytes, sig_b64):
 
 def _fetch_verified_sources():
     """Fetch the signed manifest once from the pinned update server, then
-    fetch the users list (secret.json) and the package database
-    (gelotech_database_v3.json), verifying the manifest signature and each
-    file's sha256. Returns (users_dict, db_bytes) or (None, None) if the
-    server is unreachable or any verification fails. NEVER writes anything
-    to disk — the results exist only in memory."""
+    fetch the accounts list (secret.json) and the package database
+    (gelotech_database_v3.json). The manifest signature and the database's
+    sha256 are verified; secret.json is the LIVE accounts file (maintained
+    by the app itself via the write token), so it is fetched as-is from
+    GitHub over TLS. Returns (users_dict, db_bytes) or (None, None) if the
+    server is unreachable or verification fails. NEVER writes anything to
+    disk — the results exist only in memory."""
     base = EMBEDDED_UPDATE_URL.strip().rstrip("/")
     tok = EMBEDDED_UPDATE_TOKEN.strip()
     parsed = _parse_repo(base)
@@ -88,11 +95,9 @@ def _fetch_verified_sources():
             return None, None
         manifest = json.loads(manifest_bytes.decode("utf-8"))
         sha_map = manifest.get("sha256")
-        if not isinstance(sha_map, dict) or not sha_map.get("secret.json"):
+        if not isinstance(sha_map, dict):
             return None, None
         users_bytes = _api_fetch(owner, repo, branch, "secret.json", headers)
-        if hashlib.sha256(users_bytes).hexdigest() != sha_map["secret.json"]:
-            return None, None
         parsed = json.loads(users_bytes.decode("utf-8"))
         users = parsed.get("users")
         if not isinstance(users, dict):
@@ -125,6 +130,112 @@ def _purge_session_database():
             os.remove(path)
     except Exception:
         pass
+
+
+# ----------------------------------------------------
+# EMAIL-BASED ACCOUNTS (self-registration / password reset)
+# ----------------------------------------------------
+def _is_valid_email(email):
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""))
+
+
+def _generate_password():
+    """Random 14-character alphanumeric password (secrets module)."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(14))
+
+
+def _send_password_email(email, password):
+    """Email the generated password to the user via the embedded SMTP
+    sender. Returns None on success or an error string."""
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
+        return "Password email service is not configured on this build."
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = "GeloTech Tool - Your Access Password"
+        msg["From"] = formataddr(("GeloTech Tool", SMTP_FROM or SMTP_USER))
+        msg["To"] = email
+        msg.set_content(
+            "Hello,\n\n"
+            "Here is your GeloTech Tool access password:\n\n"
+            f"    {password}\n\n"
+            "Use it together with your email address to log in.\n"
+            "If you didn't request this, you can safely ignore this email.\n"
+            "\n"
+            "GeloTech Tool"
+        )
+        if int(SMTP_PORT) == 465:
+            server = smtplib.SMTP_SSL(SMTP_HOST, int(SMTP_PORT), timeout=60)
+        else:
+            server = smtplib.SMTP(SMTP_HOST, int(SMTP_PORT), timeout=60)
+            server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return None
+    except Exception as e:
+        return f"Email delivery failed: {type(e).__name__}: {e}"
+
+
+def _write_user_to_repo(email, pw_hash):
+    """Persist a user account (email + PBKDF2 hash) into the repo's
+    secret.json via the GitHub contents API using the embedded write token.
+    Retries on concurrent-write conflicts (422). Returns None on success or
+    an error string."""
+    tok = EMBEDDED_UPDATE_WRITE_TOKEN.strip()
+    if not tok:
+        return "Account registry is not configured on this build."
+    parsed = _parse_repo(EMBEDDED_UPDATE_URL.strip().rstrip("/"))
+    if not parsed:
+        return "Embedded update URL is not a GitHub repo URL."
+    owner, repo, branch = parsed
+    headers = {"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json"}
+    path = f"https://api.github.com/repos/{owner}/{repo}/contents/secret.json"
+    for attempt in range(4):
+        try:
+            r = requests.get(f"{path}?ref={branch}", headers=headers, timeout=60)
+            r.raise_for_status()
+            meta = r.json()
+            current = json.loads(base64.b64decode(meta["content"]).decode("utf-8"))
+            users = current.get("users") if isinstance(current.get("users"), dict) else {}
+            users[email] = {"hash": pw_hash, "permissions": {}}
+            current["users"] = users
+            body = json.dumps(current, indent=2, ensure_ascii=False)
+            r2 = requests.put(path, headers=headers, timeout=60, json={
+                "message": f"Account update for {email} (self-service)",
+                "content": base64.b64encode(body.encode("utf-8")).decode("ascii"),
+                "sha": meta["sha"],
+                "branch": branch,
+            })
+            if r2.status_code == 422 and attempt < 3:
+                time.sleep(1.5)
+                continue
+            r2.raise_for_status()
+            return None
+        except Exception as e:
+            if attempt < 3:
+                time.sleep(1.5)
+                continue
+            return f"Account registry write failed: {type(e).__name__}: {e}"
+    return "Account registry write failed."
+
+
+def _request_password(email):
+    """Full password request flow (new account or reset): fetch+verify the
+    server, generate a password, write the PBKDF2 hash to the repo, email it.
+    Returns (ok: bool, message: str)."""
+    users, _ = _fetch_verified_sources()
+    if users is None:
+        return False, "Could not reach/verify the update server. Check your internet connection and try again."
+    password = _generate_password()
+    pw_hash = SettingsMixin._hash_pw(password)
+    err = _write_user_to_repo(email, pw_hash)
+    if err:
+        return False, err
+    err = _send_password_email(email, password)
+    if err:
+        return False, err
+    return True, (f"Password sent to {email}. Please check your inbox and spam folder, then log in below.")
 
 
 class SettingsMixin(AdminPanelMixin):
@@ -454,7 +565,7 @@ class SettingsMixin(AdminPanelMixin):
         win.grab_set()
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
-        win.geometry(f"440x580+{(sw - 440) // 2}+{max(0, (sh - 580) // 3)}")
+        win.geometry(f"440x600+{(sw - 440) // 2}+{max(0, (sh - 600) // 3)}")
         self._login_win = win
         win.protocol("WM_DELETE_WINDOW", lambda: (_purge_session_database(), win.destroy(), self.quit()))
 
@@ -467,61 +578,142 @@ class SettingsMixin(AdminPanelMixin):
         except Exception:
             pass
         if icon:
-            ctk.CTkLabel(win, text="", image=icon).pack(pady=(28, 6))
+            ctk.CTkLabel(win, text="", image=icon).pack(pady=(28, 4))
         ctk.CTkLabel(win, text="GELOTECH", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1a8cff").pack()
-        ctk.CTkLabel(win, text="TECH TOOL v1.0 - Restricted Access", font=ctk.CTkFont(size=11), text_color="#a6a6a6").pack(pady=(0, 16))
+        ctk.CTkLabel(win, text="TECH TOOL v1.0 - Restricted Access", font=ctk.CTkFont(size=11), text_color="#a6a6a6").pack(pady=(0, 14))
 
-        role_var = ctk.StringVar(value="Admin")
-        role_seg = ctk.CTkSegmentedButton(win, values=["Admin", "User"], variable=role_var,
-                                          font=ctk.CTkFont(size=11, weight="bold"), fg_color="#1c2026",
-                                          selected_color="#1a8cff", selected_hover_color="#155bb5",
-                                          unselected_color="#1c2026", unselected_hover_color="#2a3038",
-                                          command=lambda _: self._login_role_changed(win, role_var))
-        role_seg.pack(pady=(0, 14))
+        admin_mode = {"on": False}
 
-        form = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=10)
-        form.pack(padx=32, fill="x")
-        ctk.CTkLabel(form, text="USERNAME", font=ctk.CTkFont(size=9, weight="bold"), text_color="#7a8699").pack(anchor="w", padx=16, pady=(14, 2))
-        username_entry = ctk.CTkEntry(form, fg_color="#0d1117", border_color="#30363d", height=34, font=ctk.CTkFont(size=12))
-        username_entry.pack(fill="x", padx=16)
-        ctk.CTkLabel(form, text="PASSWORD", font=ctk.CTkFont(size=9, weight="bold"), text_color="#7a8699").pack(anchor="w", padx=16, pady=(12, 2))
-        password_entry = ctk.CTkEntry(form, fg_color="#0d1117", border_color="#30363d", height=34, font=ctk.CTkFont(size=12), show="\u2022")
-        password_entry.pack(fill="x", padx=16, pady=(0, 14))
+        error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(size=10), text_color="#ff6b6b", wraplength=380)
+        error_label.pack(pady=(6, 0))
 
-        error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(size=10), text_color="#ff6b6b")
-        error_label.pack(pady=(10, 0))
-        info_label = ctk.CTkLabel(win, text="Login accounts are verified against the update server.",
-                                  font=ctk.CTkFont(size=9), text_color="#484f58")
-        info_label.pack(pady=(0, 8))
+        # --------------------------------------------------------
+        # STEP A - enter email to receive a generated password
+        # --------------------------------------------------------
+        step_email = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=10)
+        step_email.pack(padx=32, fill="x")
+        ctk.CTkLabel(step_email, text="ENTER YOUR EMAIL ADDRESS", font=ctk.CTkFont(size=9, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(14, 2))
+        email_entry = ctk.CTkEntry(step_email, placeholder_text="you@example.com", fg_color="#0d1117",
+                                   border_color="#30363d", height=34, font=ctk.CTkFont(size=12))
+        email_entry.pack(fill="x", padx=16)
+        ctk.CTkLabel(step_email, text="New here or forgot your password? Enter your email and we will\n"
+                                      "send you a generated password. Check your inbox AND spam folder.",
+                     font=ctk.CTkFont(size=9), text_color="#8b949e", justify="left").pack(anchor="w", padx=16, pady=(8, 12))
+        send_btn = ctk.CTkButton(step_email, text="\u2709  SEND PASSWORD TO MY EMAIL", width=220, height=38,
+                                 fg_color="#1a8cff", hover_color="#155bb5", font=ctk.CTkFont(size=12, weight="bold"))
+        send_btn.pack(pady=(0, 14))
 
-        login_btn = ctk.CTkButton(win, text="\U0001f511  LOGIN", width=220, height=40, fg_color="#1a8cff",
+        # --------------------------------------------------------
+        # STEP B - log in with email + password
+        # --------------------------------------------------------
+        step_login = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=10)
+        login_email_entry = ctk.CTkEntry(step_login, placeholder_text="you@example.com", fg_color="#0d1117",
+                                         border_color="#30363d", height=34, font=ctk.CTkFont(size=12))
+        password_entry = ctk.CTkEntry(step_login, fg_color="#0d1117", border_color="#30363d", height=34,
+                                      font=ctk.CTkFont(size=12), show="\u2022")
+        login_btn = ctk.CTkButton(step_login, text="\U0001f511  LOGIN", width=220, height=40, fg_color="#1a8cff",
                                   hover_color="#155bb5", font=ctk.CTkFont(size=13, weight="bold"))
-        login_btn.pack(pady=(14, 4))
+        forgot_btn = ctk.CTkButton(step_login, text="Forgot password? Get a new one by email", width=220, height=28,
+                                   fg_color="transparent", hover_color="#1c2026", font=ctk.CTkFont(size=10),
+                                   text_color="#58a6ff")
 
+        def show_email_step(prefill=""):
+            step_login.pack_forget()
+            step_email.pack(padx=32, fill="x")
+            admin_mode["on"] = False
+            if prefill:
+                email_entry.delete(0, "end")
+                email_entry.insert(0, prefill)
+            email_entry.focus_set()
+
+        def show_login_step(admin=False, email=""):
+            step_email.pack_forget()
+            step_login.pack(padx=32, fill="x")
+            login_email_entry.configure(state="normal")
+            login_email_entry.delete(0, "end")
+            if admin:
+                admin_mode["on"] = True
+                login_email_entry.insert(0, "admin")
+                login_email_entry.configure(state="disabled")
+                error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+            else:
+                login_email_entry.configure(state="normal")
+                if email:
+                    login_email_entry.insert(0, email)
+            password_entry.delete(0, "end")
+            password_entry.focus_set()
+
+        def check_secret(event=None):
+            # Typing the secret phrase into the email field unlocks admin login.
+            if (event and event.keysym in ("Return", "Tab")) or not event:
+                if email_entry.get().strip() == ADMIN_SECRET_PHRASE:
+                    show_login_step(admin=True)
+
+        # --------------------------------------------------------
+        # STEP A action: generate + email a password
+        # --------------------------------------------------------
+        def send_password(event=None):
+            email = email_entry.get().strip()
+            if email == ADMIN_SECRET_PHRASE:
+                show_login_step(admin=True)
+                return
+            if not _is_valid_email(email):
+                error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
+                return
+            error_label.configure(text="")
+            send_btn.configure(state="disabled", text="\u23f3  SENDING PASSWORD...")
+            email_entry.configure(state="disabled")
+
+            def worker():
+                ok, msg = _request_password(email)
+                self.after(0, lambda: finish_send(ok, msg))
+
+            def finish_send(ok, msg):
+                send_btn.configure(state="normal", text="\u2709  SEND PASSWORD TO MY EMAIL")
+                email_entry.configure(state="normal")
+                if ok:
+                    error_label.configure(text="\u2713 " + msg, text_color="#2ecc71")
+                    self.after(1200, lambda: show_login_step(admin=False, email=email))
+                else:
+                    error_label.configure(text="\u26a0 " + msg, text_color="#ff6b6b")
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        email_entry.bind("<KeyRelease>", check_secret)
+        email_entry.bind("<Return>", lambda e: check_secret(e) or send_password(e))
+        send_btn.configure(command=send_password)
+
+        # --------------------------------------------------------
+        # STEP B action: verify credentials + download database
+        # --------------------------------------------------------
         def finish_login(users, db_bytes):
             if users is None:
                 login_btn.configure(state="normal")
-                error_label.configure(text="\u26a0 Could not reach/verify the update server.\nCheck your internet connection and try again.")
+                error_label.configure(text="\u26a0 Could not reach/verify the update server.\nCheck your internet connection and try again.", text_color="#ff6b6b")
                 return
             try:
-                role = role_var.get()
-                name = "admin" if role == "Admin" else username_entry.get().strip()
+                name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
+                if not admin_mode["on"] and not _is_valid_email(name):
+                    error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
+                    login_btn.configure(state="normal")
+                    return
                 pw = password_entry.get()
                 rec = users.get(name)
                 if not rec or not self._verify_pw(pw, rec.get("hash")):
-                    error_label.configure(text="\u26a0 Invalid username or password.")
+                    error_label.configure(text="\u26a0 Invalid email/username or password.", text_color="#ff6b6b")
                     login_btn.configure(state="normal")
                     return
                 if db_bytes is None:
                     login_btn.configure(state="normal")
-                    error_label.configure(text="\u26a0 Accounts verified, but the package database\ncould not be downloaded/verified from the update server.")
+                    error_label.configure(text="\u26a0 Accounts verified, but the package database\ncould not be downloaded/verified from the update server.", text_color="#ff6b6b")
                     return
                 try:
                     with open(get_session_database_path(), "wb") as f:
                         f.write(db_bytes)
                 except Exception as e:
                     login_btn.configure(state="normal")
-                    error_label.configure(text=f"\u26a0 Could not write database cache: {type(e).__name__}: {e}")
+                    error_label.configure(text=f"\u26a0 Could not write database cache: {type(e).__name__}: {e}", text_color="#ff6b6b")
                     return
                 # Fresh per-login database: drop stale lookups, re-seed lists.
                 if hasattr(self, "_uad_cache"):
@@ -543,7 +735,7 @@ class SettingsMixin(AdminPanelMixin):
                 self.after(1500, self._check_updates)
                 self.log_message(f"Logged in as: {name} ({'ADMIN' if self.is_admin else 'USER'}). Access granted.\n" + "=" * 85)
             except Exception as e:
-                error_label.configure(text=f"\u26a0 Login error: {type(e).__name__}: {e}")
+                error_label.configure(text=f"\u26a0 Login error: {type(e).__name__}: {e}", text_color="#ff6b6b")
                 login_btn.configure(state="normal")
 
         def do_login(event=None):
@@ -558,25 +750,23 @@ class SettingsMixin(AdminPanelMixin):
             threading.Thread(target=fetch, daemon=True).start()
 
         login_btn.configure(command=do_login)
-
-        username_entry.bind("<Return>", do_login)
         password_entry.bind("<Return>", do_login)
-        username_entry.focus_set()
-        self._login_role_changed(win, role_var)
-        self._login_entry_username = username_entry
+        login_email_entry.bind("<Return>", do_login)
+        forgot_btn.configure(command=lambda: show_email_step(login_email_entry.get().strip()))
 
-    def _login_role_changed(self, win, role_var):
-        try:
-            if role_var.get() == "Admin":
-                self._login_entry_username.configure(state="disabled")
-                self._login_entry_username.delete(0, "end")
-                self._login_entry_username.insert(0, "admin")
-            else:
-                self._login_entry_username.configure(state="normal")
-                if self._login_entry_username.get() == "admin":
-                    self._login_entry_username.delete(0, "end")
-        except Exception:
-            pass
+        ctk.CTkLabel(step_login, text="EMAIL ADDRESS", font=ctk.CTkFont(size=9, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(14, 2))
+        login_email_entry.pack(fill="x", padx=16)
+        ctk.CTkLabel(step_login, text="PASSWORD", font=ctk.CTkFont(size=9, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(12, 2))
+        password_entry.pack(fill="x", padx=16, pady=(0, 14))
+        login_btn.pack(pady=(0, 4))
+        forgot_btn.pack(pady=(0, 10))
+
+        ctk.CTkLabel(win, text="Accounts are verified against the update server on every login.",
+                     font=ctk.CTkFont(size=9), text_color="#484f58").pack(pady=(8, 0))
+
+        show_email_step()
 
     @staticmethod
     def _read_lines_file(path):

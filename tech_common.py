@@ -40,6 +40,24 @@ ctk.set_widget_scaling(1.15)
 EMBEDDED_UPDATE_URL = "https://github.com/usermalik5/GeloTech-Tool"
 EMBEDDED_UPDATE_TOKEN = "REDACTED"
 
+# Write-capable token used ONLY to persist self-registered user accounts
+# (email + PBKDF2 hash) back into the repo's secret.json. Keep it scoped
+# to this single repository (Contents: Read+Write). Rotate it regularly:
+# whoever extracts it can modify this repo's files.
+EMBEDDED_UPDATE_WRITE_TOKEN = ""
+
+# SMTP sender used to email generated passwords to users. Use a DEDICATED
+# low-privilege account with an app password; never your personal account.
+SMTP_HOST = ""
+SMTP_PORT = 587
+SMTP_USER = ""
+SMTP_PASSWORD = ""
+SMTP_FROM = ""
+
+# Secret phrase that reveals the maintainer (admin) login on the login
+# screen. Type it into the email field to unlock the admin option.
+ADMIN_SECRET_PHRASE = "REDACTED"
+
 # Ed25519 public key (base64, raw 32-byte key) used to verify the signed
 # update manifest (version.json + version.json.sig) fetched from the update
 # server. The matching private key lives ONLY on the maintainer's machine

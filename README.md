@@ -35,8 +35,8 @@ latest data with zero manual intervention.
 | `GeloTechTool_obf.spec` | PyInstaller spec for the PyArmor-obfuscated build (needs `build/pyarmor_out` from `pyarmor gen`) |
 | `gelotech_database_v3.json` | **The package database** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags). Lives ONLY on GitHub — every login pulls it fresh, verifies it, caches it for the session, and deletes it on app close |
 | `banking_apps.json` | Banking apps exclusion list — banking apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
-| `secret.json` | Hashed login credentials only (users, PBKDF2). Fetched + signature-verified on every login, never stored on users' PCs |
-| `version.json` | Update manifest: bump `database` / `banking` to publish a new release; carries the signed SHA-256 hashes of the data files |
+| `secret.json` | **The live accounts file** — email + PBKDF2 hash per user. The app writes new/self-registered accounts here via the write token; fetched + used in-memory at login, never stored on users' PCs |
+| `version.json` | Update manifest: bump `database` / `banking` to publish a new release; carries the signed SHA-256 hashes of the data files (database + banking only) |
 | `version.json.sig` | Ed25519 signature (base64) over `version.json` — the app rejects unsigned/tampered manifests |
 | `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
@@ -52,9 +52,11 @@ pip install customtkinter pillow requests pyinstaller
 python techtool.py
 ```
 
-Login accounts are managed by the maintainer in the repo's `secret.json`
-(PBKDF2 hashes) and verified against GitHub on every login — contact the
-maintainer for credentials.
+Login is email-based: new users (or users who forgot their password) enter
+their email address, and the app emails them a generated password
+(also check the spam folder). Then log in with email + password. The
+maintainer unlocks the admin login by typing the secret phrase into the
+email field (maintainer-only, not shown to users).
 
 ## Building the exe
 
@@ -81,9 +83,11 @@ so users need no configuration — the update source is **pinned** to those
 embedded constants and can never be redirected by settings or by the repo's
 `secret.json`. Every login does three verified things in one go:
 
-1. Pulls `secret.json` (hashed accounts) and verifies it against the signed
-   manifest — credentials are never written to disk and never merge into a
-   local file.
+1. Fetches `secret.json` (live accounts: email + PBKDF2 hash) from GitHub —
+   credentials are never written to the user's PC. Entering your email in
+   the first step self-registers / resets your password: the app generates a
+   password, writes the PBKDF2 hash to the repo's `secret.json` (via the
+   embedded write token), and emails it to you.
 2. Pulls the latest `gelotech_database_v3.json`, verifies it, caches it for
    the session in the temp folder, and deletes it on app close / logout / the
    next login — so users always get the newest database with no manual
@@ -99,6 +103,8 @@ Every update is cryptographically verified before it is applied:
 2. Each downloaded data file must match the signed SHA-256 hash listed inside
    `version.json`, otherwise that file is rejected. The signed hashes cover
    the exact bytes GitHub serves (`.gitattributes` enforces LF line endings).
+   `secret.json` is exempt: it is the live accounts file maintained by the
+   app itself.
 
 To publish a data update:
 
@@ -120,16 +126,18 @@ redistribute the new exe — code only changes when a new exe is built.
 
 ## Security notes
 
-- Login credentials are managed by the maintainer in the repo's `secret.json`
-  as salted PBKDF2 hashes; they are fetched and signature-verified on every
-  login and never stored on users' PCs. The Admin Panel is read-only and
-  shows the server-verified account list.
+- Accounts are email-based, self-managed: the app generates PBKDF2 hashed
+  passwords, persists them to the repo's `secret.json`, and emails them via a
+  dedicated SMTP sender. Credentials are never stored on users' PCs, and the
+  Admin Panel is read-only (server-verified account list).
 - Updates are signed (Ed25519): the manifest signature and per-file SHA-256
   hashes are verified before anything is applied, and the update source is
   pinned to the embedded constants in `tech_common.py`.
-- The embedded GitHub token gives read-only access to this repo from the app
-  (fine-grained, scoped to this repository). Write-capable tokens are never
-  embedded.
+- The embedded GitHub tokens give this app access to this repo only: a
+  read-only token for fetching and a write token (Contents read+write, this
+  repo only) used solely to persist self-registered accounts. The SMTP sender
+  is a dedicated low-privilege account. Rotate all three regularly — anything
+  embedded in the exe can be extracted.
 - The package database is only ever pulled fresh from the server per login
   (no bundled copy in the exe), so stale data is impossible.
 

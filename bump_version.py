@@ -13,10 +13,11 @@ app's embedded public key (tech_common.py::UPDATE_SIGN_PUBLIC_KEY) verifies.
 The signature lives in version.json.sig (base64), signed over the exact bytes
 of version.json, and the data file hashes are inside version.json.
 
-NOTE: the "settings" version counter was removed: secret.json is no longer
-distributed (login accounts are fetched and signature-verified fresh on every
-login; runtime state stays on the local disk). secret.json is still hashed in
-the manifest so the login fetch verifies it.
+NOTE: the "settings" version counter and secret.json were removed from the
+manifest: secret.json is now the LIVE accounts file, written directly by the
+app itself (self-registration / password reset via the embedded write token),
+so it cannot be pinned by the signed manifest. The signed manifest covers the
+package database and the banking list only.
 
 The private key is loaded from the GELOTECH_SIGN_KEY environment variable,
 or defaults to %USERPROFILE%\\.gelotech_signing\\update_ed25519.pem (never
@@ -31,7 +32,7 @@ import subprocess
 import sys
 import time
 
-DATA_FILES = ("gelotech_database_v3.json", "secret.json", "banking_apps.json")
+DATA_FILES = ("gelotech_database_v3.json", "banking_apps.json")
 
 
 def load():

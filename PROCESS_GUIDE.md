@@ -17,7 +17,7 @@ GeloTechTool (techtool.py)
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, tabview, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks |
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, `Tooltip` (routes to hint banner), adb subprocess wrapper |
-| `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), login (server-verified accounts, per-login database pull), PBKDF2 password verify, permissions, `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify, banking list only), first-run migration + seeding |
+| `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login (self-registration via SMTP + repo write-back, per-login database pull), PBKDF2 password verify, permissions, `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify, banking list only), first-run migration + seeding |
 | `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: READ-ONLY account list fetched + signature-verified from the update server (passwords managed by maintainer in repo) |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions) |
@@ -46,12 +46,20 @@ python techtool.py
   │    └─ 9. _build_hint_banner() → red attention strip (auto-hide 6s)
   │
   ├─ _login_gate()  → login window (withdraw main window)
-  │    └─ LOGIN click: background thread
+  │    ├─ STEP A (email only): user enters email
+  │    │    ├─ typing ADMIN_SECRET_PHRASE into the email field → unlocks
+  │    │    │  MAINTAINER login (step B with username fixed to "admin")
+  │    │    └─ SEND PASSWORD → background thread:
+  │    │         ├─ fetch version.json + sig → verify signature; fetch
+  │    │         │  secret.json (live accounts) + DB (verify sha256)
+  │    │         ├─ generate 14-char password → PBKDF2 hash
+  │    │         ├─ write account (email + hash) to repo secret.json via
+  │    │         │  the write token (retry on 422 conflict)
+  │    │         ├─ email password via embedded SMTP sender
+  │    │         └─ "Password sent to your email - check inbox/spam" → step B
+  │    └─ STEP B (email + password): verify against live accounts
   │         ├─ purge stale per-login database copy (temp)
-  │         ├─ fetch version.json + version.json.sig → verify Ed25519 signature
-  │         ├─ fetch secret.json → verify SHA-256 vs manifest → accounts in memory
-  │         ├─ fetch gelotech_database_v3.json → verify SHA-256 vs manifest
-  │         ├─ verify credentials against in-memory accounts (PBKDF2)
+  │         ├─ fetch users + DB (as above) → verify credentials (PBKDF2)
   │         ├─ write verified DB to temp session cache → clear stale lookups → re-seed
   │         └─ main thread: apply permissions, show window, after(1500, _check_updates)
   │
@@ -90,13 +98,12 @@ Every action:
 
 ```
 DATA update (no new exe needed):
-  edit gelotech_database_v3.json / banking_apps.json / secret.json (user hashes)
+  edit gelotech_database_v3.json / banking_apps.json
   → python bump_version.py        (bump + re-hash + SIGN; --no-commit to stage)
   → git push (bump_version.py does this unless --no-commit)
-  → user app: on EVERY login → _fetch_verified_sources()
+  → user app: on EVERY login → fetch + verify
        → verify version.json.sig with embedded Ed25519 public key (reject if bad)
-       → secret.json  → verify SHA-256 vs signed manifest → accounts used
-         IN MEMORY, never written to disk (no merge, no local copy)
+       → secret.json (LIVE accounts) fetched as-is; DB verified vs manifest
        → gelotech_database_v3.json → verify SHA-256 → session cache in temp
          (deleted on app close / logout / before next login's fetch)
        → after login: _check_updates() → banking_apps.json only (version-based,
@@ -106,12 +113,21 @@ DATA update (no new exe needed):
   NOTE: .gitattributes forces eol=lf for *.json + version.json.sig so the
         signed hashes match the exact bytes GitHub serves; renormalizing
         line endings REQUIRES re-signing.
+  NOTE: secret.json is NOT in the signed manifest - the app writes it
+        directly (self-registration / password reset, see EMAIL flow below).
 
-Password change (maintainer only, in repo):
-  generate PBKDF2 hash → python -c "import hashlib,os; s=os.urandom(16).hex();
-  print(f'100000${s}${hashlib.pbkdf2_hmac("sha256",PWD,bytes.fromhex(s),100000).hex()}')"
-  → replace hash in secret.json → python bump_version.py sign → push
-  (legacy plain-SHA-256 hashes must be upgraded; never use them for new accounts)
+EMAIL account flow (self-service, no maintainer action):
+  user enters email on login screen
+  → app: fetch+verify server → generate 14-char password → PBKDF2 hash
+  → PUT users[email] = {hash, permissions:{}} into repo secret.json
+    (contents API + EMBEDDED_UPDATE_WRITE_TOKEN, retry on 422 conflict)
+  → SMTP email with the password (EMBEDDED SMTP_* constants, dedicated
+    low-privilege sender) → "check inbox/spam" → user logs in
+
+ADMIN access (maintainer only):
+  type ADMIN_SECRET_PHRASE into the email field on the login screen
+  → step B opens with username locked to "admin"
+  → sign in with the admin PBKDF2 password (maintainer-managed in repo)
 
 CODE update (needs new exe):
   edit *.py
@@ -130,7 +146,7 @@ CODE update (needs new exe):
 
 ```
 AppData settings dir (get_settings_dir())  → persistent, writable (RUNTIME STATE ONLY):
-  secret.json          (exclusions, debloated history, update_state — NO users/credentials)
+  secret.json          (exclusions, debloated history, update_state — NO user accounts)
   banking_apps.json    (downloaded via update flow, .bak kept)
   apk_backups\*.apk
   sec_whitelist.txt
@@ -145,27 +161,30 @@ Bundled (inside exe / repo root):
   (gelotech_database_v3.json and secret.json are NOT bundled — GitHub only)
 
 Repo root (update source):
-  version.json, version.json.sig, gelotech_database_v3.json, secret.json, banking_apps.json
+  version.json, version.json.sig, gelotech_database_v3.json, secret.json (live accounts, app-written), banking_apps.json
 ```
 
 ---
 
 ## 6. Security Notes (embedded in app)
 
-- GitHub token (`tech_common.py::EMBEDDED_UPDATE_TOKEN`) — fine-grained READ-ONLY
-  pull from the repo. Update source is PINNED to embedded constants;
-  never overridable via settings or the repo secret.json.
+- GitHub tokens (`tech_common.py`) — `EMBEDDED_UPDATE_TOKEN` read-only fetch;
+  `EMBEDDED_UPDATE_WRITE_TOKEN` (fine-grained, Contents Read+Write, THIS repo
+  only) used solely to persist self-registered accounts. Update source is
+  PINNED to embedded constants; never overridable via settings or repo files.
+- SMTP sender (`SMTP_*`) — dedicated low-privilege account + app password.
+  Anything embedded in the exe can be extracted: rotate write token + SMTP
+  app password regularly, never use personal credentials.
 - Updates are signed (Ed25519): `version.json.sig` verified against
   `UPDATE_SIGN_PUBLIC_KEY`, then per-file SHA-256 verified against the signed
-  manifest — tampered or unsigned updates are rejected. Signed hashes must
-  cover the exact bytes GitHub serves (`.gitattributes` = LF).
+  manifest (database + banking) — tampered or unsigned updates are rejected.
+  Signed hashes must cover the exact bytes GitHub serves (`.gitattributes` = LF).
 - Accounts and the package database are fetched fresh and verified on every
-  login; credentials are never written to disk and the DB is wiped at the end
-  of each session.
-- Signing private key: `%USERPROFILE%\.gelotech_signing\update_ed25519.pem`
-  (never committed; loaded by bump_version.py).
-- Passwords: PBKDF2 hashes (`100000$salt$digest`) managed by the maintainer in
-  the repo's `secret.json`; legacy plain-SHA-256 hashes must be upgraded.
+  login; credentials are never written to the user's PC and the DB is wiped at
+  the end of each session. Accounts are stored in the repo's `secret.json`
+  as PBKDF2 hashes (`100000$salt$digest`) only.
+- Admin access: `ADMIN_SECRET_PHRASE` typed into the email field unlocks the
+  maintainer login; the real gate is the admin PBKDF2 password.
 - Admin Panel is read-only (server-verified account list; no local edits).
 - Type-YES confirmation gates destructive batch actions.
 - All release builds are PyArmor-obfuscated (`GeloTechTool_obf.spec`).
