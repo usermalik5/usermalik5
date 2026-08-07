@@ -71,7 +71,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         ctk.set_widget_scaling(min(1.5, max(1.0, 1.15 * sh / 900)))
         self.grid_columnconfigure(0, weight=0)  # sidebar fixed
         self.grid_columnconfigure(1, weight=3)  # tab content
-        self.grid_columnconfigure(2, weight=2, minsize=430)  # log panel
+        self.grid_columnconfigure(2, weight=1, minsize=340)  # log panel
         self.grid_rowconfigure(0, weight=1)
 
         self.debloat_packages = []
