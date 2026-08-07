@@ -52,8 +52,9 @@ pip install customtkinter pillow requests pyinstaller
 python techtool.py
 ```
 
-Default login: `admin` / `admin123` (the maintainer changes passwords in the
-repo's `secret.json` — accounts are verified against GitHub on every login).
+Login accounts are managed by the maintainer in the repo's `secret.json`
+(PBKDF2 hashes) and verified against GitHub on every login — contact the
+maintainer for credentials.
 
 ## Building the exe
 
