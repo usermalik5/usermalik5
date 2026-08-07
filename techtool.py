@@ -406,7 +406,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
 
     def load_debloat_catalog(self):
         """Load the bundled package database (gelotech_database_v3.json) as debloat records."""
-        if hasattr(self, '_debloat_cache'):
+        if hasattr(self, '_debloat_cache') and self._debloat_cache is not None:
             return self._debloat_cache
         lookup = load_package_database(get_live_database_path())
         database = {}

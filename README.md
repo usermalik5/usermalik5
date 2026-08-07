@@ -19,7 +19,7 @@ All, Disabled, and Filter.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.6)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.7)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package

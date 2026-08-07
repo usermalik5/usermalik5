@@ -87,7 +87,7 @@ class SettingsMixin(AdminPanelMixin):
         return labels
 
     def _build_uad_lookup(self):
-        if hasattr(self, '_uad_cache'):
+        if hasattr(self, '_uad_cache') and self._uad_cache is not None:
             return self._uad_cache
         self._uad_cache = load_package_database(get_live_database_path())
         return self._uad_cache
