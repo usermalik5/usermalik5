@@ -5,7 +5,7 @@ a = Analysis(
     ['techtool.py'],
     pathex=[],
     binaries=[],
-    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('gelotech_database_v3.json', '.'), ('banking_apps.json', '.'), ('gelotech_icon.ico', '.')],
+    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('banking_apps.json', '.'), ('gelotech_icon.ico', '.')],
     hiddenimports=['cryptography', 'cryptography.hazmat.primitives.asymmetric.ed25519'],
     hookspath=[],
     hooksconfig={},

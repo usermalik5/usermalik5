@@ -1,9 +1,8 @@
 """Bump the version.json update manifest, sign it, and push to GitHub.
 
 Usage:
-    python bump_version.py             # bump database, settings, and banking
+    python bump_version.py             # bump database and banking
     python bump_version.py db          # bump database only
-    python bump_version.py settings    # bump settings only
     python bump_version.py banking     # bump banking apps list only
     python bump_version.py db 5        # set database to 5
     python bump_version.py sign        # re-hash + re-sign without bumping
@@ -13,6 +12,11 @@ Every release is SHA-256-hashed and signed with the Ed25519 private key the
 app's embedded public key (tech_common.py::UPDATE_SIGN_PUBLIC_KEY) verifies.
 The signature lives in version.json.sig (base64), signed over the exact bytes
 of version.json, and the data file hashes are inside version.json.
+
+NOTE: the "settings" version counter was removed: secret.json is no longer
+distributed (login accounts are fetched and signature-verified fresh on every
+login; runtime state stays on the local disk). secret.json is still hashed in
+the manifest so the login fetch verifies it.
 
 The private key is loaded from the GELOTECH_SIGN_KEY environment variable,
 or defaults to %USERPROFILE%\\.gelotech_signing\\update_ed25519.pem (never
@@ -98,12 +102,9 @@ def main():
 
     if not args:
         bump("database")
-        bump("settings")
         bump("banking")
     elif args[0] == "db":
         bump("database")
-    elif args[0] == "settings":
-        bump("settings")
     elif args[0] == "banking":
         bump("banking")
     elif args[0] == "sign":
@@ -124,7 +125,7 @@ def main():
     run(["git", "add", "version.json", "version.json.sig"])
     run(["git", "commit", "-m",
          f"Bump update versions (database={data.get('database')}, "
-         f"settings={data.get('settings')}) - signed release"])
+         f"banking={data.get('banking')}) - signed release"])
     run(["git", "push", "origin", "main"])
     print("Pushed to origin/main.")
 

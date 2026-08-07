@@ -1,10 +1,9 @@
 {
   "database": 2,
-  "settings": 3,
   "banking": 2,
   "sha256": {
-    "gelotech_database_v3.json": "342ac31c9f201a5eb1fa87ade9dc662a051f3284f3e997d67e0cc8e56e4f7b19",
-    "secret.json": "c2c6596738b9d48fa504eb73fd4a340ff5935bcd9dad47ec05e576bcd8e6b4d9",
-    "banking_apps.json": "69cf362a2b1341ee0f858c26129313ad76d825e2a629557f1c3ba9d46deac868"
+    "gelotech_database_v3.json": "972349502db1700293e33e47879ffa8ca909af5d7aebd4e3c7734bd12977b7c3",
+    "secret.json": "316d50abd465d893477da07bce8a782de5515afcef58d8137edcc362861582ad",
+    "banking_apps.json": "2fc23a606173fa42d1ea1ac17a2a6ff6f098e3376e984158fe741b9ffbd33bab"
   }
 }

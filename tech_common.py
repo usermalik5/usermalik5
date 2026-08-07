@@ -85,17 +85,22 @@ def get_settings_dir():
     return get_app_dir()
 
 
+def get_session_database_path():
+    """Path of the per-login database copy. The package database lives ONLY
+    on the update server: every login pulls it, signature-verifies it, and
+    writes it here for the session. It is deleted when the app closes (and
+    again before the next login's fetch), so users always get the latest DB
+    with zero manual intervention."""
+    return os.path.join(tempfile.gettempdir(), "GeloTechTool", "gelotech_database_v3.json")
+
+
 def get_live_database_path():
-    """Directory holding the newest available database. A copy pulled from the
-    update server (stored beside the settings file) wins over the bundled
-    copy, unless the bundled copy is newer (e.g. a fresh exe build)."""
-    live = os.path.join(get_settings_dir(), "gelotech_database_v3.json")
-    bundled = os.path.join(get_bundle_dir(), "gelotech_database_v3.json")
-    if os.path.isfile(live):
-        if not os.path.isfile(bundled):
-            return get_settings_dir()
-        if os.path.getmtime(live) >= os.path.getmtime(bundled):
-            return get_settings_dir()
+    """Directory holding the newest available database. The per-login copy
+    fetched from the update server wins; if it is missing (e.g. running the
+    plain .py source), the bundled copy is used as fallback."""
+    session = get_session_database_path()
+    if os.path.isfile(session):
+        return os.path.dirname(session)
     return get_bundle_dir()
 
 

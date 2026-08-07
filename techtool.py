@@ -96,7 +96,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         os.environ["PATH"] = self.scrcpy_dir + os.pathsep + os.environ.get("PATH", "")
         self._migrate_settings()
         self._seed_database_defaults()
-        self._ensure_default_users()
         self.sidebar_frame = ctk.CTkFrame(self, width=230, corner_radius=0, fg_color="#0d0f12")
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_columnconfigure(0, weight=1)
@@ -398,6 +397,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     def on_close(self):
         self.adb_monitor_enabled = False
         self.appwatch_monitoring = False
+        self._purge_session_database()
         self.destroy()
 
     @staticmethod
