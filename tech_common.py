@@ -33,6 +33,13 @@ ctk.set_default_color_theme("blue")
 # Scale UI for high-DPI / small font compensation
 ctk.set_widget_scaling(1.15)
 
+# ---------------------------------------------------------------------------
+# EMBEDDED UPDATE SERVER (baked into the exe so users need zero configuration)
+# Only editing these in the source + pushing to the repo changes what users see.
+# ---------------------------------------------------------------------------
+EMBEDDED_UPDATE_URL = "https://github.com/usermalik5/GeloTech-Tool"
+EMBEDDED_UPDATE_TOKEN = "REDACTED"
+
 
 def get_bundle_dir():
     """Directory for bundled read-only resources (gelotech_database_v3.json, scrcpy zip).
@@ -94,9 +101,10 @@ def has_icon_cache():
         os.path.join(root, "apk_icon_export", "packages.jsonl"))
 
 class Tooltip:
-    """Hover hint that shows the help text in the LOG CONSOLE instead of a
-    floating window (no more stuck tooltips). Drops to no-op if the widget's
-    toplevel has no log_message() (e.g. dialogs without a console)."""
+    """Hover hint that shows help text in a dedicated attention banner
+    (red strip at the bottom of the window) instead of flooding the log
+    console. Falls back to log_message() if the toplevel has no show_hint().
+    Drops to no-op on toplevels without either (e.g. dialogs)."""
 
     def __init__(self, widget, text):
         self.widget = widget
@@ -108,9 +116,15 @@ class Tooltip:
             return
         try:
             tl = self.widget.winfo_toplevel()
+            if self.text == getattr(tl, "_last_hint", None):
+                return
+            tl._last_hint = self.text
+            sh = getattr(tl, "show_hint", None)
+            if callable(sh):
+                sh(self.text)
+                return
             lm = getattr(tl, "log_message", None)
-            if callable(lm) and self.text != getattr(tl, "_last_hint", None):
-                tl._last_hint = self.text
+            if callable(lm):
                 lm(f"[HINT] {self.text}")
         except Exception:
             pass

@@ -1,0 +1,26 @@
+# Build artifacts
+build/
+dist/
+__pycache__/
+*.pyc
+
+# ADB / tools binaries (needed to run, not to track)
+adb.exe
+fastboot.exe
+AdbWinApi.dll
+AdbWinUsbApi.dll
+ApkIconHelper.apk
+scrcpy-win64-*.zip
+Drivers/
+MTK_CDC_Driver/
+
+# Installers / logs
+GitHubDesktopSetup-*.exe
+pyarmor.bug.log
+
+# Older / duplicated data
+gelotech_database_v2.json
+update_server/
+
+# Settings shipped with exe (kept at repo root for the update pull)
+# dist/gelotech_settings.json is intentionally ignored via dist/

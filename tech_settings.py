@@ -10,10 +10,11 @@ import tempfile
 import hashlib
 import sys
 import requests
+import base64
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN
 from tech_admin import AdminPanelMixin
 
 
@@ -432,6 +433,9 @@ class SettingsMixin(AdminPanelMixin):
                     for key in data:
                         if isinstance(loaded.get(key), type(data[key])):
                             data[key] = loaded[key]
+                    for key in ("update_url", "update_token", "update_state"):
+                        if isinstance(loaded.get(key), type(data.get(key, ""))):
+                            data[key] = loaded[key]
             except Exception:
                 pass
         return data
@@ -443,7 +447,7 @@ class SettingsMixin(AdminPanelMixin):
             for key, value in data.items():
                 if isinstance(value, (list, set)):
                     payload[key] = sorted(set(value))
-                elif isinstance(value, dict):
+                elif isinstance(value, (dict, str, bool, int, float)) or value is None:
                     payload[key] = value
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
@@ -480,31 +484,64 @@ class SettingsMixin(AdminPanelMixin):
         self._save_settings(data)
 
     # ----------------------------------------------------
-    # WEB UPDATES (pull from GitHub raw repo)
+    # WEB UPDATES (pull from GitHub repo)
     # ----------------------------------------------------
     def _check_updates(self, manual=False, status_cb=None):
-        """Check the update server configured in settings ('update_url', a raw
-        GitHub base URL). Expects version.json hosting {"database": N,
-        "settings": N} plus the two files. Downloads a newer database or
-        settings into the settings folder so it overrides the bundled copy;
-        restarting the app applies them. Runs in a background thread."""
+        """Check the update server configured in settings ('update_url', a
+        GitHub repo URL like https://github.com/USER/REPO). Expects
+        version.json hosting {"database": N, "settings": N} plus the two
+        files at the repo root. Downloads a newer database or settings into
+        the settings folder so it overrides the bundled copy; restarting the
+        app applies them. Private repos need 'update_token' (a classic GitHub
+        PAT with repo scope). Runs in a background thread."""
         def report(msg):
             if status_cb is not None:
                 self.after(0, lambda: status_cb(msg))
 
+        def parse_repo(base):
+            m = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?(?:\?|$|/tree/([^/]+))", base)
+            if not m:
+                return None
+            owner, repo = m.group(1), m.group(2)
+            branch = m.group(3) or "main"
+            return owner, repo, branch
+
+        def api_fetch(owner, repo, branch, fname, headers):
+            if headers:
+                url = f"https://api.github.com/repos/{owner}/{repo}/contents/{fname}?ref={branch}"
+                resp = requests.get(url, headers={**headers, "Accept": "application/vnd.github+json"}, timeout=60)
+                resp.raise_for_status()
+                return base64.b64decode(resp.json()["content"]).decode("utf-8")
+            url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{fname}"
+            resp = requests.get(url, timeout=60)
+            resp.raise_for_status()
+            return resp.text
+
         def work():
-            base = (self._load_settings().get("update_url") or "").strip().rstrip("/")
+            data = self._load_settings()
+            base = (data.get("update_url") or EMBEDDED_UPDATE_URL).strip().rstrip("/")
+            tok = (data.get("update_token") or EMBEDDED_UPDATE_TOKEN).strip()
             if not base:
                 if manual:
                     report("\u26a0 No update URL configured. Set it in the Admin Panel first.")
                 return
+            parsed = parse_repo(base)
+            if not parsed:
+                if manual:
+                    report("\u26a0 That URL is not a GitHub repo URL.")
+                return
+            owner, repo, branch = parsed
+            headers = {"Authorization": f"Bearer {tok}"} if tok else {}
             try:
-                resp = requests.get(base + "/version.json", timeout=15)
-                resp.raise_for_status()
-                manifest = resp.json()
+                manifest = json.loads(api_fetch(owner, repo, branch, "version.json", headers))
             except Exception as e:
                 if manual:
-                    report(f"\u26a0 Could not reach update server: {type(e).__name__}")
+                    msg = f"\u26a0 Could not reach update server: {type(e).__name__}"
+                    if isinstance(e, requests.HTTPError) and e.response is not None:
+                        msg += f" (HTTP {e.response.status_code})"
+                        if e.response.status_code == 404:
+                            msg += " - file missing, or token lacks access"
+                    report(msg)
                 return
             last = self._load_settings().get("update_state") or {}
             changed = False
@@ -514,9 +551,8 @@ class SettingsMixin(AdminPanelMixin):
                 if new_v is None or last.get(key) == new_v:
                     continue
                 try:
-                    fresp = requests.get(base + "/" + fname, timeout=30)
-                    fresp.raise_for_status()
-                    parsed = json.loads(fresp.text)
+                    text = api_fetch(owner, repo, branch, fname, headers)
+                    parsed = json.loads(text)
                     with open(os.path.join(get_settings_dir(), fname), "w", encoding="utf-8") as f:
                         json.dump(parsed, f, indent=2)
                     changed = True

@@ -70,8 +70,8 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.minsize(min(1120, win_w), min(660, win_h))
         ctk.set_widget_scaling(min(1.5, max(1.0, 1.15 * sh / 900)))
         self.grid_columnconfigure(0, weight=0)  # sidebar fixed
-        self.grid_columnconfigure(1, weight=1)  # tab content
-        self.grid_columnconfigure(2, weight=1)  # log panel
+        self.grid_columnconfigure(1, weight=3)  # tab content
+        self.grid_columnconfigure(2, weight=2, minsize=430)  # log panel
         self.grid_rowconfigure(0, weight=1)
 
         self.debloat_packages = []
@@ -174,6 +174,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         # RIGHT: UNIFIED LOG PANEL (TSM/UnlockTool style)
         # ----------------------------------------------------
         self._build_log_panel()
+        self._build_hint_banner()
 
         self.log_message("System Initialized. Welcome to GeloTech Tool.")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -181,30 +182,64 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.after(200, self._login_gate)
 
     # ----------------------------------------------------
+    # HINT BANNER (bottom of window, grabs attention)
+    # ----------------------------------------------------
+    def _build_hint_banner(self):
+        self._hint_banner = ctk.CTkFrame(self, fg_color="#3a0d10", corner_radius=0, height=30)
+        self._hint_banner.grid(row=1, column=0, columnspan=3, sticky="ew")
+        self._hint_banner.grid_columnconfigure(0, weight=1)
+        self._hint_banner.grid_propagate(False)
+        self._hint_label = ctk.CTkLabel(
+            self._hint_banner, text="", anchor="w", justify="left",
+            font=ctk.CTkFont(size=10, weight="bold"), text_color="#ff4d4d")
+        self._hint_label.grid(row=0, column=0, sticky="ew", padx=14, pady=5)
+        self._hint_banner.grid_remove()
+        self._hint_timer = None
+
+    def show_hint(self, text):
+        try:
+            if not hasattr(self, "_hint_label"):
+                return
+            self._hint_label.configure(text="\u26a0  " + text)
+            self._hint_banner.grid()
+            if self._hint_timer:
+                self.after_cancel(self._hint_timer)
+            self._hint_timer = self.after(6000, self._hide_hint)
+        except Exception:
+            pass
+
+    def _hide_hint(self):
+        try:
+            self._hint_timer = None
+            self._hint_banner.grid_remove()
+        except Exception:
+            pass
+
+    # ----------------------------------------------------
     # UNIFIED LOG PANEL
     # ----------------------------------------------------
     def _build_log_panel(self):
-        panel = ctk.CTkFrame(self, fg_color="#0a0c0e", corner_radius=0, border_width=0)
+        panel = ctk.CTkFrame(self, fg_color="#01030a", corner_radius=0, border_width=0)
         panel.grid(row=0, column=2, sticky="nsew", padx=(3, 6), pady=8)
         panel.grid_rowconfigure(1, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
         # Header bar
-        hdr = ctk.CTkFrame(panel, fg_color="#121418", corner_radius=6, height=38)
+        hdr = ctk.CTkFrame(panel, fg_color="#03160d", corner_radius=6, height=38)
         hdr.grid(row=0, column=0, sticky="ew", pady=(0, 4))
         hdr.grid_columnconfigure(1, weight=1)
         hdr.grid_propagate(False)
 
-        ctk.CTkLabel(hdr, text="\u25a0 LOG CONSOLE", font=ctk.CTkFont(size=11, weight="bold"), text_color="#e67e22").grid(row=0, column=0, padx=(12, 6), pady=8, sticky="w")
+        ctk.CTkLabel(hdr, text="\u25a0 LOG CONSOLE", font=ctk.CTkFont(size=11, weight="bold"), text_color="#00ff66").grid(row=0, column=0, padx=(12, 6), pady=8, sticky="w")
 
         # Filter chips
         filter_frame = ctk.CTkFrame(hdr, fg_color="transparent")
         filter_frame.grid(row=0, column=1, padx=6, pady=6, sticky="e")
         filters = ["ALL", "ADB", "SECURITY", "VT", "DNS"]
-        colors = {"ALL": "#7f8c8d", "ADB": "#2980b9", "SECURITY": "#e67e22", "VT": "#9b59b6", "DNS": "#1abc9c"}
+        colors = {"ALL": "#0f3d1e", "ADB": "#0f5a2a", "SECURITY": "#0a7a33", "VT": "#3d1e0f", "DNS": "#0f5a5a"}
         for i, f in enumerate(filters):
             btn = ctk.CTkButton(filter_frame, text=f, width=52, height=22,
-                                fg_color=colors[f], hover_color="#395670",
+                                fg_color=colors[f], hover_color="#14582b",
                                 font=ctk.CTkFont(size=8, weight="bold"),
                                 command=lambda ff=f: self._set_log_filter(ff))
             btn.pack(side="left", padx=1)
@@ -216,32 +251,32 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
                        command=self.clear_logs).grid(row=0, column=2, padx=(4, 10), pady=6)
 
         # Log display
-        self.main_log = ctk.CTkTextbox(panel, font=ctk.CTkFont(family="Consolas", size=10),
-                                        fg_color="#050505", text_color="#d4d4d4",
-                                        border_color="#1e1e1e", border_width=1,
+        self.main_log = ctk.CTkTextbox(panel, font=ctk.CTkFont(family="Consolas", size=11),
+                                        fg_color="#000200", text_color="#00ff41",
+                                        border_color="#0a5a24", border_width=1,
                                         wrap="word")
         self.main_log.grid(row=1, column=0, sticky="nsew")
-        self.main_log.tag_config("ADB", foreground="#4fc3f7")
-        self.main_log.tag_config("SECURITY", foreground="#ffb74d")
-        self.main_log.tag_config("VT", foreground="#ce93d8")
-        self.main_log.tag_config("DNS", foreground="#4db6ac")
-        self.main_log.tag_config("EXEC", foreground="#90a4ae")
-        self.main_log.tag_config("SYSTEM", foreground="#81c784")
-        self.main_log.tag_config("ERROR", foreground="#e57373")
-        self.main_log.tag_config("INFO", foreground="#b0bec5")
-        self.main_log.tag_config("HINT", foreground="#6a737d")
-        self.main_log.tag_config("DEFAULT", foreground="#d4d4d4")
+        self.main_log.tag_config("ADB", foreground="#00ff41")
+        self.main_log.tag_config("SECURITY", foreground="#7cff00")
+        self.main_log.tag_config("VT", foreground="#29ffbf")
+        self.main_log.tag_config("DNS", foreground="#00d8ff")
+        self.main_log.tag_config("EXEC", foreground="#b8ff66")
+        self.main_log.tag_config("SYSTEM", foreground="#33ff99")
+        self.main_log.tag_config("ERROR", foreground="#ff3355")
+        self.main_log.tag_config("INFO", foreground="#00cc55")
+        self.main_log.tag_config("HINT", foreground="#338844")
+        self.main_log.tag_config("DEFAULT", foreground="#00ff41")
         self._log_filter_active = "ALL"
 
         # Stats bar at bottom
-        stats_bar = ctk.CTkFrame(panel, fg_color="#121418", corner_radius=6, height=28)
+        stats_bar = ctk.CTkFrame(panel, fg_color="#03160d", corner_radius=6, height=28)
         stats_bar.grid(row=2, column=0, sticky="ew", pady=(4, 0))
         stats_bar.grid_propagate(False)
-        self.log_line_count_label = ctk.CTkLabel(stats_bar, text="Lines: 0", font=ctk.CTkFont(size=9), text_color="#555")
+        self.log_line_count_label = ctk.CTkLabel(stats_bar, text="Lines: 0", font=ctk.CTkFont(size=9), text_color="#00cc55")
         self.log_line_count_label.pack(side="left", padx=10, pady=4)
-        self.log_filter_label = ctk.CTkLabel(stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=9), text_color="#555")
+        self.log_filter_label = ctk.CTkLabel(stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=9), text_color="#00cc55")
         self.log_filter_label.pack(side="left", padx=6, pady=4)
-        ctk.CTkLabel(stats_bar, text="console active", font=ctk.CTkFont(size=8), text_color="#2ecc71").pack(side="right", padx=10, pady=4)
+        ctk.CTkLabel(stats_bar, text="\u2588 console active", font=ctk.CTkFont(size=8, weight="bold"), text_color="#00ff41").pack(side="right", padx=10, pady=4)
 
     def _set_log_filter(self, f):
         self._log_filter_active = f

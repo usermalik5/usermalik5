@@ -168,39 +168,6 @@ class AdminPanelMixin:
                               font=ctk.CTkFont(size=10, weight="bold"),
                               command=lambda n=name: on_select(n)).pack(fill="x", padx=2, pady=2)
 
-        upd_frame = ctk.CTkFrame(outer, fg_color="#16191e", corner_radius=8)
-        upd_frame.pack(fill="x", pady=(0, 12))
-        ctk.CTkLabel(upd_frame, text="\U0001f504 Updates (pull from your GitHub repo)", font=ctk.CTkFont(size=11, weight="bold"), text_color="#58a6ff").pack(anchor="w", padx=12, pady=(10, 2))
-        ctk.CTkLabel(upd_frame, text="Host gelotech_settings.json, gelotech_database_v3.json and version.json in a repo, then paste the raw base URL below.",
-                     font=ctk.CTkFont(size=9), text_color="#8b949e").pack(anchor="w", padx=12, pady=(0, 6))
-        upd_row = ctk.CTkFrame(upd_frame, fg_color="transparent")
-        upd_row.pack(fill="x", padx=12, pady=(0, 6))
-        upd_url_entry = ctk.CTkEntry(upd_row, fg_color="#0d1117", border_color="#30363d", height=30)
-        upd_url_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        upd_url_entry.insert(0, (self._load_settings().get("update_url") or ""))
-        upd_msg = ctk.CTkLabel(upd_frame, text="", font=ctk.CTkFont(size=9))
-
-        def save_update_url():
-            val = upd_url_entry.get().strip().rstrip("/")
-            if val and not val.startswith(("http://", "https://")):
-                upd_msg.configure(text="\u26a0 URL must start with http:// or https://", text_color="#ff6b6b")
-                return
-            data = self._load_settings()
-            data["update_url"] = val
-            self._save_settings(data)
-            upd_msg.configure(text="\u2713 Update URL saved. The app checks it on every login.", text_color="#2ecc71")
-
-        def check_now():
-            upd_msg.configure(text="\u23f3 Checking...", text_color="#58a6ff")
-            self._check_updates(manual=True, status_cb=lambda m: upd_msg.configure(
-                text=m, text_color="#2ecc71" if "\u2713" in m else "#ff6b6b"))
-
-        ctk.CTkButton(upd_row, text="Save URL", width=90, height=30, fg_color="#1f6feb", hover_color="#1a5fd0",
-                      font=ctk.CTkFont(size=10, weight="bold"), command=save_update_url).pack(side="left", padx=(8, 6))
-        ctk.CTkButton(upd_row, text="Check Now", width=90, height=30, fg_color="#238636", hover_color="#1f7a30",
-                      font=ctk.CTkFont(size=10, weight="bold"), command=check_now).pack(side="left")
-        upd_msg.pack(anchor="w", padx=12, pady=(0, 8))
-
         self._admin_refresh_user_list = lambda dlg, u, selected="": (users.clear(), users.update(u), render(),
                                                                     on_select(selected) if selected else None)
         render()
