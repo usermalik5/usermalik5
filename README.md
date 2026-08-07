@@ -9,6 +9,8 @@ virus cleanup, and DNS-based ad blocking.
 Access is protected by a login system with per-user permissions and tabs
 (admin always has everything). Logs stream to a Matrix-style console, and
 hover hints appear in a red attention banner at the bottom of the window.
+The package-list context menu (right-click) offers per-app actions plus
+batch actions for all checked apps (disable / uninstall / APK backup).
 
 ## What's in this folder
 

@@ -256,9 +256,9 @@ class SecOps2Mixin:
                               "com.bbk.appstore": "vivo App Store", "com.transsion.market": "Palm Store", "adb": "ADB / sideload"}.get(ir, ir)
                     meta_lines.append(f"Installer : {pretty} {'🚨' if ir == 'adb' else ''}")
 
-                requested = set(re.findall(r"^ {4}([a-z0-9_.]+\.permission\.[A-Z0-9_]+)$", out, re.M))
-                requested |= set(re.findall(r"^ {4}([a-z0-9_.]+\.permission\.[A-Z0-9_]+): granted=", out, re.M))
-                granted = dict(re.findall(r"^ {4}([a-z0-9_.]+\.permission\.[A-Z0-9_]+): granted=(true|false)", out, re.M))
+                granted = dict(re.findall(r"^\s*([a-z0-9_.]+\.permission\.[A-Z0-9_]+):\s*granted=(true|false)", out, re.M))
+                requested = set(re.findall(r"^\s*([a-z0-9_.]+\.permission\.[A-Z0-9_]+)\s*$", out, re.M))
+                requested |= set(granted.keys())
 
                 rows = []
                 for perm in sorted(requested):

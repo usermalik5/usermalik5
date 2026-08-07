@@ -14,7 +14,7 @@ import requests
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, Tooltip, subprocess
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, Tooltip, subprocess
 
 
 class SecOpsMixin:
@@ -107,17 +107,28 @@ class SecOpsMixin:
     def _sec_build_row_menu(self, entry):
         pkg = entry["id"]
         label = entry.get("label", pkg)
+        checked_count = len(self._sec_checked_packages())
         menu = tk.Menu(self, tearoff=0, bg="#161b22", fg="#e6edf3",
                        activebackground="#1f6feb", activeforeground="#ffffff",
-                       selectcolor="#1f6feb", font=ctk.CTkFont(size=10))
+                       selectcolor="#1f6feb", font=ctk.CTkFont(size=12))
         menu.add_command(label=f"\u2b07 Disable {label}", command=lambda: self._sec_menu_disable(pkg))
         menu.add_command(label=f"\u274c Uninstall {label}", command=lambda: self._sec_menu_uninstall(pkg, label))
         menu.add_command(label=f"\U0001f9f9 Clean data {label}", command=lambda: self._sec_menu_clean(pkg))
+        menu.add_separator()
+        menu.add_command(label=f"\U0001f4be Backup {label}", command=lambda: self._sec_menu_backup(pkg))
         menu.add_separator()
         menu.add_command(label="Exclude from Clean", command=lambda: self._sec_menu_exclude(pkg, "clean"))
         menu.add_command(label="Exclude from Uninstall", command=lambda: self._sec_menu_exclude(pkg, "uninstall"))
         menu.add_separator()
         menu.add_command(label="APK Info", command=lambda: self._sec_show_apk_info(pkg))
+        if checked_count:
+            menu.add_separator()
+            menu.add_command(label=f"\u2b07 Disable ALL {checked_count} checked",
+                             command=lambda: self._sec_menu_disable_checked())
+            menu.add_command(label=f"\u274c Uninstall ALL {checked_count} checked",
+                             command=lambda: self._sec_menu_uninstall_checked())
+            menu.add_command(label=f"\U0001f4be Backup ALL {checked_count} checked",
+                             command=lambda: self._sec_menu_backup_checked())
         return menu
 
     def _sec_row_menu(self, event, entry):
@@ -153,6 +164,82 @@ class SecOpsMixin:
             return
         self._sec_log(f"[GeloTech] Cleaning: {pkg}", "#58a6ff")
         self._sec_run_clean([pkg])
+
+    def _sec_menu_backup(self, pkg):
+        if not self._can("restore"):
+            self._sec_status("Permission denied: Backup / Restore is disabled for this account.", "#e74c3c")
+            return
+        self._sec_log(f"[GeloTech] Backing up: {pkg}", "#58a6ff")
+        self._sec_run_backup([pkg])
+
+    def _sec_menu_disable_checked(self):
+        if not self._can("cleaner"):
+            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            return
+        pkgs = self._sec_checked_packages()
+        if not pkgs:
+            self._sec_status("Nothing to disable. Check apps you want to disable.", "#f39c12")
+            return
+        if not messagebox.askyesno("Disable (Checked)", f"Disable {len(pkgs)} checked app(s) for the current user?\n\nApps can be re-enabled later. Use with care on system apps."):
+            return
+        self._sec_log(f"[GeloTech] Disabling {len(pkgs)} checked app(s)...", "#58a6ff")
+        self._sec_run_disable(pkgs)
+
+    def _sec_menu_uninstall_checked(self):
+        if not self._can("cleaner"):
+            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            return
+        pkgs = self._sec_checked_packages()
+        if not pkgs:
+            self._sec_status("Nothing to uninstall. Check apps you want to remove.", "#f39c12")
+            return
+        if not messagebox.askyesno("Uninstall (Checked)", f"Uninstall {len(pkgs)} checked 3rd-party app(s)?\n\nUsed to remove APK Pop-up Virus. Apps in your exclusion lists are safe."):
+            return
+        self._sec_log(f"[GeloTech] Uninstalling {len(pkgs)} checked app(s)...", "#58a6ff")
+        self._sec_run_uninstall(pkgs)
+
+    def _sec_menu_backup_checked(self):
+        if not self._can("restore"):
+            self._sec_status("Permission denied: Backup / Restore is disabled for this account.", "#e74c3c")
+            return
+        pkgs = self._sec_checked_packages()
+        if not pkgs:
+            self._sec_status("Nothing to backup. Check apps you want to backup.", "#f39c12")
+            return
+        if not messagebox.askyesno("Backup (Checked)", f"Backup APK(s) of {len(pkgs)} checked app(s) to your computer?\n\nSaves the original .apk file(s) so you can restore later if needed."):
+            return
+        self._sec_log(f"[GeloTech] Backing up {len(pkgs)} checked app(s)...", "#58a6ff")
+        self._sec_run_backup(pkgs)
+
+    def _sec_run_backup(self, packages):
+        if not packages:
+            return
+        def worker():
+            backup_dir = os.path.join(get_settings_dir(), "apk_backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            ok, fail = 0, 0
+            for pkg in packages:
+                try:
+                    path_res = subprocess.run([self.scrcpy_adb, "shell", "pm", "path", pkg], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+                    apk_paths = [l[len("package:"):].strip() for l in path_res.stdout.splitlines() if l.startswith("package:")]
+                    if not apk_paths:
+                        fail += 1
+                        self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Backup failed (APK not found): {p}", "#e74c3c"))
+                        continue
+                    dest = os.path.join(backup_dir, f"{pkg}.apk")
+                    r = subprocess.run([self.scrcpy_adb, "pull", apk_paths[0], dest], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                    if r.returncode == 0 and os.path.isfile(dest):
+                        ok += 1
+                        self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Backed up: {p} \u2014 {self._sec_description(p)}", "#2ecc71"))
+                    else:
+                        fail += 1
+                        self.after(0, lambda p=pkg: self._sec_log(f"[GeloTech] Backup failed: {p}", "#e74c3c"))
+                except Exception as e:
+                    fail += 1
+                    self.after(0, lambda p=pkg, e=e: self._sec_log(f"[GeloTech] Backup error {p}: {e}", "#e74c3c"))
+            self.after(0, lambda: self._sec_log(f"[GeloTech] Backup finished: {ok} saved, {fail} failed.", "#58a6ff"))
+            self.after(0, lambda: self._sec_status(f"Backup finished: {ok} saved, {fail} failed.", "#58a6ff" if not fail else "#e74c3c"))
+        threading.Thread(target=worker, daemon=True).start()
 
     def _sec_menu_exclude(self, pkg, mode):
         if not self._can("cleaner"):
