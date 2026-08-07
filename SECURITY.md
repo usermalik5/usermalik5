@@ -2,20 +2,27 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Only the latest distributed build is supported. Data-only updates (database /
+settings pushed to the repo) are supported for any build that includes the
+embedded update system (commit `d382477` and later).
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Build | Supported |
+|---|---|
+| Latest exe (with embedded update system) | :white_check_mark: |
+| Older exes | :x: |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+This is a private repository. If you have access and find a security issue
+(such as the embedded update token or credential handling), report it to the
+repository owner directly rather than opening a public issue.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+## Known considerations
+
+- The app embeds a GitHub token in `tech_common.py` for read-only update
+  pulls from this private repo. Anyone with the exe can extract it. Before
+  any public distribution, replace it with a fine-grained, read-only,
+  repo-scoped token.
+- User password hashes are salted PBKDF2 and stored in the settings file,
+  which is marked hidden on disk. They are not plaintext, but the exe is
+  local — treat the settings file as sensitive.

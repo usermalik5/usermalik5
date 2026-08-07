@@ -545,6 +545,7 @@ class SettingsMixin(AdminPanelMixin):
                 return
             last = self._load_settings().get("update_state") or {}
             changed = False
+            new_state = dict(last)
             for fname, key in (("gelotech_database_v3.json", "database"),
                                ("gelotech_settings.json", "settings")):
                 new_v = manifest.get(key)
@@ -553,14 +554,22 @@ class SettingsMixin(AdminPanelMixin):
                 try:
                     text = api_fetch(owner, repo, branch, fname, headers)
                     parsed = json.loads(text)
-                    with open(os.path.join(get_settings_dir(), fname), "w", encoding="utf-8") as f:
+                    dest = os.path.join(get_settings_dir(), fname)
+                    if os.path.exists(dest):
+                        with open(dest, "rb") as f:
+                            data_bak = f.read()
+                        bak = dest + ".bak"
+                        with open(bak, "wb") as f:
+                            f.write(data_bak)
+                    with open(dest, "w", encoding="utf-8") as f:
                         json.dump(parsed, f, indent=2)
+                    new_state[key] = new_v
                     changed = True
                 except Exception:
                     continue
             if changed:
                 data = self._load_settings()
-                data["update_state"] = manifest
+                data["update_state"] = new_state
                 self._save_settings(data)
                 report("\u2713 Update downloaded. Restart GeloTechTool to apply it.")
                 if not manual:

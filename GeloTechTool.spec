@@ -5,7 +5,7 @@ a = Analysis(
     ['techtool.py'],
     pathex=[],
     binaries=[],
-    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('clean_excluded.txt', '.'), ('uninstall_excluded.txt', '.'), ('gelotech_database_v3.json', '.'), ('gelotech_icon.ico', '.')],
+    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('gelotech_database_v3.json', '.'), ('gelotech_icon.ico', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

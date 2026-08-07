@@ -10,7 +10,7 @@ a = Analysis(
     [os.path.join(PYARMOR_OUT, 'techtool.py')],
     pathex=[PYARMOR_OUT, '.'],
     binaries=[(os.path.join(PYARMOR_OUT, 'pyarmor_runtime_000000', 'pyarmor_runtime.pyd'), '.')],
-    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('clean_excluded.txt', '.'), ('uninstall_excluded.txt', '.'), ('gelotech_database_v3.json', '.'), ('gelotech_icon.ico', '.')],
+    datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('gelotech_database_v3.json', '.'), ('gelotech_icon.ico', '.')],
     hiddenimports=['customtkinter', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont', 'requests',
                    'tkinter', 'tkinter.messagebox', 'tkinter.ttk',
                    'datetime', 'functools', 'hashlib', 'json', 'os', 're', 'shutil', 'subprocess',

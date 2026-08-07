@@ -20,6 +20,7 @@ hover hints appear in a red attention banner at the bottom of the window.
 | `gelotech_database_v3.json` | **The package database the tool loads at runtime** (merged UAD + GeloTech data) |
 | `gelotech_settings.json` | Settings shipped / pulled via the update system (users, exclusions) |
 | `version.json` | Update manifest: bump `database` / `settings` to publish a new release |
+| `bump_version.py` | Helper that bumps `version.json` and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
 
 Build-time resources (ADB/fastboot tools, scrcpy zip, drivers, icon cache)
@@ -64,8 +65,15 @@ To publish a data update:
 
 1. Replace `gelotech_database_v3.json` (and/or `gelotech_settings.json`) at
    the repo root.
-2. Bump the matching `database` / `settings` number in `version.json`.
+2. Bump the matching `database` / `settings` number in `version.json` — or
+   just run `python bump_version.py` (add `db` or `settings` to bump only one).
 3. Commit and push. Users' apps download it automatically on their next login.
+
+Each downloaded file keeps a `.bak` of the previous copy in the settings
+folder, so a bad update can be rolled back manually. A file that fails to
+download is skipped and only the files that actually succeeded are recorded
+in the update state, so failures are retried on the next check instead of
+being skipped silently.
 
 To ship a code change, edit the Python files, rebuild the exe (above), and
 redistribute the new exe — code only changes when a new exe is built.
