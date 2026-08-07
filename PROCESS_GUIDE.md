@@ -47,22 +47,27 @@ python techtool.py
   │    └─ 9. _build_hint_banner() → red attention strip (auto-hide 6s)
   │
   ├─ _login_gate()  → login window (withdraw main window)
-  │    ├─ STEP A (email only): user enters email
-  │    │    ├─ typing ADMIN_SECRET_PHRASE into the email field → unlocks
-  │    │    │  MAINTAINER login (step B with username fixed to "admin")
+  │    ├─ DEFAULT VIEW = LOGIN (email + password):
+  │    │    ├─ typing ADMIN_SECRET_PHRASE into the email field → MAINTAINER
+  │    │    │  access (verifies the "admin" account, grants everything)
+  │    │    ├─ verify credentials (PBKDF2) against live accounts from server
+  │    │    └─ "Forgot password? Get a new one by email" → STEP A
+  │    ├─ STEP A (email only): new user / password reset
   │    │    └─ SEND PASSWORD → background thread:
   │    │         ├─ fetch version.json + sig → verify signature; fetch
   │    │         │  secret.json (live accounts) + DB (verify sha256)
-  │    │         ├─ generate 14-char password → PBKDF2 hash
+  │    │         ├─ generate 14-char password → PBKDF2 hash (REPLACES the
+  │    │         │  old password - the old one stops working)
   │    │         ├─ write account (email + hash) to repo secret.json via
   │    │         │  the write token (retry on 422 conflict)
   │    │         ├─ email password via embedded SMTP sender
-  │    │         └─ "Password sent to your email - check inbox/spam" → step B
-  │    └─ STEP B (email + password): verify against live accounts
-  │         ├─ purge stale per-login database copy (temp)
-  │         ├─ fetch users + DB (as above) → verify credentials (PBKDF2)
-  │         ├─ write verified DB to temp session cache → clear stale lookups → re-seed
-  │         └─ main thread: apply permissions, show window, after(1500, _check_updates)
+  │    │         └─ "Password sent to your email - check inbox/spam" → back
+  │    │            to LOGIN with the email pre-filled
+  │    ├─ login success (email/password or admin):
+  │    │    ├─ purge stale per-login database copy (temp)
+  │    │    ├─ fetch users + DB (as above) → verify credentials (PBKDF2)
+  │    │    ├─ write verified DB to temp session cache → clear stale lookups → re-seed
+  │    │    └─ main thread: apply permissions, show window, after(1500, _check_updates)
   │
   └─ on_close() → purge session database copy, destroy window
 ```

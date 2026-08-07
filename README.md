@@ -19,7 +19,7 @@ All, Disabled, and Filter.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.4)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.5)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
@@ -52,13 +52,15 @@ pip install customtkinter pillow requests pyinstaller
 python techtool.py
 ```
 
-Login is email-based: new users (or users who forgot their password) enter
-their email address, and the app emails them a generated password
-(also check the spam folder). Then log in with email + password. The
-maintainer unlocks the admin login by typing the secret phrase into the
-email field (maintainer-only, not shown to users). Non-admin users get all
-tabs and tools (Cleaner, Monitor, DNS, all sidebar actions); only the
-VirusTotal tab is reserved for the admin account.
+Login is email-based. The login page opens on the **LOGIN** form: enter your
+email and the password you were sent, then log in — passwords stay valid
+until you request a new one. New users (or anyone who lost their password)
+click "Forgot password? Get a new one by email", and the app emails them a
+generated password (also check the spam folder); requesting a new password
+replaces the old one. The maintainer unlocks the admin login by typing the
+secret phrase into the email field (maintainer-only, not shown to users).
+Non-admin users get all tabs and tools (Cleaner, Monitor, DNS, all sidebar
+actions); only the VirusTotal tab is reserved for the admin account.
 
 ## Building the exe
 

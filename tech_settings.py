@@ -523,6 +523,11 @@ class SettingsMixin(AdminPanelMixin):
 
         def do_login(event=None):
             error_label.configure(text="")
+            if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
+                admin_mode["on"] = True
+                error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+            else:
+                admin_mode["on"] = False
             login_btn.configure(state="disabled", text="\u23f3  CHECKING SERVER...")
             self.after(0, lambda: _purge_session_database())
 
@@ -549,7 +554,7 @@ class SettingsMixin(AdminPanelMixin):
         ctk.CTkLabel(win, text="Accounts are verified against the update server on every login.",
                      font=ctk.CTkFont(size=9), text_color="#484f58").pack(pady=(8, 0))
 
-        show_email_step()
+        show_login_step()
 
     @staticmethod
     def _read_lines_file(path):
