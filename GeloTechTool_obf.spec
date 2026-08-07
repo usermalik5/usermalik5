@@ -16,7 +16,7 @@ a = Analysis(
                    'datetime', 'functools', 'hashlib', 'json', 'os', 're', 'shutil', 'subprocess',
                    'sys', 'tempfile', 'threading', 'time', 'base64',
                    'cryptography', 'cryptography.hazmat.primitives.asymmetric.ed25519',
-                   'tech_common', 'tech_ui', 'tech_settings', 'tech_admin', 'tech_secscan', 'tech_secops', 'tech_secops2', 'tech_vtop', 'tech_misc'],
+                   'tech_common', 'tech_ui', 'tech_settings', 'tech_admin', 'tech_reg', 'tech_secscan', 'tech_secops', 'tech_secops2', 'tech_vtop', 'tech_misc'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
