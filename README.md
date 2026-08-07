@@ -19,7 +19,7 @@ All, Disabled, and Filter.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.5)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.6)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
@@ -132,8 +132,10 @@ redistribute the new exe — code only changes when a new exe is built.
 
 - Accounts are email-based, self-managed: the app generates PBKDF2 hashed
   passwords, persists them to the repo's `secret.json`, and emails them via a
-  dedicated SMTP sender. Credentials are never stored on users' PCs, and the
-  Admin Panel is read-only (server-verified account list).
+  dedicated SMTP sender. Credentials are never stored on users' PCs. The
+  Admin Panel shows the server-verified account list and can **Block /
+  Unblock** any account — blocked accounts can't log in and can't request a
+  new password (the `blocked` flag lives on the account in `secret.json`).
 - Updates are signed (Ed25519): the manifest signature and per-file SHA-256
   hashes are verified before anything is applied, and the update source is
   pinned to the embedded constants in `tech_common.py`.

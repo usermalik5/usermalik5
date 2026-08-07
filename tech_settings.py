@@ -425,6 +425,18 @@ class SettingsMixin(AdminPanelMixin):
                 if email_entry.get().strip() == ADMIN_SECRET_PHRASE:
                     show_login_step(admin=True)
 
+        def check_secret_login(event=None):
+            # Same secret-phrase unlock on the LOGIN page's email field:
+            # lock the username to "admin" so the password check works.
+            if (event and event.keysym in ("Return", "Tab")) or not event:
+                if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
+                    admin_mode["on"] = True
+                    login_email_entry.delete(0, "end")
+                    login_email_entry.insert(0, "admin")
+                    login_email_entry.configure(state="disabled")
+                    error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+                    password_entry.focus_set()
+
         # --------------------------------------------------------
         # STEP A action: generate + email a password
         # --------------------------------------------------------
@@ -475,7 +487,21 @@ class SettingsMixin(AdminPanelMixin):
                     return
                 pw = password_entry.get()
                 rec = users.get(name)
+                if rec and rec.get("blocked"):
+                    if admin_mode["on"]:
+                        admin_mode["on"] = False
+                        login_email_entry.configure(state="normal")
+                        login_email_entry.delete(0, "end")
+                    error_label.configure(text="\u26a0 This account has been blocked by the maintainer.", text_color="#ff6b6b")
+                    login_btn.configure(state="normal")
+                    return
                 if not rec or not self._verify_pw(pw, rec.get("hash")):
+                    if admin_mode["on"]:
+                        # Wrong admin password: release the locked field so the
+                        # user can retry as a normal account or re-enter phrase.
+                        admin_mode["on"] = False
+                        login_email_entry.configure(state="normal")
+                        login_email_entry.delete(0, "end")
                     error_label.configure(text="\u26a0 Invalid email/username or password.", text_color="#ff6b6b")
                     login_btn.configure(state="normal")
                     return
@@ -526,8 +552,6 @@ class SettingsMixin(AdminPanelMixin):
             if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
                 admin_mode["on"] = True
                 error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
-            else:
-                admin_mode["on"] = False
             login_btn.configure(state="disabled", text="\u23f3  CHECKING SERVER...")
             self.after(0, lambda: _purge_session_database())
 
@@ -540,6 +564,7 @@ class SettingsMixin(AdminPanelMixin):
         login_btn.configure(command=do_login)
         password_entry.bind("<Return>", do_login)
         login_email_entry.bind("<Return>", do_login)
+        login_email_entry.bind("<KeyRelease>", check_secret_login)
         forgot_btn.configure(command=lambda: show_email_step(login_email_entry.get().strip()))
 
         ctk.CTkLabel(step_login, text="EMAIL ADDRESS", font=ctk.CTkFont(size=9, weight="bold"),

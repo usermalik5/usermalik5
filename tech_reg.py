@@ -199,11 +199,10 @@ def _send_password_email(email, password):
         return f"Email delivery failed: {type(e).__name__}: {e}"
 
 
-def _write_user_to_repo(email, pw_hash):
-    """Persist a user account (email + PBKDF2 hash) into the repo's
-    secret.json via the GitHub contents API using the embedded write token.
-    Retries on concurrent-write conflicts (422). Returns None on success or
-    an error string."""
+def _mutate_secret(mutator, commit_msg):
+    """Fetch the repo's secret.json, let mutator(dict) modify it in place,
+    then PUT it back with the embedded write token. Returns None on success
+    or an error string. Retries on concurrent-write conflicts (422)."""
     tok = EMBEDDED_UPDATE_WRITE_TOKEN.strip()
     if not tok:
         return "Account registry is not configured on this build."
@@ -219,12 +218,10 @@ def _write_user_to_repo(email, pw_hash):
             r.raise_for_status()
             meta = r.json()
             current = json.loads(base64.b64decode(meta["content"]).decode("utf-8"))
-            users = current.get("users") if isinstance(current.get("users"), dict) else {}
-            users[email] = {"hash": pw_hash, "permissions": {}}
-            current["users"] = users
+            mutator(current)
             body = json.dumps(current, indent=2, ensure_ascii=False)
             r2 = requests.put(path, headers=headers, timeout=60, json={
-                "message": f"Account update for {email} (self-service)",
+                "message": commit_msg,
                 "content": base64.b64encode(body.encode("utf-8")).decode("ascii"),
                 "sha": meta["sha"],
                 "branch": branch,
@@ -242,6 +239,36 @@ def _write_user_to_repo(email, pw_hash):
     return "Account registry write failed."
 
 
+def _write_user_to_repo(email, pw_hash):
+    """Persist a user account (email + PBKDF2 hash) into the repo's
+    secret.json. Preserves any existing flags (e.g. blocked) on the record.
+    Returns None on success or an error string."""
+    def _apply(current):
+        users = current.get("users") if isinstance(current.get("users"), dict) else {}
+        rec = dict(users.get(email) or {})
+        rec.update({"hash": pw_hash, "permissions": rec.get("permissions") or {}})
+        users[email] = rec
+        current["users"] = users
+    return _mutate_secret(_apply, f"Account update for {email} (self-service)")
+
+
+def _set_user_blocked(email, blocked):
+    """Block (or unblock) an account in the repo's secret.json. Blocked
+    accounts cannot log in nor request a new password. Returns None on
+    success or an error string."""
+    def _apply(current):
+        users = current.get("users") if isinstance(current.get("users"), dict) else {}
+        rec = dict(users.get(email) or {})
+        if blocked:
+            rec["blocked"] = True
+        else:
+            rec.pop("blocked", None)
+        users[email] = rec
+        current["users"] = users
+    action = "block" if blocked else "unblock"
+    return _mutate_secret(_apply, f"Account {action} for {email} (maintainer)")
+
+
 def _request_password(email):
     """Full password request flow (new account or reset): fetch+verify the
     server, generate a password, write the PBKDF2 hash to the repo, email it.
@@ -249,6 +276,8 @@ def _request_password(email):
     users, _ = _fetch_verified_sources()
     if users is None:
         return False, "Could not reach/verify the update server. Check your internet connection and try again."
+    if (users.get(email) or {}).get("blocked"):
+        return False, "This email address has been blocked by the maintainer and cannot receive a password."
     password = _generate_password()
     pw_hash = hash_password(password)
     err = _write_user_to_repo(email, pw_hash)

@@ -28,8 +28,8 @@ class AdminPanelMixin:
         ctk.CTkLabel(header, text="\U0001f511 ADMIN PANEL - ACCOUNTS",
                      font=ctk.CTkFont(size=15, weight="bold"), text_color="#d4af37").pack(anchor="w")
         ctk.CTkLabel(header,
-                     text="Accounts are managed on GitHub by the maintainer.\n"
-                          "This view is read-only and signature-verified against the update server.",
+                     text="Accounts live on GitHub (secret.json).\n"
+                          "Block/unblock writes directly to the server account file.",
                      font=ctk.CTkFont(size=10), text_color="#8b949e", justify="left").pack(anchor="w", pady=(2, 8))
 
         status = ctk.CTkLabel(dialog, text="Loading accounts...",
@@ -47,6 +47,28 @@ class AdminPanelMixin:
         ctk.CTkButton(btn_row, text="Close", width=90, height=32, fg_color="#21262d", hover_color="#30363d",
                       font=ctk.CTkFont(size=11), command=dialog.destroy).pack(side="right")
 
+        def toggle_blocked(name, blocked):
+            from tech_reg import _set_user_blocked
+            status.configure(text=("\u23f3 Blocking %s..." % name) if blocked
+                             else ("\u23f3 Unblocking %s..." % name), text_color="#8b949e")
+            for w in list_frame.winfo_children():
+                w.destroy()
+
+            def worker():
+                err = _set_user_blocked(name, blocked)
+                self.after(0, lambda: finish_toggle(err, name, blocked))
+
+            def finish_toggle(err, name, blocked):
+                if err:
+                    status.configure(text="\u26a0 " + err, text_color="#ff6b6b")
+                else:
+                    status.configure(text="\u2713 %s %s saved to the server account file."
+                                          % ("Blocked" if blocked else "Unblocked", name),
+                                     text_color="#2ecc71")
+                load()
+
+            threading.Thread(target=worker, daemon=True).start()
+
         def render(users):
             for w in list_frame.winfo_children():
                 w.destroy()
@@ -57,6 +79,7 @@ class AdminPanelMixin:
             for name in sorted(users):
                 rec = users[name] or {}
                 is_admin = (name == "admin")
+                blocked = bool(rec.get("blocked"))
                 card = ctk.CTkFrame(list_frame, fg_color="#0d1117", corner_radius=6)
                 card.pack(fill="x", padx=2, pady=3)
                 title = ctk.CTkLabel(card, text=f"{name}   [{('ADMIN' if is_admin else 'USER')}]",
@@ -79,6 +102,20 @@ class AdminPanelMixin:
                     info = "No functions or tabs enabled."
                 ctk.CTkLabel(card, text=info, font=ctk.CTkFont(size=9), text_color="#c9d1d9",
                              justify="left", wraplength=560).pack(anchor="w", padx=10, pady=(0, 6))
+
+                controls = ctk.CTkFrame(card, fg_color="#0d1117")
+                controls.pack(fill="x", padx=10, pady=(0, 6))
+                badge_text = ("\u26d4  BLOCKED" if blocked else "\u25cf  ACTIVE")
+                ctk.CTkLabel(controls, text=badge_text,
+                             font=ctk.CTkFont(size=9, weight="bold"),
+                             text_color="#ff6b6b" if blocked else "#2ecc71").pack(side="left")
+                action_text = "Unblock" if blocked else "Block"
+                action_color = "#2ea043" if blocked else "#da3633"
+                action_hover = "#238636" if blocked else "#b62324"
+                ctk.CTkButton(controls, text=action_text, width=90, height=26,
+                              fg_color=action_color, hover_color=action_hover,
+                              font=ctk.CTkFont(size=10, weight="bold"),
+                              command=lambda n=name, b=not blocked: toggle_blocked(n, b)).pack(side="right")
 
         def load():
             status.configure(text="Verifying accounts against the update server...")

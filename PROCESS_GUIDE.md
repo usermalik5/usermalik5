@@ -19,7 +19,7 @@ GeloTechTool (techtool.py)
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions (non-admin users with no explicit perms in secret.json get `DEFAULT_USER_PERMS` = everything except admin-only `virustotal`), `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify, banking list only), first-run migration + seeding |
 | `tech_reg.py` | helpers | self-service account flow + server fetching: `_fetch_verified_sources` (signed manifest + live accounts + DB sha256), `_request_password` (generate PBKDF2 password → write to repo secret.json via write token → email via SMTP), `hash_password`/`verify_password`, `_purge_session_database` |
-| `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: READ-ONLY account list fetched + signature-verified from the update server (passwords managed by maintainer in repo) |
+| `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: server-verified account list with BLOCK/UNBLOCK per account (writes `blocked` flag to repo secret.json via write token) |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions) |
 | `tech_secops.py` | `SecOpsMixin` | cleaner list rows, color coding, legend filter, right-click menu, clean/uninstall/backup runners, DB filter dialog |
@@ -125,15 +125,20 @@ DATA update (no new exe needed):
 EMAIL account flow (self-service, no maintainer action):
   user enters email on login screen
   → app: fetch+verify server → generate 14-char password → PBKDF2 hash
-  → PUT users[email] = {hash, permissions:{}} into repo secret.json
-    (contents API + EMBEDDED_UPDATE_WRITE_TOKEN, retry on 422 conflict)
+  → PUT users[email] = {hash, permissions, ...} into repo secret.json
+    (contents API + EMBEDDED_UPDATE_WRITE_TOKEN, retry on 422 conflict;
+    existing record fields like blocked are PRESERVED on reset)
   → SMTP email with the password (EMBEDDED SMTP_* constants, dedicated
     low-privilege sender) → "check inbox/spam" → user logs in
+  NOTE: a blocked account (users[email].blocked = true) is refused BOTH at
+    password request and at login ("blocked by the maintainer").
 
 ADMIN access (maintainer only):
   type ADMIN_SECRET_PHRASE into the email field on the login screen
-  → step B opens with username locked to "admin"
+  → login step locks the username to "admin" (MAINTAINER ACCESS)
   → sign in with the admin PBKDF2 password (maintainer-managed in repo)
+  → Admin Panel lists every account with a BLOCK/UNBLOCK button (writes the
+    blocked flag straight to repo secret.json via the write token).
 
 CODE update (needs new exe):
   edit *.py
@@ -193,6 +198,9 @@ Repo root (update source):
   as PBKDF2 hashes (`100000$salt$digest`) only.
 - Admin access: `ADMIN_SECRET_PHRASE` typed into the email field unlocks the
   maintainer login; the real gate is the admin PBKDF2 password.
+- Blocking: Admin Panel sets `users[email].blocked = true` in repo secret.json;
+  blocked accounts are refused at password request AND at login. Blocking works
+  per-account; a deleted account could re-register, so block rather than delete.
 - Admin Panel is read-only (server-verified account list; no local edits).
 - Type-YES confirmation gates destructive batch actions.
 - All release builds are PyArmor-obfuscated (`GeloTechTool_obf.spec`).
