@@ -150,7 +150,34 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self._admin_panel_btn = _add_btn("\U0001f511", "Admin Panel", self._open_admin_panel, color="#d4af37")
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
 
-        self.footer_label = ctk.CTkLabel(self.sidebar_frame, text="\u00a9 2026 GeloTech", font=ctk.CTkFont(size=9), text_color="#444")
+        legend = ctk.CTkFrame(self.sidebar_frame, fg_color="#11151c", corner_radius=8)
+        legend.grid(row=row, column=0, padx=10, pady=(8, 2), sticky="ew")
+        legend.grid_columnconfigure(1, weight=1)
+        lr = 0
+        ctk.CTkLabel(legend, text="APP LIST LEGEND", font=ctk.CTkFont(size=8, weight="bold"), text_color="#7a8699").grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 2)); lr += 1
+        for color, term, meaning in (
+            ("#2ea043", "Recommended", "safe to remove"),
+            ("#58a6ff", "Advanced", "mostly safe"),
+            ("#e3b341", "Expert", "may break features"),
+            ("#e5534b", "Unsafe", "dangerous, avoid"),
+        ):
+            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=9)).grid(row=lr, column=0, padx=(8, 3), pady=0)
+            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=8), text_color="#8b949e", anchor="w").grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
+            lr += 1
+        ctk.CTkFrame(legend, height=1, fg_color="#2c3340").grid(row=lr, column=0, columnspan=2, sticky="ew", padx=8, pady=2); lr += 1
+        ctk.CTkLabel(legend, text="ROW COLORS", font=ctk.CTkFont(size=8, weight="bold"), text_color="#7a8699").grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 2)); lr += 1
+        for color, meaning in (
+            ("lightgreen", "removable (normal)"),
+            ("orange", "clean excluded"),
+            ("red", "uninstall excluded"),
+            ("#8957e5", "both excluded"),
+        ):
+            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=9)).grid(row=lr, column=0, padx=(8, 3), pady=0)
+            ctk.CTkLabel(legend, text=meaning, font=ctk.CTkFont(size=8), text_color="#8b949e", anchor="w").grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
+            lr += 1
+        row += 1
+
+        self.footer_label = ctk.CTkLabel(self.sidebar_frame, text="\u00a9 2026 GeloTech  |  Gsmcodeph.com", font=ctk.CTkFont(size=9), text_color="#444")
         self.footer_label.grid(row=row, column=0, pady=(12, 4))
 
         # ----------------------------------------------------

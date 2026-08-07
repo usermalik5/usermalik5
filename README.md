@@ -15,11 +15,15 @@ exclude).
 Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
 reset). The toolbar keeps Clean, Uninstall Virus, Fix Popup Ad, Restore/Backup,
-All, Disabled, and Filter.
+All, Disabled, and Filter. A permanent legend in the sidebar explains the app
+removal levels (Recommended = safe to remove, Advanced = mostly safe,
+Expert = may break features, Unsafe = dangerous) and the list row colors
+(green = removable, orange = clean excluded, red = uninstall excluded,
+purple = both excluded).
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.7)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.8)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
