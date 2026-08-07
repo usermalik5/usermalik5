@@ -24,9 +24,9 @@ All, Disabled, and Filter.
 | `techtool.py` + `tech_*.py` | Application source (entry point: `techtool.py`) |
 | `GeloTechTool.spec` | PyInstaller build spec (onefile, windowed) |
 | `GeloTechTool_obf.spec` | PyInstaller spec for the PyArmor-obfuscated build (needs `build/pyarmor_out` from `pyarmor gen`) |
-| `gelotech_database_v3.json` | **The package database the tool loads at runtime** (merged UAD + GeloTech data) |
-| `banking_apps.json` | Banking apps exclusion list — these apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
-| `gelotech_settings.json` | Settings shipped / pulled via the update system (users, exclusions) |
+| `gelotech_database_v3.json` | **The package database the tool loads at runtime** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags) |
+| `banking_apps.json` | Banking apps exclusion list — banking apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
+| `secret.json` | Hashed login credentials only (users). Runtime state like excluded lists / debloated history lives in the user's local copy, which is merged on update, never replaced |
 | `version.json` | Update manifest: bump `database` / `settings` / `banking` to publish a new release |
 | `bump_version.py` | Helper that bumps `version.json` and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
@@ -66,13 +66,16 @@ python -m PyInstaller GeloTechTool.spec --noconfirm
 The update URL and GitHub token are embedded in the app (`tech_common.py`),
 so users need no configuration. On every login the app checks
 `version.json` in this repo and pulls a newer `gelotech_database_v3.json` /
-`gelotech_settings.json` / `banking_apps.json` into the user's settings
-folder, overriding the bundled copies until the exe is rebuilt.
+`secret.json` / `banking_apps.json` into the user's settings folder,
+overriding the bundled copies until the exe is rebuilt. The repo `secret.json`
+only carries hashed user credentials — on download it is merged into the
+user's local file, so local state (excluded lists, debloated history, update
+tracking) is never wiped by an update.
 
 To publish a data update:
 
-1. Replace `gelotech_database_v3.json` (and/or `gelotech_settings.json`
-   and/or `banking_apps.json`) at the repo root.
+1. Replace `gelotech_database_v3.json` (and/or `secret.json` and/or
+   `banking_apps.json`) at the repo root.
 2. Bump the matching `database` / `settings` / `banking` number in
    `version.json` — or just run `python bump_version.py` (add `db`,
    `settings`, or `banking` to bump only one).

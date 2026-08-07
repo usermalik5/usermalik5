@@ -83,11 +83,13 @@ Every action:
 
 ```
 DATA update (no new exe needed):
-  edit gelotech_database_v3.json / gelotech_settings.json / banking_apps.json
+  edit gelotech_database_v3.json / secret.json / banking_apps.json
   → python bump_version.py        (or bump version.json manually)
   → git push
   → user app: on login → _check_updates() → GitHub API fetch version.json
        → newer? download JSON → write to settings dir (+ .bak of old)
+       → secret.json is MERGED into local state (users only; local lists/
+         debloated/update_state preserved)
        → record only successful files in update_state → prompt restart
 
 CODE update (needs new exe):
@@ -106,19 +108,21 @@ CODE update (needs new exe):
 
 ```
 AppData settings dir (get_settings_dir())  → persistent, writable:
-  gelotech_settings.json   (users, hashes, permissions, exclusions, debloated, update_state)
+  secret.json          (users + runtime state: exclusions, debloated, update_state; repo copy has users only, merged on update)
   gelotech_database_v3.json (downloaded override, .bak kept)
   banking_apps.json        (downloaded override, .bak kept)
   apk_backups\*.apk
   sec_whitelist.txt
 
 Bundled (inside exe / repo root):
-  gelotech_database_v3.json  (fallback if not in AppData)
+  gelotech_database_v3.json  (fallback if not in AppData; carries user-app +
+                              banking exclusion flags per package)
   banking_apps.json          (banking apps auto-protection list)
+  secret.json                (hashed login credentials only, at repo root for updates)
   scrcpy-win64-v3.3.4.zip, ApkIconHelper.apk, gelotech_icon.ico
 
 Repo root (update source):
-  version.json, gelotech_database_v3.json, gelotech_settings.json, banking_apps.json
+  version.json, gelotech_database_v3.json, secret.json, banking_apps.json
 ```
 
 ---

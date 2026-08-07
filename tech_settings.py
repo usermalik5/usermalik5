@@ -120,10 +120,44 @@ class SettingsMixin(AdminPanelMixin):
     # APK CLEANER STYLE PACKAGE LIST
     # ----------------------------------------------------
     def _migrate_settings(self):
-        """First-run: consolidate exclusion lists + UAD backup into one settings JSON."""
+        """First-run: consolidate legacy state into secret.json (credentials +
+        runtime debloated history). Exclusion lists now live in the database."""
         app = get_app_dir()
-        sfile = os.path.join(get_settings_dir(), "gelotech_settings.json")
-        old_sfile = os.path.join(app, "gelotech_settings.json")
+        sfile = os.path.join(get_settings_dir(), "secret.json")
+        old_sfile = os.path.join(app, "secret.json")
+        legacy_app_sfile = os.path.join(app, "gelotech_settings.json")
+        legacy_sfile = os.path.join(get_settings_dir(), "gelotech_settings.json")
+        if os.path.isfile(legacy_app_sfile) and not os.path.isfile(legacy_sfile) and not os.path.isfile(sfile):
+            try:
+                shutil.copy2(legacy_app_sfile, legacy_sfile)
+            except Exception:
+                pass
+        if os.path.isfile(legacy_sfile) and not os.path.isfile(sfile):
+            try:
+                with open(legacy_sfile, "r", encoding="utf-8") as f:
+                    legacy = json.load(f)
+            except Exception:
+                legacy = None
+            if isinstance(legacy, dict):
+                # Exclusions now live in the database as per-package flags;
+                # drop the legacy lists so only banking apps are seeded.
+                legacy.pop("clean_excluded", None)
+                legacy.pop("uninstall_excluded", None)
+                try:
+                    with open(sfile, "w", encoding="utf-8") as f:
+                        json.dump(legacy, f, indent=2, ensure_ascii=False)
+                    os.remove(legacy_sfile)
+                except Exception:
+                    pass
+            else:
+                try:
+                    os.rename(legacy_sfile, sfile)
+                except Exception:
+                    shutil.copy2(legacy_sfile, sfile)
+                    try:
+                        os.remove(legacy_sfile)
+                    except Exception:
+                        pass
         if os.path.isfile(old_sfile) and not os.path.isfile(sfile):
             shutil.copy2(old_sfile, sfile)
         if not os.path.isfile(sfile):
@@ -142,8 +176,8 @@ class SettingsMixin(AdminPanelMixin):
                 except Exception:
                     debloated = []
             self._save_settings({
-                "clean_excluded": sorted(clean),
-                "uninstall_excluded": sorted(uninstall),
+                "clean_excluded": [],
+                "uninstall_excluded": [],
                 "debloated": sorted(set(debloated)),
             })
         for name in ("clean_excluded.txt", "uninstall_excluded.txt", "uad_debloat_backup.json"):
@@ -161,9 +195,9 @@ class SettingsMixin(AdminPanelMixin):
         The copy is set as a hidden Windows file, and passwords inside are
         stored as salted PBKDF2 hashes, so exposing the file is not a risk."""
         try:
-            src = os.path.join(get_settings_dir(), "gelotech_settings.json")
+            src = os.path.join(get_settings_dir(), "secret.json")
             if os.path.isfile(src):
-                dest = os.path.join(get_app_dir(), "gelotech_settings.json")
+                dest = os.path.join(get_app_dir(), "secret.json")
                 shutil.copy2(src, dest)
                 try:
                     import ctypes
@@ -424,7 +458,7 @@ class SettingsMixin(AdminPanelMixin):
             return []
 
     def _load_settings(self):
-        path = os.path.join(get_settings_dir(), "gelotech_settings.json")
+        path = os.path.join(get_settings_dir(), "secret.json")
         data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": [], "users": {}}
         if os.path.isfile(path):
             try:
@@ -441,7 +475,7 @@ class SettingsMixin(AdminPanelMixin):
         return data
 
     def _save_settings(self, data):
-        path = os.path.join(get_settings_dir(), "gelotech_settings.json")
+        path = os.path.join(get_settings_dir(), "secret.json")
         try:
             payload = {}
             for key, value in data.items():
@@ -547,7 +581,7 @@ class SettingsMixin(AdminPanelMixin):
             changed = False
             new_state = dict(last)
             for fname, key in (("gelotech_database_v3.json", "database"),
-                               ("gelotech_settings.json", "settings"),
+                               ("secret.json", "settings"),
                                ("banking_apps.json", "banking")):
                 new_v = manifest.get(key)
                 if new_v is None or last.get(key) == new_v:
@@ -562,6 +596,15 @@ class SettingsMixin(AdminPanelMixin):
                         bak = dest + ".bak"
                         with open(bak, "wb") as f:
                             f.write(data_bak)
+                    if fname == "secret.json":
+                        # The repo copy only carries users; merge it into the
+                        # local file so runtime state (excluded lists, debloated,
+                        # update_state) survives updates.
+                        local = self._load_settings()
+                        for k in ("users", "update_url", "update_token"):
+                            if isinstance(parsed.get(k), type(local.get(k))):
+                                local[k] = parsed[k]
+                        parsed = local
                     with open(dest, "w", encoding="utf-8") as f:
                         json.dump(parsed, f, indent=2)
                     new_state[key] = new_v

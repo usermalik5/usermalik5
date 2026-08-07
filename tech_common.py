@@ -67,7 +67,7 @@ def get_cache_dir():
 
 
 def get_settings_dir():
-    """Directory for persistent settings (gelotech_settings.json, whitelist).
+    """Directory for persistent settings (secret.json, whitelist).
     Lives in the hidden per-user AppData folder so it survives reboots and
     disk cleanup, while keeping the exe directory clean. Falls back to the
     exe/script folder if APPDATA is unavailable."""
