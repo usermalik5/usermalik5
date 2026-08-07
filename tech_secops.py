@@ -21,16 +21,23 @@ class SecOpsMixin:
     def _sec_on_search(self, event=None):
         self._sec_render_rows()
 
+    REMOVAL_BADGE_COLORS = {
+        "Recommended": "#2ea043",
+        "Advanced": "#1f6feb",
+        "Expert": "#bf8700",
+        "Unsafe": "#e5534b",
+    }
+
     def _sec_row_color(self, entry):
         if entry.get("threat_level", 0) >= 3:
-            return "#2a1015", "red"
+            return "#2a1015", "red", "#3d1212"
         if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
-            return "#1a1f2b", "#e6edf3"
+            return "#241a33", "#8957e5", "#2d1a4a"
         if entry.get("excluded_uninstall"):
-            return "#2a1212", "red"
+            return "#2a1212", "red", "#3d1212"
         if entry.get("excluded_clean"):
-            return "#2a2010", "orange"
-        return "#10151d", "lightgreen"
+            return "#2a2010", "orange", "#3d3210"
+        return "#0f2017", "lightgreen", "#1f3d2a"
 
     def _sec_legend_category(self, entry):
         ex_c = entry.get("excluded_clean")
@@ -73,8 +80,8 @@ class SecOpsMixin:
             if getattr(self, "sec_legend_filter", None) and self._sec_legend_category(entry) != self.sec_legend_filter:
                 continue
             total += 1
-            bg, text_color = self._sec_row_color(entry)
-            row = ctk.CTkFrame(self.sec_list_frame, fg_color=bg, corner_radius=6, border_width=1, border_color="#21262d")
+            bg, text_color, border = self._sec_row_color(entry)
+            row = ctk.CTkFrame(self.sec_list_frame, fg_color=bg, corner_radius=6, border_width=1, border_color=border)
             row.grid(row=total, column=0, padx=6, pady=2, sticky="ew")
             row.grid_columnconfigure(3, weight=1)
 
@@ -119,7 +126,7 @@ class SecOpsMixin:
             elif entry.get("excluded_uninstall"):
                 badges.append(("Uninstall Excl", "#5c1a1a"))
             elif entry.get("removal"):
-                badges.append((entry["removal"], "#1f3a5f"))
+                badges.append((entry["removal"], REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
             for i, (txt, col) in enumerate(badges):
                 ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=8, weight="bold"), text_color="#e6edf3", fg_color=col, corner_radius=6, height=20).grid(row=0, column=4 + i, padx=2, pady=8)
 

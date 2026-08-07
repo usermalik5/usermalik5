@@ -19,11 +19,15 @@ All, Disabled, and Filter. A permanent legend in the sidebar explains the app
 removal levels (Recommended = safe to remove, Advanced = mostly safe,
 Expert = may break features, Unsafe = dangerous) and the list row colors
 (green = removable, orange = clean excluded, red = uninstall excluded,
-purple = both excluded).
+purple = both excluded) — rows in the app list follow the same color scheme,
+and removal-level badges use the same colors. The sidebar header shows
+`© 2026 GeloTech` with clickable links to Gsmcodeph.com and
+facebook.com/gelotechxyz, and the title/tool name always shows the current
+version (e.g. v1.0.9).
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.8)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.9)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package

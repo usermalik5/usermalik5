@@ -75,6 +75,10 @@ ALL_PERMS = frozenset({"cleaner", "monitor", "dns", "virustotal",
 ADMIN_ONLY_PERMS = frozenset({"virustotal"})
 DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
+# Bump this on every iteration; shown in the window title and the sidebar
+# tool name, and must match the release tag (v<APP_VERSION>).
+APP_VERSION = "1.0.9"
+
 
 def get_bundle_dir():
     """Directory for bundled read-only resources (gelotech_database_v3.json, scrcpy zip).

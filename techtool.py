@@ -12,8 +12,9 @@ import sys
 import requests
 import datetime
 import shutil
+import webbrowser
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database
+from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION
 
 # Application Global Styling Configurations
 ctk.set_appearance_mode("Dark")
@@ -57,7 +58,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.user_perms = None
 
         # Primary Window Geometry & Title setup
-        self.title("GeloTech Tool v1.0")
+        self.title(f"GeloTech Tool v{APP_VERSION}")
         try:
             self.iconbitmap(os.path.join(get_bundle_dir(), "gelotech_icon.ico"))
         except Exception:
@@ -101,19 +102,36 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.sidebar_frame.grid_columnconfigure(0, weight=1)
 
         # Branding Header Elements
+        def _brand_link(parent, text, url):
+            lbl = ctk.CTkLabel(parent, text=text, font=ctk.CTkFont(size=9, underline=True), text_color="#58a6ff", cursor="hand2")
+            lbl.pack(side="left", padx=(2, 6))
+            lbl.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+            Tooltip(lbl, f"Open {text} in your browser")
+            return lbl
+
+        brand = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
+        brand.grid(row=0, column=0, padx=14, pady=(12, 0), sticky="w")
+        brand_row0 = ctk.CTkFrame(brand, fg_color="transparent")
+        brand_row0.pack(anchor="w")
+        brand_row1 = ctk.CTkFrame(brand, fg_color="transparent")
+        brand_row1.pack(anchor="w")
+        ctk.CTkLabel(brand_row0, text="\u00a9 2026 GeloTech", font=ctk.CTkFont(size=9), text_color="#444").pack(side="left")
+        _brand_link(brand_row0, "Gsmcodeph.com", "https://gsmcodeph.com")
+        _brand_link(brand_row1, "facebook.com/gelotechxyz", "https://www.facebook.com/gelotechxyz")
+
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="GELOTECH", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1a8cff")
-        self.logo_label.grid(row=0, column=0, padx=14, pady=(16, 0))
-        self.sub_logo_label = ctk.CTkLabel(self.sidebar_frame, text="TECH TOOL\nv1.0 - Angelo Estrada", font=ctk.CTkFont(size=11), text_color="#a6a6a6")
-        self.sub_logo_label.grid(row=1, column=0, padx=14, pady=(0, 6))
+        self.logo_label.grid(row=1, column=0, padx=14, pady=(8, 0))
+        self.sub_logo_label = ctk.CTkLabel(self.sidebar_frame, text=f"TECH TOOL\nv{APP_VERSION} - Angelo Estrada", font=ctk.CTkFont(size=11), text_color="#a6a6a6")
+        self.sub_logo_label.grid(row=2, column=0, padx=14, pady=(0, 6))
 
         self.license_label = ctk.CTkLabel(self.sidebar_frame, text="Valid until: 2030-07-17\n● ALL FUNCTIONS ACTIVE", font=ctk.CTkFont(size=10, weight="bold"), text_color="#2ecc71")
-        self.license_label.grid(row=2, column=0, padx=14, pady=6)
+        self.license_label.grid(row=3, column=0, padx=14, pady=6)
 
         separator = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#2c3340")
-        separator.grid(row=3, column=0, padx=12, pady=(2, 8), sticky="ew")
+        separator.grid(row=4, column=0, padx=12, pady=(2, 8), sticky="ew")
 
         # Sidebar menu: grouped icon buttons
-        row = 4
+        row = 5
 
         def _add_btn(icon, text, command, color="#4d6bfe", perm=None):
             nonlocal row
@@ -176,9 +194,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             ctk.CTkLabel(legend, text=meaning, font=ctk.CTkFont(size=8), text_color="#8b949e", anchor="w").grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
             lr += 1
         row += 1
-
-        self.footer_label = ctk.CTkLabel(self.sidebar_frame, text="\u00a9 2026 GeloTech  |  Gsmcodeph.com", font=ctk.CTkFont(size=9), text_color="#444")
-        self.footer_label.grid(row=row, column=0, pady=(12, 4))
 
         # ----------------------------------------------------
         # MIDDLE: TAB VIEW
