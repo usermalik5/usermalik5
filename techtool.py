@@ -170,15 +170,15 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         legend = ctk.CTkFrame(self.sidebar_frame, fg_color="#11151c", corner_radius=8)
         legend.grid(row=row, column=0, padx=10, pady=(4, 2), sticky="ew")
         lr = 0
-        ctk.CTkLabel(legend, text="REMOVAL LEVELS", font=ctk.CTkFont(size=7, weight="bold"), text_color="#7a8699", height=14).grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(3, 1)); lr += 1
+        ctk.CTkLabel(legend, text="REMOVAL LEVELS", font=ctk.CTkFont(size=10, weight="bold"), text_color="#7a8699", height=20).grid(row=lr, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 2)); lr += 1
         for color, term, meaning in (
             ("#2ea043", "Recommended", "safe to remove"),
             ("#58a6ff", "Advanced", "mostly safe"),
             ("#e3b341", "Expert", "may break features"),
             ("#e5534b", "Unsafe", "dangerous, avoid"),
         ):
-            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=7), height=14).grid(row=lr, column=0, padx=(8, 3), pady=0)
-            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=7), text_color="#8b949e", anchor="w", height=14).grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
+            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=11), height=24).grid(row=lr, column=0, padx=(10, 4), pady=0)
+            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=10), text_color="#8b949e", anchor="w", height=24).grid(row=lr, column=1, sticky="w", padx=(0, 8), pady=0)
             lr += 1
         row += 1
 
