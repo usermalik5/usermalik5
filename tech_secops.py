@@ -126,7 +126,7 @@ class SecOpsMixin:
             elif entry.get("excluded_uninstall"):
                 badges.append(("Uninstall Excl", "#5c1a1a"))
             elif entry.get("removal"):
-                badges.append((entry["removal"], REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
+                badges.append((entry["removal"], self.REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
             for i, (txt, col) in enumerate(badges):
                 ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=8, weight="bold"), text_color="#e6edf3", fg_color=col, corner_radius=6, height=20).grid(row=0, column=4 + i, padx=2, pady=8)
 

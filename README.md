@@ -27,7 +27,7 @@ version (e.g. v1.0.9).
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.9)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.10)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package

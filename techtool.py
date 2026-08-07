@@ -101,37 +101,36 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_columnconfigure(0, weight=1)
 
-        # Branding Header Elements
+        # Branding Header Elements (compact, centered)
+        brand_font = "Verdana"
+        ctk.CTkLabel(self.sidebar_frame, text="\u00a9 2026 GeloTech", font=ctk.CTkFont(family=brand_font, size=10), text_color="#444", height=16).grid(row=0, column=0, padx=14, pady=(6, 0))
+
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="GELOTECH", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1a8cff", height=26)
+        self.logo_label.grid(row=1, column=0, padx=14, pady=(1, 0))
+
+        self.sub_logo_label = ctk.CTkLabel(self.sidebar_frame, text=f"TECH TOOL\nv{APP_VERSION} - Angelo Estrada Espinosa", font=ctk.CTkFont(family=brand_font, size=11, weight="bold"), text_color="#a6a6a6", justify="center", height=34)
+        self.sub_logo_label.grid(row=2, column=0, padx=10, pady=(2, 2))
+
         def _brand_link(parent, text, url):
-            lbl = ctk.CTkLabel(parent, text=text, font=ctk.CTkFont(size=9, underline=True), text_color="#58a6ff", cursor="hand2")
-            lbl.pack(side="left", padx=(2, 6))
+            lbl = ctk.CTkLabel(parent, text=text, font=ctk.CTkFont(family=brand_font, size=10, underline=True), text_color="#58a6ff", cursor="hand2", height=16)
+            lbl.pack(pady=0)
             lbl.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
             Tooltip(lbl, f"Open {text} in your browser")
             return lbl
 
-        brand = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
-        brand.grid(row=0, column=0, padx=14, pady=(12, 0), sticky="w")
-        brand_row0 = ctk.CTkFrame(brand, fg_color="transparent")
-        brand_row0.pack(anchor="w")
-        brand_row1 = ctk.CTkFrame(brand, fg_color="transparent")
-        brand_row1.pack(anchor="w")
-        ctk.CTkLabel(brand_row0, text="\u00a9 2026 GeloTech", font=ctk.CTkFont(size=9), text_color="#444").pack(side="left")
-        _brand_link(brand_row0, "Gsmcodeph.com", "https://gsmcodeph.com")
-        _brand_link(brand_row1, "facebook.com/gelotechxyz", "https://www.facebook.com/gelotechxyz")
+        links = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
+        links.grid(row=3, column=0, padx=10, pady=(0, 1))
+        _brand_link(links, "Gsmcodeph.com", "https://gsmcodeph.com")
+        _brand_link(links, "facebook.com/gelotechxyz", "https://www.facebook.com/gelotechxyz")
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="GELOTECH", font=ctk.CTkFont(size=24, weight="bold"), text_color="#1a8cff")
-        self.logo_label.grid(row=1, column=0, padx=14, pady=(8, 0))
-        self.sub_logo_label = ctk.CTkLabel(self.sidebar_frame, text=f"TECH TOOL\nv{APP_VERSION} - Angelo Estrada", font=ctk.CTkFont(size=11), text_color="#a6a6a6")
-        self.sub_logo_label.grid(row=2, column=0, padx=14, pady=(0, 6))
-
-        self.license_label = ctk.CTkLabel(self.sidebar_frame, text="Valid until: 2030-07-17\n● ALL FUNCTIONS ACTIVE", font=ctk.CTkFont(size=10, weight="bold"), text_color="#2ecc71")
-        self.license_label.grid(row=3, column=0, padx=14, pady=6)
+        self.license_label = ctk.CTkLabel(self.sidebar_frame, text="Valid until: 2030-07-17\n● ALL FUNCTIONS ACTIVE", font=ctk.CTkFont(size=10, weight="bold"), text_color="#2ecc71", height=30, justify="center")
+        self.license_label.grid(row=4, column=0, padx=14, pady=2)
 
         separator = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#2c3340")
-        separator.grid(row=4, column=0, padx=12, pady=(2, 8), sticky="ew")
+        separator.grid(row=5, column=0, padx=12, pady=(2, 3), sticky="ew")
 
         # Sidebar menu: grouped icon buttons
-        row = 5
+        row = 6
 
         def _add_btn(icon, text, command, color="#4d6bfe", perm=None):
             nonlocal row
@@ -139,9 +138,9 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
                 self.sidebar_frame, text=f"{icon}  {text}", anchor="w",
                 fg_color="#1c2026", hover_color=color, text_color="#e8ecf2",
                 border_color="#2c3340", border_width=1, corner_radius=8,
-                height=32, font=ctk.CTkFont(size=11, weight="bold"),
+                height=26, font=ctk.CTkFont(size=10, weight="bold"),
                 command=command)
-            btn.grid(row=row, column=0, padx=10, pady=3, sticky="ew")
+            btn.grid(row=row, column=0, padx=10, pady=0, sticky="ew")
             row += 1
             if perm:
                 self._perm_sidebar_btns.setdefault(perm, []).append(btn)
@@ -149,8 +148,8 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
 
         def _add_header(title):
             nonlocal row
-            ctk.CTkLabel(self.sidebar_frame, text=title, font=ctk.CTkFont(size=9, weight="bold"),
-                         text_color="#7a8699").grid(row=row, column=0, padx=14, pady=(10, 2), sticky="w")
+            ctk.CTkLabel(self.sidebar_frame, text=title, font=ctk.CTkFont(size=8, weight="bold"),
+                         text_color="#7a8699", height=14).grid(row=row, column=0, padx=14, pady=(4, 0), sticky="w")
             row += 1
 
         _add_header("DISPLAY")
@@ -169,29 +168,17 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
 
         legend = ctk.CTkFrame(self.sidebar_frame, fg_color="#11151c", corner_radius=8)
-        legend.grid(row=row, column=0, padx=10, pady=(8, 2), sticky="ew")
-        legend.grid_columnconfigure(1, weight=1)
+        legend.grid(row=row, column=0, padx=10, pady=(4, 2), sticky="ew")
         lr = 0
-        ctk.CTkLabel(legend, text="APP LIST LEGEND", font=ctk.CTkFont(size=8, weight="bold"), text_color="#7a8699").grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 2)); lr += 1
+        ctk.CTkLabel(legend, text="REMOVAL LEVELS", font=ctk.CTkFont(size=7, weight="bold"), text_color="#7a8699", height=14).grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(3, 1)); lr += 1
         for color, term, meaning in (
             ("#2ea043", "Recommended", "safe to remove"),
             ("#58a6ff", "Advanced", "mostly safe"),
             ("#e3b341", "Expert", "may break features"),
             ("#e5534b", "Unsafe", "dangerous, avoid"),
         ):
-            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=9)).grid(row=lr, column=0, padx=(8, 3), pady=0)
-            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=8), text_color="#8b949e", anchor="w").grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
-            lr += 1
-        ctk.CTkFrame(legend, height=1, fg_color="#2c3340").grid(row=lr, column=0, columnspan=2, sticky="ew", padx=8, pady=2); lr += 1
-        ctk.CTkLabel(legend, text="ROW COLORS", font=ctk.CTkFont(size=8, weight="bold"), text_color="#7a8699").grid(row=lr, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 2)); lr += 1
-        for color, meaning in (
-            ("lightgreen", "removable (normal)"),
-            ("orange", "clean excluded"),
-            ("red", "uninstall excluded"),
-            ("#8957e5", "both excluded"),
-        ):
-            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=9)).grid(row=lr, column=0, padx=(8, 3), pady=0)
-            ctk.CTkLabel(legend, text=meaning, font=ctk.CTkFont(size=8), text_color="#8b949e", anchor="w").grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
+            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=7), height=14).grid(row=lr, column=0, padx=(8, 3), pady=0)
+            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=7), text_color="#8b949e", anchor="w", height=14).grid(row=lr, column=1, sticky="w", padx=(0, 6), pady=0)
             lr += 1
         row += 1
 
