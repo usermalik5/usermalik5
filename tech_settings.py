@@ -10,7 +10,7 @@ import sys
 import requests
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, ADMIN_SECRET_PHRASE
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS
 from tech_admin import AdminPanelMixin
 
 from tech_reg import (_parse_repo, _api_fetch, _verify_manifest_sig, _fetch_verified_sources,
@@ -498,8 +498,16 @@ class SettingsMixin(AdminPanelMixin):
                 self._seed_database_defaults()
                 self.current_user = name
                 self.is_admin = (name == "admin")
-                self.user_perms = None if self.is_admin else set((rec.get("permissions") or {}).keys())
-                self.user_tabs = None if self.is_admin else set(rec.get("tabs") or [])
+                if self.is_admin:
+                    self.user_perms = None
+                    self.user_tabs = None
+                else:
+                    self.user_perms = set((rec.get("permissions") or {}).keys())
+                    self.user_tabs = set(rec.get("tabs") or []) or None
+                    if not self.user_perms:
+                        # No explicit perms in secret.json: grant everything
+                        # except the admin-only features (VirusTotal).
+                        self.user_perms = set(DEFAULT_USER_PERMS)
                 self._server_users = users
                 win.destroy()
                 self._apply_permissions()

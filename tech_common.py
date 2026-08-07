@@ -64,6 +64,15 @@ ADMIN_SECRET_PHRASE = "REDACTED"
 # (outside this repo) and is used by bump_version.py to sign releases.
 UPDATE_SIGN_PUBLIC_KEY = "UtgC4BXYtuFX4GfEhxmXTpThdY0g1av1GQ7KEU/79K4="
 
+# Permission model. Every feature maps to a permission name (mirror, power,
+# connection, device_info, cleaner, monitor, dns, virustotal). Non-admin
+# users without explicit permissions in secret.json get DEFAULT_USER_PERMS:
+# everything except the admin-only ones (currently only VirusTotal).
+ALL_PERMS = frozenset({"cleaner", "monitor", "dns", "virustotal",
+                       "mirror", "power", "connection", "device_info"})
+ADMIN_ONLY_PERMS = frozenset({"virustotal"})
+DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
+
 
 def get_bundle_dir():
     """Directory for bundled read-only resources (gelotech_database_v3.json, scrcpy zip).

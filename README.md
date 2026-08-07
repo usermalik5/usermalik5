@@ -19,7 +19,7 @@ All, Disabled, and Filter.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.0.3)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.0.4)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
@@ -56,7 +56,9 @@ Login is email-based: new users (or users who forgot their password) enter
 their email address, and the app emails them a generated password
 (also check the spam folder). Then log in with email + password. The
 maintainer unlocks the admin login by typing the secret phrase into the
-email field (maintainer-only, not shown to users).
+email field (maintainer-only, not shown to users). Non-admin users get all
+tabs and tools (Cleaner, Monitor, DNS, all sidebar actions); only the
+VirusTotal tab is reserved for the admin account.
 
 ## Building the exe
 
