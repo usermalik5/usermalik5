@@ -48,11 +48,11 @@ EMBEDDED_UPDATE_WRITE_TOKEN = ""
 
 # SMTP sender used to email generated passwords to users. Use a DEDICATED
 # low-privilege account with an app password; never your personal account.
-SMTP_HOST = ""
+SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USER = ""
-SMTP_PASSWORD = ""
-SMTP_FROM = ""
+SMTP_USER = "angeloespinosa985@gmail.com"
+SMTP_PASSWORD = "REDACTED"
+SMTP_FROM = "angeloespinosa985@gmail.com"
 
 # Secret phrase that reveals the maintainer (admin) login on the login
 # screen. Type it into the email field to unlock the admin option.
