@@ -44,7 +44,7 @@ EMBEDDED_UPDATE_TOKEN = "REDACTED"
 # (email + PBKDF2 hash) back into the repo's secret.json. Keep it scoped
 # to this single repository (Contents: Read+Write). Rotate it regularly:
 # whoever extracts it can modify this repo's files.
-EMBEDDED_UPDATE_WRITE_TOKEN = ""
+EMBEDDED_UPDATE_WRITE_TOKEN = "REDACTED"
 
 # SMTP sender used to email generated passwords to users. Use a DEDICATED
 # low-privilege account with an app password; never your personal account.
