@@ -335,7 +335,7 @@ class SecOps2Mixin:
                         ctk.CTkLabel(row, text=meaning, font=ctk.CTkFont(size=9), text_color="#8b949e", wraplength=480, justify="left").pack(fill="x", padx=8, pady=(0, 6))
                 self.after(0, apply)
             except Exception as e:
-                self.after(0, lambda: meta.configure(text=f"Error: {e}", text_color="#e74c3c"))
+                self.after(0, lambda e=e: meta.configure(text=f"Error: {e}", text_color="#e74c3c"))
         threading.Thread(target=fetch, daemon=True).start()
         ctk.CTkButton(dialog, text="❌ Close", width=100, fg_color="#3a3a3a", hover_color="#4a4a4a", command=dialog.destroy).pack(pady=(0, 12))
 
@@ -416,7 +416,7 @@ class SecOps2Mixin:
                 self.after(0, lambda: self._sec_render_rows())
                 self.after(0, lambda: self._sec_log(f"[GeloTech] Icons synced: {count} apps (helper closed automatically).", "#2ecc71"))
             except Exception as e:
-                self.after(0, lambda: self._sec_log(f"[GeloTech] Icon sync error: {e}", "#e74c3c"))
+                self.after(0, lambda e=e: self._sec_log(f"[GeloTech] Icon sync error: {e}", "#e74c3c"))
         threading.Thread(target=worker, daemon=True).start()
 
     def action_sec_backup_restore(self):
@@ -498,7 +498,7 @@ class SecOps2Mixin:
                         self.after(0, lambda p=pkg: log(f"Restore failed: {p}", "#e74c3c"))
                 except Exception as e:
                     failed.append(pkg)
-                    self.after(0, lambda p=pkg: log(f"Restore error {p}: {e}", "#e74c3c"))
+                    self.after(0, lambda p=pkg, e=e: log(f"Restore error {p}: {e}", "#e74c3c"))
             if restored:
                 remaining = [p for p in debloated if p not in restored]
                 self._save_debloated(remaining)

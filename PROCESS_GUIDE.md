@@ -16,16 +16,16 @@ GeloTechTool (techtool.py)
 | File | Class / Role | Owns |
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, tabview, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks |
-| `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, `Tooltip` (routes to hint banner), adb subprocess wrapper |
+| `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions (non-admin users with no explicit perms in secret.json get `DEFAULT_USER_PERMS` = everything except admin-only `virustotal`), `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify, banking list only), first-run migration + seeding |
 | `tech_reg.py` | helpers | self-service account flow + server fetching: `_fetch_verified_sources` (signed manifest + live accounts + DB sha256), `_request_password` (generate PBKDF2 password → write to repo secret.json via write token → email via SMTP), `hash_password`/`verify_password`, `_purge_session_database` |
 | `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: server-verified account list with BLOCK/UNBLOCK per account (writes `blocked` flag to repo secret.json via write token) |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
-| `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions) |
-| `tech_secops.py` | `SecOpsMixin` | cleaner list rows, color coding, legend filter, right-click menu, clean/uninstall/backup runners, DB filter dialog |
+| `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions); user-mode package load with local cache save + offline fallback |
+| `tech_secops.py` | `SecOpsMixin` | cleaner list rows, color coding, legend filter, right-click menu, clean/uninstall/backup runners, DB filter dialog; lazy chunked row rendering (`_sec_render_rows` → `_sec_render_chunk` / `_sec_create_row`) |
 | `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Fix Popup Ad, APK Info (+permissions), Restore/Backup dialog, device info |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps tab (process/package tables) |
-| `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter), scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
+| `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter) with local Windows app-list cache — stale-while-revalidate (cached list renders instantly, then refresh from device in background; offline fallback to cache), shared filter matcher `_sec_apply_filter`; scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
 
 ---
@@ -161,6 +161,9 @@ CODE update (needs new exe):
 AppData settings dir (get_settings_dir())  → persistent, writable (RUNTIME STATE ONLY):
   secret.json          (exclusions, debloated history, update_state — NO user accounts)
   banking_apps.json    (downloaded via update flow, .bak kept)
+  app_list_cache.json  (last successful package list per mode — renders instantly
+                        from Windows, then refreshes from device in background;
+                        also the offline fallback when the phone is unreachable)
   apk_backups\*.apk
   sec_whitelist.txt
 

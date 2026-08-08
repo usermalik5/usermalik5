@@ -145,6 +145,51 @@ def has_icon_cache():
         os.path.join(root, "apk_icon_export", "packages.jsonl"))
 
 
+def get_apps_cache_path():
+    """Path of the local app-list cache so the Security tab can render from
+    Windows instantly instead of waiting on the phone every time."""
+    return os.path.join(get_settings_dir(), "app_list_cache.json")
+
+
+def load_apps_cache():
+    """Return {'mode', 'timestamp', 'entries'} from the local app-list cache,
+    or None if it is missing, corrupt, or empty."""
+    try:
+        with open(get_apps_cache_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and isinstance(data.get("entries"), list) and data["entries"]:
+            data.setdefault("timestamp", 0)
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def save_apps_cache(mode, entries):
+    """Atomically persist a package list (mode + entries) to the Windows
+    app-data cache so a later launch renders instantly, even without the
+    phone connected."""
+    if not entries:
+        return
+    try:
+        path = get_apps_cache_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"mode": mode, "timestamp": time.time(), "entries": entries}, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
+def fmt_cache_time(ts):
+    """Short human-readable timestamp for cache-staleness messages."""
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
+    except Exception:
+        return "earlier"
+
+
 def get_live_banking_path():
     """Path of the newest banking-apps exclusion list. A copy pulled from the
     update server (beside the settings file) wins over the bundled copy,

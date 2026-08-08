@@ -92,7 +92,7 @@ class VtOpsMixin:
                 else:
                     self.after(0, lambda: self.log_message(f"[VT ERROR] {resp.status_code}: {resp.text}"))
             except Exception as e:
-                self.after(0, lambda: self.log_message(f"[VT ERROR] {e}"))
+                self.after(0, lambda e=e: self.log_message(f"[VT ERROR] {e}"))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -186,7 +186,7 @@ class VtOpsMixin:
 
                 self.after(0, lambda: self.set_vt_results(scanned, malicious))
             except Exception as e:
-                self.after(0, lambda: self.log_message(f"[VT ERROR] {e}"))
+                self.after(0, lambda e=e: self.log_message(f"[VT ERROR] {e}"))
             finally:
                 self.background_scan_running = False
                 self.after(0, lambda: self.vt_scan_btn.configure(state="normal", text="Scan Phone"))
@@ -270,7 +270,7 @@ class VtOpsMixin:
 
                 self.after(0, lambda: self.set_vt_results(scanned, malicious))
             except Exception as e:
-                self.after(0, lambda: self.log_message(f"[VT ERROR] {e}"))
+                self.after(0, lambda e=e: self.log_message(f"[VT ERROR] {e}"))
             finally:
                 self.background_scan_running = False
                 self.after(0, lambda: self.vt_scan_btn.configure(state="normal", text="Scan Phone"))

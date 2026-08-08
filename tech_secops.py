@@ -62,7 +62,16 @@ class SecOpsMixin:
             dot.configure(font=ctk.CTkFont(size=12 if active else 10))
         self._sec_render_rows()
 
+    RENDER_CHUNK = 15
+
     def _sec_render_rows(self):
+        """Lazy/chunked render: rows are built in small batches so the UI
+        stays responsive even with hundreds of apps loaded."""
+        if hasattr(self, "_sec_render_gen"):
+            self._sec_render_gen += 1
+        else:
+            self._sec_render_gen = 0
+        gen = self._sec_render_gen
         for child in self.sec_list_frame.winfo_children():
             child.destroy()
         if not hasattr(self, "sec_packages") or not self.sec_packages:
@@ -71,72 +80,91 @@ class SecOpsMixin:
             return
 
         query = self.sec_search_entry.get().strip().lower()
-        self.sec_check_vars = {}
-        total = 0
+        filtered = []
         for entry in self.sec_packages:
             label = entry.get("label", entry["id"])
             if query and query not in entry["id"].lower() and query not in label.lower():
                 continue
             if getattr(self, "sec_legend_filter", None) and self._sec_legend_category(entry) != self.sec_legend_filter:
                 continue
-            total += 1
-            bg, text_color, border = self._sec_row_color(entry)
-            row = ctk.CTkFrame(self.sec_list_frame, fg_color=bg, corner_radius=6, border_width=1, border_color=border)
-            row.grid(row=total, column=0, padx=6, pady=2, sticky="ew")
-            row.grid_columnconfigure(3, weight=1)
-
-            checked_default = False
-            var = ctk.BooleanVar(value=checked_default)
-            self.sec_check_vars[entry["id"]] = var
-
-            def on_check(pid, lbl):
-                if self.sec_check_vars.get(pid) and self.sec_check_vars[pid].get():
-                    self._sec_log(f"[GeloTech] {lbl}: {self._sec_description(pid)}", "#8b949e")
-
-            ctk.CTkCheckBox(row, text="", width=24, variable=var, border_color="#8b949e",
-                            command=lambda p=entry["id"], l=label: on_check(p, l)).grid(row=0, column=0, padx=(10, 4), pady=9)
-
-            icon = self._sec_get_icon(entry["id"], label)
-            ctk.CTkLabel(row, text="", image=icon, width=32, height=32).grid(row=0, column=1, padx=(4, 8), pady=6)
-
-            name_color = "#e6edf3" if entry.get("threat_level", 0) == 0 else "#ff6b6b"
-            display = f"{label}  \u2014  {entry['id']}"
-            ctk.CTkLabel(row, text=display, anchor="w", font=ctk.CTkFont(size=11), text_color=name_color).grid(row=0, column=2, padx=4, pady=6, sticky="ew")
-
-            description = (entry.get("description") or "").strip()
-            if "\n" in description:
-                description = description.splitlines()[0].strip()
-            if len(description) > 200:
-                description = description[:200].rsplit(" ", 1)[0] + "..."
-            if description:
-                ctk.CTkLabel(row, text=description, anchor="w", font=ctk.CTkFont(size=9), text_color="#8b949e",
-                             wraplength=760, justify="left").grid(row=1, column=2, columnspan=3, padx=4, pady=(0, 6), sticky="ew")
-
-            badges = []
-            if entry.get("threat_level", 0) >= 3:
-                badges.append(("🚨 High Risk", "#7f1d1d"))
-            elif entry.get("threat_labels"):
-                badges.append(("🚨", "#7f1d1d"))
-            if entry.get("banking"):
-                badges.append(("🏦 Banking", "#0d5c46"))
-            if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
-                badges.append(("Both Excluded", "#2c3e50"))
-            elif entry.get("excluded_clean"):
-                badges.append(("Clean Excl", "#5c4400"))
-            elif entry.get("excluded_uninstall"):
-                badges.append(("Uninstall Excl", "#5c1a1a"))
-            elif entry.get("removal"):
-                badges.append((entry["removal"], self.REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
-            for i, (txt, col) in enumerate(badges):
-                ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=8, weight="bold"), text_color="#e6edf3", fg_color=col, corner_radius=6, height=20).grid(row=0, column=4 + i, padx=2, pady=8)
-
-            bind_targets = [row] + list(row.winfo_children())
-            for w in bind_targets:
-                w.bind("<Button-3>", lambda e, en=entry: self._sec_row_menu(e, en))
-
-        if total == 0:
+            filtered.append(entry)
+        self._sec_display_list = filtered
+        self.sec_check_vars = {}
+        for entry in filtered:
+            self.sec_check_vars[entry["id"]] = ctk.BooleanVar(value=False)
+        if not filtered:
             self.sec_list_empty = ctk.CTkLabel(self.sec_list_frame, text="No apps match your search", font=ctk.CTkFont(size=12), text_color="#484f58")
             self.sec_list_empty.pack(pady=30)
+            return
+        self._sec_render_chunk(0, gen)
+
+    def _sec_render_chunk(self, start, gen):
+        if gen != getattr(self, "_sec_render_gen", None) or not hasattr(self, "_sec_display_list"):
+            return
+        lst = self._sec_display_list
+        if start == 0:
+            self._sec_status(f"Rendering {len(lst)} apps...", "#58a6ff")
+        end = min(start + self.RENDER_CHUNK, len(lst))
+        for i in range(start, end):
+            self._sec_create_row(lst[i], i + 1)
+        if end < len(lst):
+            self.after(30, lambda: self._sec_render_chunk(end, gen))
+        else:
+            mode = getattr(self, "sec_list_mode", "all")
+            label = "ALL" if mode == "all" else "DISABLED" if mode == "disabled" else "FILTER"
+            self._sec_status(f"{label} apps: {len(lst)} loaded. Use the action buttons below on the apps you check.", "#58a6ff")
+
+    def _sec_create_row(self, entry, grid_row):
+        bg, text_color, border = self._sec_row_color(entry)
+        label = entry.get("label", entry["id"])
+        row = ctk.CTkFrame(self.sec_list_frame, fg_color=bg, corner_radius=6, border_width=1, border_color=border)
+        row.grid(row=grid_row, column=0, padx=6, pady=2, sticky="ew")
+        row.grid_columnconfigure(3, weight=1)
+
+        var = self.sec_check_vars.get(entry["id"])
+        def on_check(pid, lbl):
+            if self.sec_check_vars.get(pid) and self.sec_check_vars[pid].get():
+                self._sec_log(f"[GeloTech] {lbl}: {self._sec_description(pid)}", "#8b949e")
+        ctk.CTkCheckBox(row, text="", width=24, variable=var, border_color="#8b949e",
+                        command=lambda p=entry["id"], l=label: on_check(p, l)).grid(row=0, column=0, padx=(10, 4), pady=9)
+
+        icon = self._sec_get_icon(entry["id"], label)
+        ctk.CTkLabel(row, text="", image=icon, width=32, height=32).grid(row=0, column=1, padx=(4, 8), pady=6)
+
+        name_color = "#e6edf3" if entry.get("threat_level", 0) == 0 else "#ff6b6b"
+        display = f"{label}  \u2014  {entry['id']}"
+        ctk.CTkLabel(row, text=display, anchor="w", font=ctk.CTkFont(size=11), text_color=name_color).grid(row=0, column=2, padx=4, pady=6, sticky="ew")
+
+        description = (entry.get("description") or "").strip()
+        if "\n" in description:
+            description = description.splitlines()[0].strip()
+        if len(description) > 200:
+            description = description[:200].rsplit(" ", 1)[0] + "..."
+        if description:
+            ctk.CTkLabel(row, text=description, anchor="w", font=ctk.CTkFont(size=9), text_color="#8b949e",
+                         wraplength=760, justify="left").grid(row=1, column=2, columnspan=3, padx=4, pady=(0, 6), sticky="ew")
+
+        badges = []
+        if entry.get("threat_level", 0) >= 3:
+            badges.append(("🚨 High Risk", "#7f1d1d"))
+        elif entry.get("threat_labels"):
+            badges.append(("🚨", "#7f1d1d"))
+        if entry.get("banking"):
+            badges.append(("🏦 Banking", "#0d5c46"))
+        if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
+            badges.append(("Both Excluded", "#2c3e50"))
+        elif entry.get("excluded_clean"):
+            badges.append(("Clean Excl", "#5c4400"))
+        elif entry.get("excluded_uninstall"):
+            badges.append(("Uninstall Excl", "#5c1a1a"))
+        elif entry.get("removal"):
+            badges.append((entry["removal"], self.REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
+        for i, (txt, col) in enumerate(badges):
+            ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=8, weight="bold"), text_color="#e6edf3", fg_color=col, corner_radius=6, height=20).grid(row=0, column=4 + i, padx=2, pady=8)
+
+        bind_targets = [row] + list(row.winfo_children())
+        for w in bind_targets:
+            w.bind("<Button-3>", lambda e, en=entry: self._sec_row_menu(e, en))
 
     def _sec_build_row_menu(self, entry):
         pkg = entry["id"]

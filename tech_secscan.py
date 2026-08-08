@@ -13,7 +13,9 @@ import requests
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, has_icon_cache, Tooltip, subprocess
+from tech_common import (get_bundle_dir, get_app_dir, get_cache_dir, has_icon_cache,
+                         load_apps_cache, save_apps_cache, fmt_cache_time,
+                         Tooltip, subprocess)
 
 
 class SecScanMixin:
@@ -104,6 +106,16 @@ class SecScanMixin:
             res = subprocess.run([self.scrcpy_adb, "shell", "pm", "list", "packages", "-3"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
             pkgs = sorted(line[len("package:"):].strip() for line in res.stdout.splitlines() if line.startswith("package:"))
             if not pkgs:
+                cached = load_apps_cache()
+                if cached and cached.get("mode") == "user":
+                    self.sec_packages = cached["entries"]
+                    self.sec_list_mode = "user"
+                    self.after(0, self._sec_render_rows)
+                    self.after(0, lambda: self.sec_threats_label.configure(text="\U0001f9a0 Possible Threats: 0 (cached)", text_color="#f39c12"))
+                    self.after(0, self._sec_animate_stop)
+                    self._sec_status(f"\U0001f4be Device NOT detected — showing cached user apps from {fmt_cache_time(cached.get('timestamp', 0))}.", "#f39c12")
+                    self._sec_log("[GeloTech] Device not connected; loaded cached user apps.", "#f39c12")
+                    return
                 self.after(0, self._sec_animate_stop)
                 self._sec_status("\u26a0 Device NOT detected. Connect your phone via USB...", "#e74c3c")
                 self._sec_log("[GeloTech] No 3rd-party packages found or device not connected.", "#e74c3c")
@@ -114,20 +126,28 @@ class SecScanMixin:
             self._sec_log(f"[GeloTech] {len(pkgs)} user apps found.", "#58a6ff")
             labels = self._load_app_labels()
             uad = self._build_uad_lookup()
+            excl_clean = self._load_excluded_clean()
+            excl_uninstall = self._load_excluded_uninstall()
             self.sec_packages = []
             self.sec_list_mode = "user"
             for p in pkgs:
+                rec = uad.get(p, {})
                 self.sec_packages.append({
                     "id": p,
                     "label": labels.get(p, self._resolve_label(p)),
                     "system": False,
-                    "excluded_clean": p in self._load_excluded_clean(),
-                    "excluded_uninstall": p in self._load_excluded_uninstall(),
+                    "excluded_clean": p in excl_clean,
+                    "excluded_uninstall": p in excl_uninstall,
                     "threat_level": 0,
                     "threat_labels": [],
-                    "removal": uad.get(p, {}).get("removal", ""),
-                    "description": uad.get(p, {}).get("description", ""),
+                    "removal": rec.get("removal", ""),
+                    "description": rec.get("description", ""),
+                    "risk": rec.get("risk", "unknown"),
+                    "category": rec.get("category", "Other"),
+                    "manufacturer": rec.get("manufacturer", "Unknown"),
+                    "source": rec.get("source", "Unknown"),
                 })
+            save_apps_cache("user", self.sec_packages)
             self.after(0, self._sec_render_rows)
             self.after(0, lambda: self.sec_progress_bar.set(0.4))
             if not has_icon_cache():
@@ -135,6 +155,15 @@ class SecScanMixin:
             self._sec_status("\u23f3 Checking installers + permissions for threats...", "#f39c12")
             self._sec_threat_scan(pkgs)
         except Exception as e:
+            cached = load_apps_cache()
+            if cached and cached.get("mode") == "user":
+                self.sec_packages = cached["entries"]
+                self.sec_list_mode = "user"
+                self.after(0, self._sec_render_rows)
+                self.after(0, self._sec_animate_stop)
+                self._sec_status(f"\u274c Error loading packages — showing cached user apps from {fmt_cache_time(cached.get('timestamp', 0))}.", "#f39c12")
+                self._sec_log(f"[GeloTech ERROR] {e}; used cached user apps.", "#f39c12")
+                return
             self.after(0, self._sec_animate_stop)
             self._sec_status(f"\u274c Error loading packages: {e}", "#e74c3c")
             self._sec_log(f"[GeloTech ERROR] {e}", "#e74c3c")

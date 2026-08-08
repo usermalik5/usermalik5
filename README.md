@@ -25,6 +25,13 @@ and removal-level badges use the same colors. The sidebar header shows
 facebook.com/gelotechxyz, and the title/tool name always shows the current
 version (e.g. v1.0.9).
 
+Loading the app list is fast even without the phone plugged in: the first
+successful scan caches the package list locally on the PC, later loads render
+that cached list instantly and then refresh from the device in the background
+(stale-while-revalidate), and any load falls back to the cache whenever the
+phone is unreachable. List rows are rendered lazily in small batches so the UI
+stays responsive with hundreds of apps loaded.
+
 ## Download
 
 **Latest release:** [GeloTechTool.exe (v1.0.10)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)

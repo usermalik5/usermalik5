@@ -13,7 +13,9 @@ import requests
 import datetime
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, load_banking_apps, Tooltip, subprocess
+from tech_common import (get_bundle_dir, get_app_dir, load_banking_apps,
+                         load_apps_cache, save_apps_cache, fmt_cache_time,
+                         Tooltip, subprocess)
 
 
 class MiscMixin:
@@ -211,6 +213,16 @@ class MiscMixin:
         self._sec_status(f"Loading {label} packages...", "#58a6ff")
         self._sec_log(f"[GeloTech] Loading {label} package list...", "#8b949e")
 
+        cached = load_apps_cache()
+        if cached and cached.get("mode") == mode:
+            entries = cached["entries"]
+            self.sec_packages = entries
+            self.sec_legend_filter = None
+            self.after(0, self._sec_render_rows)
+            self.after(0, lambda: self.sec_threats_label.configure(text=f"{label}: {len(entries)} apps (cached)", text_color="#58a6ff"))
+            self.after(0, lambda: self._sec_status(f"\U0001f4be Showing cached {label} list from {fmt_cache_time(cached.get('timestamp', 0))}. Refreshing from device...", "#58a6ff"))
+            self.after(0, lambda: self._sec_log(f"[GeloTech] {label}: rendered from local Windows cache; refreshing from device in background.", "#8b949e"))
+
         def worker():
             try:
                 res = subprocess.run([self.scrcpy_adb] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20)
@@ -226,6 +238,7 @@ class MiscMixin:
                 banking = load_banking_apps()
                 entries = []
                 for p in sorted(pkgs):
+                    rec = uad.get(p, {})
                     entries.append({
                         "id": p,
                         "label": labels.get(p, self._resolve_label(p)),
@@ -235,20 +248,52 @@ class MiscMixin:
                         "banking": p in banking,
                         "threat_level": 0,
                         "threat_labels": [],
-                        "removal": uad.get(p, {}).get("removal", ""),
-                        "description": uad.get(p, {}).get("description", ""),
+                        "removal": rec.get("removal", ""),
+                        "description": rec.get("description", ""),
+                        "risk": rec.get("risk", "unknown"),
+                        "category": rec.get("category", "Other"),
+                        "manufacturer": rec.get("manufacturer", "Unknown"),
+                        "source": rec.get("source", "Unknown"),
                     })
                 self.sec_list_mode = mode
                 self.sec_packages = entries
                 self.sec_legend_filter = None
+                save_apps_cache(mode, entries)
                 self.after(0, self._sec_render_rows)
                 self.after(0, lambda: self.sec_threats_label.configure(text=f"{label}: {len(entries)} apps", text_color="#58a6ff"))
                 self.after(0, lambda: self._sec_status(f"{label} packages: {len(entries)} loaded. Use the action buttons below on the apps you check.", "#58a6ff"))
                 self.after(0, lambda: self._sec_log(f"[GeloTech] {label}: {len(entries)} package(s) loaded into the list.", "#58a6ff"))
             except Exception as e:
-                self.after(0, lambda: self._sec_status(f"\u274c Error loading packages: {e}", "#e74c3c"))
-                self.after(0, lambda: self._sec_log(f"[GeloTech ERROR] {e}", "#e74c3c"))
+                self.after(0, lambda e=e: self._sec_status(f"\u274c Error loading packages: {e}", "#e74c3c"))
+                self.after(0, lambda e=e: self._sec_log(f"[GeloTech ERROR] {e}", "#e74c3c"))
         threading.Thread(target=worker, daemon=True).start()
+
+    def _sec_apply_filter(self, criteria, source_entries):
+        selection = {
+            "removal": criteria.get("removal", "Any"),
+            "risk": criteria.get("risk", "Any"),
+            "category": criteria.get("category", "Any"),
+            "manufacturer": criteria.get("manufacturer", "Any"),
+            "source": criteria.get("source", "Any"),
+        }
+        respect_exclude = criteria.get("respect_exclude", True)
+        banking = load_banking_apps()
+        out = []
+        for e in source_entries:
+            if selection["removal"] != "Any" and e.get("removal") != selection["removal"]:
+                continue
+            if selection["risk"] != "Any" and (e.get("risk") or "unknown") != selection["risk"]:
+                continue
+            if selection["category"] != "Any" and e.get("category") != selection["category"]:
+                continue
+            if selection["manufacturer"] != "Any" and e.get("manufacturer") != selection["manufacturer"]:
+                continue
+            if selection["source"] != "Any" and e.get("source") != selection["source"]:
+                continue
+            if respect_exclude and (e.get("exclude_uninstall") or e.get("excluded_uninstall") or e["id"] in banking):
+                continue
+            out.append(e)
+        return out
 
     def _sec_load_db_filter(self, criteria):
         if not self._can("device_info"):
@@ -260,11 +305,32 @@ class MiscMixin:
         self._sec_status("Loading matching apps from the database...", "#58a6ff")
         self._sec_log("[GeloTech] Loading database filter...", "#8b949e")
 
+        def finish(matches, cached_ts=None):
+            self.sec_list_mode = "filter"
+            self.sec_packages = matches
+            self.sec_legend_filter = None
+            self.after(0, self._sec_render_rows)
+            if matches:
+                note = " (cached)" if cached_ts else ""
+                self.after(0, lambda: self.sec_threats_label.configure(text=f"Filter: {len(matches)} apps", text_color="#58a6ff"))
+                self.after(0, lambda: self._sec_status(f"Filter: {len(matches)} app(s) match{note}. Use the action buttons below on the apps you check.", "#58a6ff"))
+                self.after(0, lambda: self._sec_log(f"[GeloTech] FILTER: {len(matches)} package(s) loaded into the list.", "#8b949e"))
+            else:
+                self.after(0, lambda: self._sec_status("No apps match these database criteria.", "#f39c12"))
+                self.after(0, lambda: self._sec_log("[GeloTech] FILTER: no apps match these criteria.", "#f39c12"))
+
         def worker():
             try:
                 res = subprocess.run([self.scrcpy_adb, "shell", "pm", "list", "packages"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20)
                 installed = [line[len("package:"):].strip() for line in res.stdout.splitlines() if line.startswith("package:")]
                 if not installed:
+                    cached = load_apps_cache()
+                    if cached and cached.get("mode") == "all":
+                        matches = self._sec_apply_filter(criteria, cached["entries"])
+                        finish(matches, cached.get("timestamp", 0))
+                        self.after(0, lambda: self._sec_status(f"\U0001f4be Device not connected — filtered the local cache from {fmt_cache_time(cached.get('timestamp', 0))}.", "#f39c12"))
+                        self.after(0, lambda: self._sec_log("[GeloTech] FILTER: device not connected; applied filter to local cache.", "#f39c12"))
+                        return
                     self.after(0, lambda: self._sec_status("No packages found or device not connected.", "#e74c3c"))
                     self.after(0, lambda: self._sec_log("[GeloTech] FILTER: no packages found or device not connected.", "#e74c3c"))
                     return
@@ -273,32 +339,12 @@ class MiscMixin:
                 excl_clean = self._load_excluded_clean()
                 excl_uninstall = self._load_excluded_uninstall()
                 banking = load_banking_apps()
-                selection = {
-                    "removal": criteria.get("removal", "Any"),
-                    "risk": criteria.get("risk", "Any"),
-                    "category": criteria.get("category", "Any"),
-                    "manufacturer": criteria.get("manufacturer", "Any"),
-                    "source": criteria.get("source", "Any"),
-                }
-                respect_exclude = criteria.get("respect_exclude", True)
-                entries = []
+                fresh = []
                 for p in sorted(installed):
-                    entry = uad.get(p)
-                    if not entry:
+                    record = uad.get(p)
+                    if not record:
                         continue
-                    if selection["removal"] != "Any" and entry.get("removal") != selection["removal"]:
-                        continue
-                    if selection["risk"] != "Any" and (entry.get("risk") or "unknown") != selection["risk"]:
-                        continue
-                    if selection["category"] != "Any" and entry.get("category") != selection["category"]:
-                        continue
-                    if selection["manufacturer"] != "Any" and entry.get("manufacturer") != selection["manufacturer"]:
-                        continue
-                    if selection["source"] != "Any" and entry.get("source") != selection["source"]:
-                        continue
-                    if respect_exclude and (entry.get("exclude_uninstall") or p in banking):
-                        continue
-                    entries.append({
+                    fresh.append({
                         "id": p,
                         "label": labels.get(p, self._resolve_label(p)),
                         "system": False,
@@ -307,23 +353,25 @@ class MiscMixin:
                         "banking": p in banking,
                         "threat_level": 0,
                         "threat_labels": [],
-                        "removal": entry.get("removal", ""),
-                        "description": entry.get("description", ""),
+                        "removal": record.get("removal", ""),
+                        "description": record.get("description", ""),
+                        "risk": record.get("risk", "unknown"),
+                        "category": record.get("category", "Other"),
+                        "manufacturer": record.get("manufacturer", "Unknown"),
+                        "source": record.get("source", "Unknown"),
                     })
-                self.sec_list_mode = "filter"
-                self.sec_packages = entries
-                self.sec_legend_filter = None
-                self.after(0, self._sec_render_rows)
-                if entries:
-                    self.after(0, lambda: self.sec_threats_label.configure(text=f"Filter: {len(entries)} apps", text_color="#58a6ff"))
-                    self.after(0, lambda: self._sec_status(f"Filter: {len(entries)} app(s) match. Use the action buttons below on the apps you check.", "#58a6ff"))
-                    self.after(0, lambda: self._sec_log(f"[GeloTech] FILTER: {len(entries)} package(s) loaded into the list.", "#58a6ff"))
-                else:
-                    self.after(0, lambda: self._sec_status("No apps match these database criteria.", "#f39c12"))
-                    self.after(0, lambda: self._sec_log("[GeloTech] FILTER: no apps match these criteria.", "#f39c12"))
+                matches = self._sec_apply_filter(criteria, fresh)
+                finish(matches)
             except Exception as e:
-                self.after(0, lambda: self._sec_status(f"\u274c Error loading filter: {e}", "#e74c3c"))
-                self.after(0, lambda: self._sec_log(f"[GeloTech ERROR] {e}", "#e74c3c"))
+                cached = load_apps_cache()
+                if cached and cached.get("mode") == "all":
+                    matches = self._sec_apply_filter(criteria, cached["entries"])
+                    finish(matches, cached.get("timestamp", 0))
+                    self.after(0, lambda e=e: self._sec_status(f"\u274c Error: {e} — filtered the local cache from {fmt_cache_time(cached.get('timestamp', 0))} instead.", "#f39c12"))
+                    self.after(0, lambda e=e: self._sec_log(f"[GeloTech ERROR] {e}; applied filter to local cache.", "#f39c12"))
+                    return
+                self.after(0, lambda e=e: self._sec_status(f"\u274c Error loading filter: {e}", "#e74c3c"))
+                self.after(0, lambda e=e: self._sec_log(f"[GeloTech ERROR] {e}", "#e74c3c"))
         threading.Thread(target=worker, daemon=True).start()
 
     def _sec_refresh_current_list(self):
