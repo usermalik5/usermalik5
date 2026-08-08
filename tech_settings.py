@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import customtkinter as ctk
-from tkinter import messagebox, ttk
 import threading
 import os
 import json
@@ -775,11 +774,10 @@ class SettingsMixin(AdminPanelMixin):
                 data = self._load_settings()
                 data["update_state"] = new_state
                 self._save_settings(data)
-                report("\u2713 Update downloaded. Restart GeloTechTool to apply it.")
-                if not manual:
-                    self.after(0, lambda: messagebox.showinfo(
-                        "Update Ready",
-                        "A new database/banking version was downloaded.\nRestart GeloTechTool to apply it."))
+                # The banking list is read fresh on every load (load_banking_apps),
+                # so a downloaded update applies on the next list refresh - no
+                # restart is needed, and no popup is shown for these data updates.
+                report("\u2713 Banking list updated. It will apply on the next list refresh (no restart needed).")
             elif manual:
                 report("\u2713 You are up to date.")
 
