@@ -37,13 +37,13 @@ python techtool.py
   │
   ├─ GeloTechTool.__init__()
   │    ├─ 1. Window: title, icon, size/minsize, scaling
-  │    ├─ 2. Layout columns: [0] sidebar fixed | [1] tabs weight=3 | [2] log weight=1 (min 340)
+  │    ├─ 2. Layout columns: [0] sidebar fixed | [1] tabs weight=1 (fills width; app list stretches right)
   │    ├─ 3. _extract_scrcpy()        → unzip scrcpy-win64-v3.3.4.zip to temp, locate adb.exe/scrcpy.exe
   │    ├─ 4. _migrate_settings()      → first run: import old settings/exclusion files into AppData JSON
   │    ├─ 5. _seed_database_defaults()→ pre-check packages flagged in DB into exclusion/debloated lists
   │    ├─ 6. Build sidebar (DISPLAY / POWER / CONNECTION / SESSION buttons)
   │    ├─ 7. Build tabs: Cleaner, Monitor, DNS, VirusTotal (build_*_tab())
-  │    ├─ 8. _build_log_panel()  → Matrix-style console + filter chips
+  │    ├─ 8. _build_log_panel()  → compact console floating over the top-right corner (place, collapsible)
   │    └─ 9. _build_hint_banner() → red attention strip (auto-hide 6s)
   │
   ├─ _login_gate()  → login window (withdraw main window)

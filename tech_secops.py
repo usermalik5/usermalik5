@@ -473,7 +473,12 @@ class SecOpsMixin:
         self._sec_bloat_menu = menu
         self._sec_bloat_menu_sub = sub
         try:
-            menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+            x = button.winfo_rootx()
+            y = button.winfo_rooty() + button.winfo_height()
+            if x == 0 and y == 0:
+                x = self.winfo_pointerx()
+                y = self.winfo_pointery()
+            menu.tk_popup(x, y)
         finally:
             menu.grab_release()
 

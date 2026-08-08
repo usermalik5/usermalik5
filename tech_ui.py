@@ -101,9 +101,6 @@ class UiMixin:
         title_block.grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
         ctk.CTkLabel(title_block, text="UAD Bloatware Remover", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
         ctk.CTkLabel(title_block, text="Universal Android Debloater (UAD) \u2014 Adware Remover", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
-        self.sec_refresh_btn = ctk.CTkButton(header, text="\U0001f504 Refresh", width=110, height=34, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(weight="bold", size=11), command=self.action_sec_refresh)
-        self.sec_refresh_btn.grid(row=0, column=2, padx=(8, 14), pady=10)
-        Tooltip(self.sec_refresh_btn, "Reload the app list from your phone and re-scan for threats (popup-ads / sideloaded apps).")
 
         dev = ctk.CTkFrame(header, fg_color="transparent")
         dev.grid(row=1, column=0, columnspan=3, padx=14, pady=(0, 10), sticky="w")
@@ -163,6 +160,9 @@ class UiMixin:
                 Tooltip(w, f"Click to show only {text} apps. Click again to reset.")
             self.sec_legend_widgets[mode] = (dot, lbl)
         toolbar.grid_columnconfigure(4 + len(legend_items) * 2, weight=0)
+        self.sec_refresh_btn = ctk.CTkButton(toolbar, text="\U0001f504 Refresh", width=110, height=30, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(weight="bold", size=11), command=self.action_sec_refresh)
+        self.sec_refresh_btn.grid(row=0, column=4 + len(legend_items) * 2, padx=(10, 10), pady=6)
+        Tooltip(self.sec_refresh_btn, "Reload the app list from your phone and re-scan for threats (popup-ads / sideloaded apps).")
 
         # Row 1 (toolbar) - short usage guide below the removal-level legend
         ctk.CTkLabel(toolbar, text="\U0001f4a1 How to use: press Refresh to load apps, check the apps to fix, then use the Remove Bloatware button below. Right-click any app row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
