@@ -77,7 +77,7 @@ DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
 # Bump this on every iteration; shown in the window title and the sidebar
 # tool name, and must match the release tag (v<APP_VERSION>).
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 
 def get_bundle_dir():

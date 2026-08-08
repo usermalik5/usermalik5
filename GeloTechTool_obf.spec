@@ -11,7 +11,7 @@ a = Analysis(
     pathex=[PYARMOR_OUT, '.'],
     binaries=[(os.path.join(PYARMOR_OUT, 'pyarmor_runtime_000000', 'pyarmor_runtime.pyd'), '.')],
     datas=[('scrcpy-win64-v3.3.4.zip', '.'), ('ApkIconHelper.apk', '.'), ('banking_apps.json', '.'), ('gelotech_icon.ico', '.')],
-    hiddenimports=['customtkinter', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont', 'requests',
+    hiddenimports=['customtkinter', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont', 'PIL.ImageTk', 'requests',
                    'tkinter', 'tkinter.messagebox', 'tkinter.ttk',
                    'datetime', 'functools', 'hashlib', 'json', 'os', 're', 'shutil', 'subprocess',
                    'sys', 'tempfile', 'threading', 'time', 'base64', 'secrets', 'smtplib', 'webbrowser',
