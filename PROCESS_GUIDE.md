@@ -81,7 +81,7 @@ UI events (clicks / right-click / keypress)
   │
   ├─ Sidebar: mirror, reboots, ADB fix, admin panel, logout
   ├─ Cleaner tab: Refresh → load packages → color rows → check apps
-  │     ├─ Clear App Data / Remove Adware / Remove Popup Ads / Restore/Backup (typed YES on destructive)
+  │     ├─ Remove Bloatware ▾ menu → uninstall by UAD recommendation (Recommended/Advanced/Expert/Unsafe) | Remove Popup Ads | Uninstall checked | Clear App Data | Restore/Backup (typed YES on destructive)
   │     ├─ Right-click menu: disable / uninstall / clean / backup / exclude / APK info
   │     │     └─ batch rows appear when apps are checked (Disable/Uninstall/Backup ALL)
   │     └─ Legend click → filter list to group; click again → reset

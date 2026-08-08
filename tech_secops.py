@@ -105,12 +105,12 @@ class SecOpsMixin:
         if empty is not None:
             empty.grid_remove()
         self.sec_tree.grid()
-        if getattr(self, "sec_vsb", None):
+        if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.grid()
 
     def _sec_show_empty(self, text):
         self.sec_tree.grid_remove()
-        if getattr(self, "sec_vsb", None):
+        if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.grid_remove()
         empty = self.__dict__.get("sec_list_empty")
         if empty is not None:
@@ -206,7 +206,7 @@ class SecOpsMixin:
         self._sec_row_menu(event, entry)
 
     def _sec_tree_scroll_set(self, first, last):
-        if getattr(self, "sec_vsb", None):
+        if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.set(first, last)
 
     def _sec_build_row_menu(self, entry):
@@ -449,6 +449,81 @@ class SecOpsMixin:
             if values:
                 values[0] = glyph
                 self.sec_tree.item(iid, values=values)
+
+    def _sec_open_action_menu(self, button):
+        """Single 'Remove Bloatware' button: popup menu of all destructive actions."""
+        menu = tk.Menu(self, tearoff=0)
+        menu.configure(bg="#161b22", fg="#e6edf3", activebackground="#1f6feb",
+                       activeforeground="#ffffff", borderwidth=1, relief="solid",
+                       font=("Segoe UI", 10))
+        sub = tk.Menu(menu, tearoff=0)
+        sub.configure(bg="#161b22", fg="#e6edf3", activebackground="#1f6feb",
+                      activeforeground="#ffffff", borderwidth=1, relief="solid",
+                      font=("Segoe UI", 10))
+        for label, level in (("\U0001f7e2 Recommended", "Recommended"),
+                             ("\U0001f535 Advanced", "Advanced"),
+                             ("\U0001f7e0 Expert", "Expert"),
+                             ("\U0001f534 Unsafe", "Unsafe")):
+            sub.add_command(label=label, command=lambda l=level: self._sec_action_recommendation(l))
+        menu.add_cascade(label="Uninstall by UAD recommendation", menu=sub)
+        menu.add_separator()
+        menu.add_command(label="\U0001f41b Remove Popup Ads", command=self.action_sec_remove_bugs)
+        menu.add_command(label="\u274c Uninstall checked apps", command=self.action_sec_uninstall_checked)
+        menu.add_command(label="\U0001f9f9 Clear App Data (checked)", command=self.action_sec_clean_checked)
+        self._sec_bloat_menu = menu
+        self._sec_bloat_menu_sub = sub
+        try:
+            menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+        finally:
+            menu.grab_release()
+
+    def _sec_action_recommendation(self, level):
+        if not self._can("cleaner"):
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
+            return
+        pkgs = []
+        for entry in getattr(self, "sec_packages", []) or []:
+            if entry.get("removal") == level:
+                pkgs.append(entry["id"])
+        if not pkgs:
+            self._sec_status(f"No apps at the '{level}' removal level in the loaded list.", "#f39c12")
+            return
+        self._sec_check_level(level)
+        if not self._sec_typed_confirm(
+                f"Uninstall {level}",
+                f"{len(pkgs)} app(s) are at UAD '{level}' removal level and will be uninstalled.\n\n"
+                f"{level} = {self._sec_level_hint(level)}.\n"
+                "Banking apps and apps in your Uninstall Excluded list are safe and skipped.\n\n"
+                "This CANNOT be undone easily \u2014 a backup is recommended. Type YES to continue."):
+            return
+        self._sec_log(f"[GeloTech] Uninstalling {len(pkgs)} app(s) at '{level}' recommendation...", "#58a6ff")
+        self._sec_run_uninstall(pkgs)
+
+    def _sec_check_level(self, level):
+        """Auto-check every loaded app whose UAD removal level matches, and sync the row glyphs."""
+        vars_map = getattr(self, "sec_check_vars", {}) or {}
+        matched = set()
+        for entry in getattr(self, "sec_packages", []) or []:
+            if entry.get("removal") == level:
+                matched.add(entry["id"])
+                if entry["id"] in vars_map:
+                    vars_map[entry["id"]].set(True)
+        for iid in self.sec_tree.get_children():
+            pkg = self._sec_tree_pkg(iid)
+            if pkg and pkg in matched:
+                values = list(self.sec_tree.item(iid, "values"))
+                if values:
+                    values[0] = "\u2611"
+                    self.sec_tree.item(iid, values=values)
+        return matched
+
+    def _sec_level_hint(self, level):
+        return {
+            "Recommended": "safe to remove \u2014 pure bloatware",
+            "Advanced": "mostly safe \u2014 may remove things you occasionally use",
+            "Expert": "may break specific features",
+            "Unsafe": "dangerous \u2014 can break core Android features",
+        }.get(level, "")
 
     def _sec_checked_packages(self):
         if not hasattr(self, "sec_check_vars"):

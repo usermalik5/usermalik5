@@ -14,8 +14,10 @@ batch actions for all checked apps (disable / uninstall / APK backup /
 exclude).
 Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
-reset). The toolbar keeps Clear App Data, Remove Adware, Remove Popup Ads, Restore/Backup,
-All, Disabled, and Filter. A permanent legend in the sidebar explains the app
+reset). The toolbar keeps a single **Remove Bloatware** button (its menu
+covers uninstalling by UAD recommendation level — Recommended / Advanced /
+Expert / Unsafe — plus Remove Popup Ads, Uninstall checked, and Clear App
+Data), Restore/Backup, All, Disabled, and Filter. A permanent legend in the sidebar explains the app
 removal levels (Recommended = safe to remove, Advanced = mostly safe,
 Expert = may break features, Unsafe = dangerous) and the list row colors
 (green = removable, orange = clean excluded, red = uninstall excluded,

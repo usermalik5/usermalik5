@@ -99,8 +99,8 @@ class UiMixin:
         header.grid_columnconfigure(1, weight=1)
         title_block = ctk.CTkFrame(header, fg_color="transparent")
         title_block.grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
-        ctk.CTkLabel(title_block, text="APK CLEANER & UNINSTALLER", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
-        ctk.CTkLabel(title_block, text="Adware Remover", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
+        ctk.CTkLabel(title_block, text="UAD Bloatware Remover", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
+        ctk.CTkLabel(title_block, text="Universal Android Debloater (UAD) \u2014 Adware Remover", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
         self.sec_refresh_btn = ctk.CTkButton(header, text="\U0001f504 Refresh", width=110, height=34, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(weight="bold", size=11), command=self.action_sec_refresh)
         self.sec_refresh_btn.grid(row=0, column=2, padx=(8, 14), pady=10)
         Tooltip(self.sec_refresh_btn, "Reload the app list from your phone and re-scan for threats (popup-ads / sideloaded apps).")
@@ -143,7 +143,7 @@ class UiMixin:
         Tooltip(self.sec_search_entry, "Type to filter the list — matches the app name or package ID. Example: typing 'bank' shows only apps with 'bank' in the name.")
         self.sec_select_all_btn = ctk.CTkButton(toolbar, text="\u2610 Select All", width=120, height=30, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(size=10, weight="bold"), command=self.action_sec_toggle_all)
         self.sec_select_all_btn.grid(row=0, column=3, padx=(8, 6), pady=6)
-        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones Clear App Data / Remove Adware / Remove Popup Ads act on.")
+        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones the Remove Bloatware button acts on.")
 
         legend_items = [
             ("lightgreen", "Removable", "removable"),
@@ -165,7 +165,7 @@ class UiMixin:
         toolbar.grid_columnconfigure(4 + len(legend_items) * 2, weight=0)
 
         # Row 1 (toolbar) - short usage guide below the removal-level legend
-        ctk.CTkLabel(toolbar, text="\U0001f4a1 How to use: press Refresh to load apps, check the apps to fix, then use a button below. Right-click any app row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
+        ctk.CTkLabel(toolbar, text="\U0001f4a1 How to use: press Refresh to load apps, check the apps to fix, then use the Remove Bloatware button below. Right-click any app row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
                      font=ctk.CTkFont(size=9, slant="italic"), text_color="#58a6ff", anchor="w", justify="left",
                      wraplength=1000).grid(row=1, column=0, columnspan=12, padx=10, pady=(0, 6), sticky="ew")
 
@@ -209,40 +209,34 @@ class UiMixin:
         self.sec_list_empty.grid(row=0, column=0, pady=30)
         self.sec_tree.grid_remove()
 
-        # Row 4 - Big emoji action buttons (spread evenly across available width)
+        # Row 4 - Big action buttons: single "Remove Bloatware" menu + utility buttons
         actions = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
         actions.grid(row=4, column=0, padx=15, pady=(0, 6), sticky="ew")
-        for i in range(7):
+        for i in range(5):
             actions.grid_columnconfigure(i, weight=1, uniform="act")
         btn_style = dict(height=40, width=0, font=ctk.CTkFont(size=11, weight="bold"), border_width=1, corner_radius=8)
-        btn_clean = ctk.CTkButton(actions, text="\U0001f9f9 Clear App Data", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=self.action_sec_clean_checked, **btn_style)
-        btn_clean.grid(row=0, column=0, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_clean, "Clears storage/data of the CHECKED apps only (apps stay installed, only data/cache is wiped). Fixes full-storage and app-crashing bugs. Apps in the Clean Excluded list are skipped.")
-        btn_uninstall = ctk.CTkButton(actions, text="\u274c Remove Adware", fg_color="#c0392b", hover_color="#a82521", border_color="#e05d4a", command=self.action_sec_uninstall_checked, **btn_style)
-        btn_uninstall.grid(row=0, column=1, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_uninstall, "Uninstalls only the CHECKED 3rd-party apps that cause the popup-ad virus. Apps in the Uninstall Excluded list are safe. Removed apps are recorded for later restore.")
-        btn_bugs = ctk.CTkButton(actions, text="\U0001f41b Remove Popup Ads", fg_color="#b45309", hover_color="#92400e", border_color="#d97706", command=self.action_sec_remove_bugs, **btn_style)
-        btn_bugs.grid(row=0, column=2, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_bugs, "One-tap fix for popup-ad bug on the CHECKED apps: Phase 1 cleans storage of checked apps, Phase 2 uninstalls the checked 3rd-party apps (system apps are never removed).")
+        btn_bloat = ctk.CTkButton(actions, text="\U0001f5d1 Remove Bloatware  \u25be", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=lambda: self._sec_open_action_menu(btn_bloat), **btn_style)
+        btn_bloat.grid(row=0, column=0, padx=4, pady=8, sticky="ew")
+        Tooltip(btn_bloat, "One button for everything: pick a UAD recommendation level to uninstall bloatware automatically, or run Remove Popup Ads / Uninstall checked / Clear App Data on the apps you check.")
         btn_backup = ctk.CTkButton(actions, text="\U0001f4be Restore/Backup", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_sec_backup_restore, **btn_style)
-        btn_backup.grid(row=0, column=3, padx=4, pady=8, sticky="ew")
+        btn_backup.grid(row=0, column=1, padx=4, pady=8, sticky="ew")
         Tooltip(btn_backup, "Your saved settings in one place: view exclusion counts and restore apps you uninstalled earlier (reinstalls them on your phone).")
         btn_all = ctk.CTkButton(actions, text="\U0001f4e6 All", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_all_packages, **btn_style)
-        btn_all.grid(row=0, column=4, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_all, "Loads EVERY installed package into this list. The action buttons below (Clear App Data / Remove Adware / Disable / Exclude...) then work on the apps you check. Right-click any app row for per-app actions (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).")
+        btn_all.grid(row=0, column=2, padx=4, pady=8, sticky="ew")
+        Tooltip(btn_all, "Loads EVERY installed package into this list. Use the Remove Bloatware button menu (or right-click any row) for per-app actions: Disable / Uninstall / Clear App Data / Exclude / Info.")
         btn_disabled = ctk.CTkButton(actions, text="\U0001f4e5 Disabled", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_disabled_packages, **btn_style)
-        btn_disabled.grid(row=0, column=5, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_disabled, "Loads the disabled packages on your phone into this list. The action buttons below work on the apps you check.")
+        btn_disabled.grid(row=0, column=3, padx=4, pady=8, sticky="ew")
+        Tooltip(btn_disabled, "Loads the disabled packages on your phone into this list. The Remove Bloatware button then works on the apps you check.")
         btn_filter = ctk.CTkButton(actions, text="\U0001f50e Filter", fg_color="#0f7489", hover_color="#0c5f70", border_color="#1497ab", command=self.action_sec_db_filter, **btn_style)
-        btn_filter.grid(row=0, column=6, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_filter, "Loads apps matching database criteria (removal level, risk, category, manufacturer, source) into the list. Review, then check and use Uninstall.")
+        btn_filter.grid(row=0, column=4, padx=4, pady=8, sticky="ew")
+        Tooltip(btn_filter, "Loads apps matching database criteria (removal level, risk, category, manufacturer, source) into the list. Review, then use Remove Bloatware.")
         self._perm_sidebar_btns.setdefault("device_info", []).extend([btn_all, btn_disabled, btn_filter])
 
         # Row 5 - Inline result / log panel
         self.sec_result_panel = ctk.CTkTextbox(tab, fg_color="#0d1117", border_color="#30363d", border_width=1, corner_radius=8, height=110, font=ctk.CTkFont(size=9, family="Consolas"), text_color="#c9d1d9")
         self.sec_result_panel.grid(row=5, column=0, padx=15, pady=(0, 6), sticky="ew")
         self._sec_result_tags = {}
-        self._sec_log("[GeloTech] APK Cleaner ready. Connect device, press Refresh.", "#8b949e")
+        self._sec_log("[GeloTech] UAD Bloatware Remover ready. Connect device, press Refresh.", "#8b949e")
 
         # Row 6 - USB debugging help (collapsible)
         self.sec_help_frame = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
