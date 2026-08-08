@@ -22,8 +22,8 @@ GeloTechTool (techtool.py)
 | `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: server-verified account list with BLOCK/UNBLOCK per account (writes `blocked` flag to repo secret.json via write token) |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions); user-mode package load with local cache save + offline fallback |
-| `tech_secops.py` | `SecOpsMixin` | cleaner list rows, color coding, legend filter, right-click menu, clean/uninstall/backup runners, DB filter dialog; lazy chunked row rendering (`_sec_render_rows` → `_sec_render_chunk` / `_sec_create_row`) |
-| `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Fix Popup Ad, APK Info (+permissions), Restore/Backup dialog, device info |
+| `tech_secops.py` | `SecOpsMixin` | cleaner list on a virtualized `ttk.Treeview` (checkbox column, icon column, color-coded row tags, legend filter, right-click menu), clean/uninstall/backup runners, DB filter dialog; batched initial render (`_sec_render_rows` → `_sec_render_chunk` / `_sec_create_row`) |
+| `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Remove Popup Ads, APK Info (+permissions), Restore/Backup dialog, device info |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps tab (process/package tables) |
 | `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter) with local Windows app-list cache — stale-while-revalidate (cached list renders instantly, then refresh from device in background; offline fallback to cache), shared filter matcher `_sec_apply_filter`; scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
@@ -81,7 +81,7 @@ UI events (clicks / right-click / keypress)
   │
   ├─ Sidebar: mirror, reboots, ADB fix, admin panel, logout
   ├─ Cleaner tab: Refresh → load packages → color rows → check apps
-  │     ├─ Clean / Uninstall Virus / Fix Popup Ad / Restore/Backup (typed YES on destructive)
+  │     ├─ Clear App Data / Remove Adware / Remove Popup Ads / Restore/Backup (typed YES on destructive)
   │     ├─ Right-click menu: disable / uninstall / clean / backup / exclude / APK info
   │     │     └─ batch rows appear when apps are checked (Disable/Uninstall/Backup ALL)
   │     └─ Legend click → filter list to group; click again → reset
@@ -159,7 +159,9 @@ CODE update (needs new exe):
 
 ```
 AppData settings dir (get_settings_dir())  → persistent, writable (RUNTIME STATE ONLY):
-  secret.json          (exclusions, debloated history, update_state — NO user accounts)
+  exclusions.json      (exclusions, debloated history, update_state — NO user accounts;
+                        deliberately NOT named secret.json, which is reserved for the
+                        live accounts file on GitHub; dropped next to the exe on login)
   banking_apps.json    (downloaded via update flow, .bak kept)
   app_list_cache.json  (last successful package list per mode — renders instantly
                         from Windows, then refreshes from device in background;

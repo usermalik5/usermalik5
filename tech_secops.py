@@ -13,7 +13,7 @@ import sys
 import requests
 import datetime
 import shutil
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, load_banking_apps, Tooltip, subprocess
 
 
@@ -62,21 +62,22 @@ class SecOpsMixin:
             dot.configure(font=ctk.CTkFont(size=12 if active else 10))
         self._sec_render_rows()
 
-    RENDER_CHUNK = 15
+    RENDER_CHUNK = 60
 
     def _sec_render_rows(self):
-        """Lazy/chunked render: rows are built in small batches so the UI
-        stays responsive even with hundreds of apps loaded."""
+        """Render the app list into the virtualized ttk.Treeview. Only the
+        visible rows exist at any time, so scrolling stays smooth with
+        hundreds or thousands of apps. Rows are added in small batches so the
+        UI stays responsive during the initial build."""
         if hasattr(self, "_sec_render_gen"):
             self._sec_render_gen += 1
         else:
             self._sec_render_gen = 0
         gen = self._sec_render_gen
-        for child in self.sec_list_frame.winfo_children():
-            child.destroy()
+        for item in self.sec_tree.get_children():
+            self.sec_tree.delete(item)
         if not hasattr(self, "sec_packages") or not self.sec_packages:
-            self.sec_list_empty = ctk.CTkLabel(self.sec_list_frame, text="\U0001f4e6 Connect a device and press Refresh to load apps", font=ctk.CTkFont(size=12), text_color="#484f58")
-            self.sec_list_empty.pack(pady=30)
+            self._sec_show_empty("\U0001f4e6 Connect a device and press Refresh to load apps")
             return
 
         query = self.sec_search_entry.get().strip().lower()
@@ -89,14 +90,34 @@ class SecOpsMixin:
                 continue
             filtered.append(entry)
         self._sec_display_list = filtered
+        self._sec_tree_iids = [f"row{i}" for i in range(len(filtered))]
         self.sec_check_vars = {}
         for entry in filtered:
             self.sec_check_vars[entry["id"]] = ctk.BooleanVar(value=False)
         if not filtered:
-            self.sec_list_empty = ctk.CTkLabel(self.sec_list_frame, text="No apps match your search", font=ctk.CTkFont(size=12), text_color="#484f58")
-            self.sec_list_empty.pack(pady=30)
+            self._sec_show_empty("No apps match your search")
             return
+        self._sec_show_tree()
         self._sec_render_chunk(0, gen)
+
+    def _sec_show_tree(self):
+        empty = self.__dict__.get("sec_list_empty")
+        if empty is not None:
+            empty.grid_remove()
+        self.sec_tree.grid()
+        if getattr(self, "sec_vsb", None):
+            self.sec_vsb.grid()
+
+    def _sec_show_empty(self, text):
+        self.sec_tree.grid_remove()
+        if getattr(self, "sec_vsb", None):
+            self.sec_vsb.grid_remove()
+        empty = self.__dict__.get("sec_list_empty")
+        if empty is not None:
+            empty.configure(text=text)
+        else:
+            self.sec_list_empty = ctk.CTkLabel(self.sec_list_frame, text=text, font=ctk.CTkFont(size=12), text_color="#484f58")
+            self.sec_list_empty.grid(row=0, column=0, pady=30)
 
     def _sec_render_chunk(self, start, gen):
         if gen != getattr(self, "_sec_render_gen", None) or not hasattr(self, "_sec_display_list"):
@@ -106,65 +127,87 @@ class SecOpsMixin:
             self._sec_status(f"Rendering {len(lst)} apps...", "#58a6ff")
         end = min(start + self.RENDER_CHUNK, len(lst))
         for i in range(start, end):
-            self._sec_create_row(lst[i], i + 1)
+            self._sec_create_row(lst[i], i)
         if end < len(lst):
-            self.after(30, lambda: self._sec_render_chunk(end, gen))
+            self.after(1, lambda: self._sec_render_chunk(end, gen))
         else:
             mode = getattr(self, "sec_list_mode", "all")
             label = "ALL" if mode == "all" else "DISABLED" if mode == "disabled" else "FILTER"
             self._sec_status(f"{label} apps: {len(lst)} loaded. Use the action buttons below on the apps you check.", "#58a6ff")
 
-    def _sec_create_row(self, entry, grid_row):
-        bg, text_color, border = self._sec_row_color(entry)
+    def _sec_tree_row_tag(self, entry):
+        if entry.get("threat_level", 0) >= 3:
+            return "threat"
+        if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
+            return "both_excl"
+        if entry.get("excluded_uninstall"):
+            return "uninstall_excl"
+        if entry.get("excluded_clean"):
+            return "clean_excl"
+        return "normal"
+
+    def _sec_create_row(self, entry, index):
         label = entry.get("label", entry["id"])
-        row = ctk.CTkFrame(self.sec_list_frame, fg_color=bg, corner_radius=6, border_width=1, border_color=border)
-        row.grid(row=grid_row, column=0, padx=6, pady=2, sticky="ew")
-        row.grid_columnconfigure(3, weight=1)
-
-        var = self.sec_check_vars.get(entry["id"])
-        def on_check(pid, lbl):
-            if self.sec_check_vars.get(pid) and self.sec_check_vars[pid].get():
-                self._sec_log(f"[GeloTech] {lbl}: {self._sec_description(pid)}", "#8b949e")
-        ctk.CTkCheckBox(row, text="", width=24, variable=var, border_color="#8b949e",
-                        command=lambda p=entry["id"], l=label: on_check(p, l)).grid(row=0, column=0, padx=(10, 4), pady=9)
-
-        icon = self._sec_get_icon(entry["id"], label)
-        ctk.CTkLabel(row, text="", image=icon, width=32, height=32).grid(row=0, column=1, padx=(4, 8), pady=6)
-
-        name_color = "#e6edf3" if entry.get("threat_level", 0) == 0 else "#ff6b6b"
-        display = f"{label}  \u2014  {entry['id']}"
-        ctk.CTkLabel(row, text=display, anchor="w", font=ctk.CTkFont(size=11), text_color=name_color).grid(row=0, column=2, padx=4, pady=6, sticky="ew")
-
-        description = (entry.get("description") or "").strip()
-        if "\n" in description:
-            description = description.splitlines()[0].strip()
-        if len(description) > 200:
-            description = description[:200].rsplit(" ", 1)[0] + "..."
-        if description:
-            ctk.CTkLabel(row, text=description, anchor="w", font=ctk.CTkFont(size=9), text_color="#8b949e",
-                         wraplength=760, justify="left").grid(row=1, column=2, columnspan=3, padx=4, pady=(0, 6), sticky="ew")
-
+        pkg = entry["id"]
+        display = f"{label}  \u2014  {pkg}"
+        desc = (entry.get("description") or "").strip().replace("\n", " ")
+        if len(desc) > 110:
+            desc = desc[:110].rsplit(" ", 1)[0] + "..."
         badges = []
         if entry.get("threat_level", 0) >= 3:
-            badges.append(("🚨 High Risk", "#7f1d1d"))
+            badges.append("\U0001f6a8 High Risk")
         elif entry.get("threat_labels"):
-            badges.append(("🚨", "#7f1d1d"))
+            badges.append("\U0001f6a8")
         if entry.get("banking"):
-            badges.append(("🏦 Banking", "#0d5c46"))
+            badges.append("\U0001f3e6 Banking")
         if entry.get("excluded_clean") and entry.get("excluded_uninstall"):
-            badges.append(("Both Excluded", "#2c3e50"))
+            badges.append("Both Excluded")
         elif entry.get("excluded_clean"):
-            badges.append(("Clean Excl", "#5c4400"))
+            badges.append("Clean Excl")
         elif entry.get("excluded_uninstall"):
-            badges.append(("Uninstall Excl", "#5c1a1a"))
+            badges.append("Uninstall Excl")
         elif entry.get("removal"):
-            badges.append((entry["removal"], self.REMOVAL_BADGE_COLORS.get(entry["removal"], "#1f3a5f")))
-        for i, (txt, col) in enumerate(badges):
-            ctk.CTkLabel(row, text=txt, font=ctk.CTkFont(size=8, weight="bold"), text_color="#e6edf3", fg_color=col, corner_radius=6, height=20).grid(row=0, column=4 + i, padx=2, pady=8)
+            badges.append(entry["removal"])
+        icon = self._sec_tree_icon(pkg, label)
+        self.sec_tree.insert("", "end", iid=f"row{index}", image=icon,
+                             values=("\u2610", display, "  ".join(badges), desc),
+                             tags=(self._sec_tree_row_tag(entry),))
 
-        bind_targets = [row] + list(row.winfo_children())
-        for w in bind_targets:
-            w.bind("<Button-3>", lambda e, en=entry: self._sec_row_menu(e, en))
+    def _sec_tree_pkg(self, row):
+        try:
+            return self._sec_display_list[int(row[3:])]["id"]
+        except Exception:
+            return None
+
+    def _sec_tree_click(self, event):
+        row = self.sec_tree.identify_row(event.y)
+        if not row or self.sec_tree.identify_column(event.x) != "#1":
+            return
+        pkg = self._sec_tree_pkg(row)
+        if not pkg or pkg not in self.sec_check_vars:
+            return
+        var = self.sec_check_vars[pkg]
+        var.set(not var.get())
+        values = list(self.sec_tree.item(row, "values"))
+        values[0] = "\u2611" if var.get() else "\u2610"
+        self.sec_tree.item(row, values=values)
+        if var.get():
+            entry = self._sec_display_list[int(row[3:])]
+            self._sec_log(f"[GeloTech] {entry.get('label', pkg)}: {self._sec_description(pkg)}", "#8b949e")
+
+    def _sec_tree_menu(self, event):
+        row = self.sec_tree.identify_row(event.y)
+        if not row:
+            return
+        try:
+            entry = self._sec_display_list[int(row[3:])]
+        except Exception:
+            return
+        self._sec_row_menu(event, entry)
+
+    def _sec_tree_scroll_set(self, first, last):
+        if getattr(self, "sec_vsb", None):
+            self.sec_vsb.set(first, last)
 
     def _sec_build_row_menu(self, entry):
         pkg = entry["id"]
@@ -202,7 +245,7 @@ class SecOpsMixin:
 
     def _sec_menu_disable(self, pkg):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         if not messagebox.askyesno("Disable App", f"Disable {pkg} for the current user?\n\nIt can be re-enabled later from the Disabled list."):
             return
@@ -211,7 +254,7 @@ class SecOpsMixin:
 
     def _sec_menu_uninstall(self, pkg, label):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         if not messagebox.askyesno("Uninstall App", f"Uninstall {label} ({pkg})?\n\n3rd-party apps only. Excluded apps are skipped."):
             return
@@ -220,7 +263,7 @@ class SecOpsMixin:
 
     def _sec_menu_clean(self, pkg):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         if not messagebox.askyesno("Clean Data", f"Clear storage/data of {pkg}?\n\nThe app itself stays installed."):
             return
@@ -236,7 +279,7 @@ class SecOpsMixin:
 
     def _sec_menu_disable_checked(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
@@ -251,7 +294,7 @@ class SecOpsMixin:
 
     def _sec_menu_uninstall_checked(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
@@ -309,7 +352,7 @@ class SecOpsMixin:
 
     def _sec_menu_exclude(self, pkg, mode):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         if mode == "clean":
             excl = self._load_excluded_clean()
@@ -342,37 +385,70 @@ class SecOpsMixin:
         self._sec_icon_cache[pkg] = img
         return img
 
-    def _sec_make_letter_tile(self, pkg, label):
+    def _sec_letter_pil(self, pkg, label, size, radius, font_size):
         letter = label[0].upper() if label else pkg[0].upper() if pkg else "?"
         if not letter.isalnum():
             letter = "?"
         h = hashlib.md5(pkg.encode("utf-8")).hexdigest()
         palette = ["#1f6feb", "#2ea043", "#bf8700", "#bc4c00", "#8957e5", "#d1242f", "#0f7489", "#d03592"]
         color = palette[int(h[:2], 16) % len(palette)]
-        size = 64
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
-        d.rounded_rectangle([0, 0, size - 1, size - 1], radius=14, fill=color)
+        d.rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=color)
         try:
-            font = ImageFont.truetype("segoeui.ttf", 34)
+            font = ImageFont.truetype("segoeui.ttf", font_size)
         except Exception:
             font = ImageFont.load_default()
         bbox = d.textbbox((0, 0), letter, font=font)
         w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
         d.text(((size - w) / 2 - bbox[0], (size - h) / 2 - bbox[1]), letter, font=font, fill="white")
-        return ctk.CTkImage(light_image=img, dark_image=img, size=(32, 32))
+        return img
+
+    def _sec_make_letter_tile(self, pkg, label):
+        pil = self._sec_letter_pil(pkg, label, 64, 14, 34)
+        return ctk.CTkImage(light_image=pil, dark_image=pil, size=(32, 32))
+
+    def _sec_make_letter_photo(self, pkg, label):
+        return ImageTk.PhotoImage(self._sec_letter_pil(pkg, label, 56, 12, 30))
+
+    def _sec_tree_icon(self, pkg, label):
+        cached = getattr(self, "_sec_tree_icon_cache", None)
+        if cached and pkg in cached:
+            return cached[pkg]
+        img = None
+        try:
+            cache_dir = get_cache_dir()
+            icon_path = os.path.join(cache_dir, f"{pkg}.png")
+            if os.path.isfile(icon_path):
+                pil = Image.open(icon_path).convert("RGBA").resize((28, 28), Image.LANCZOS)
+                img = ImageTk.PhotoImage(pil)
+        except Exception:
+            img = None
+        if img is None:
+            img = self._sec_make_letter_photo(pkg, label)
+        if not hasattr(self, "_sec_tree_icon_cache"):
+            self._sec_tree_icon_cache = {}
+        self._sec_tree_icon_cache[pkg] = img
+        return img
 
     def action_sec_toggle_all(self):
         if not hasattr(self, "sec_check_vars") or not self.sec_check_vars:
             return
-        if self.sec_select_all_btn.cget("text").startswith("\u2611"):
-            for var in self.sec_check_vars.values():
-                var.set(False)
-            self.sec_select_all_btn.configure(text="\u2610 Select All")
+        btn = self.__dict__.get("sec_select_all_btn")
+        if btn is not None and btn.cget("text").startswith("\u2611"):
+            state, glyph = False, "\u2610"
+            btn.configure(text="\u2610 Select All")
         else:
-            for var in self.sec_check_vars.values():
-                var.set(True)
-            self.sec_select_all_btn.configure(text="\u2611 Unselect All")
+            state, glyph = True, "\u2611"
+            if btn is not None:
+                btn.configure(text="\u2611 Unselect All")
+        for var in self.sec_check_vars.values():
+            var.set(state)
+        for iid in self.sec_tree.get_children():
+            values = list(self.sec_tree.item(iid, "values"))
+            if values:
+                values[0] = glyph
+                self.sec_tree.item(iid, values=values)
 
     def _sec_checked_packages(self):
         if not hasattr(self, "sec_check_vars"):
@@ -448,7 +524,7 @@ class SecOpsMixin:
 
     def action_sec_clean_checked(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:

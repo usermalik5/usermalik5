@@ -89,7 +89,7 @@ class UiMixin:
     # SECURITY SCAN TAB UI
     # ----------------------------------------------------
     def build_security_tab(self):
-        tab = self.tabview.tab("Popup Ad Virus Cleaner")
+        tab = self.tabview.tab("Adware Remover")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(3, weight=1)
 
@@ -100,7 +100,7 @@ class UiMixin:
         title_block = ctk.CTkFrame(header, fg_color="transparent")
         title_block.grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
         ctk.CTkLabel(title_block, text="APK CLEANER & UNINSTALLER", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
-        ctk.CTkLabel(title_block, text="Popup Ad Virus Cleaner", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
+        ctk.CTkLabel(title_block, text="Adware Remover", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
         self.sec_refresh_btn = ctk.CTkButton(header, text="\U0001f504 Refresh", width=110, height=34, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(weight="bold", size=11), command=self.action_sec_refresh)
         self.sec_refresh_btn.grid(row=0, column=2, padx=(8, 14), pady=10)
         Tooltip(self.sec_refresh_btn, "Reload the app list from your phone and re-scan for threats (popup-ads / sideloaded apps).")
@@ -143,7 +143,7 @@ class UiMixin:
         Tooltip(self.sec_search_entry, "Type to filter the list — matches the app name or package ID. Example: typing 'bank' shows only apps with 'bank' in the name.")
         self.sec_select_all_btn = ctk.CTkButton(toolbar, text="\u2610 Select All", width=120, height=30, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(size=10, weight="bold"), command=self.action_sec_toggle_all)
         self.sec_select_all_btn.grid(row=0, column=3, padx=(8, 6), pady=6)
-        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones Clean / Uninstall Virus / Fix Popup Ad act on.")
+        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones Clear App Data / Remove Adware / Remove Popup Ads act on.")
 
         legend_items = [
             ("lightgreen", "Removable", "removable"),
@@ -164,12 +164,50 @@ class UiMixin:
             self.sec_legend_widgets[mode] = (dot, lbl)
         toolbar.grid_columnconfigure(4 + len(legend_items) * 2, weight=0)
 
-        # Row 3 - Package list (icon rows)
-        self.sec_list_frame = ctk.CTkScrollableFrame(tab, fg_color="#0d1117", corner_radius=8, border_width=1, border_color="#30363d")
+        # Row 1 (toolbar) - short usage guide below the removal-level legend
+        ctk.CTkLabel(toolbar, text="\U0001f4a1 How to use: press Refresh to load apps, check the apps to fix, then use a button below. Right-click any app row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
+                     font=ctk.CTkFont(size=9, slant="italic"), text_color="#58a6ff", anchor="w", justify="left",
+                     wraplength=1000).grid(row=1, column=0, columnspan=12, padx=10, pady=(0, 6), sticky="ew")
+
+        # Row 3 - Package list (virtualized ttk.Treeview: only visible rows render)
+        self.sec_list_frame = ctk.CTkFrame(tab, fg_color="#0d1117", corner_radius=8, border_width=1, border_color="#30363d")
         self.sec_list_frame.grid(row=3, column=0, padx=15, pady=(0, 6), sticky="nsew")
         self.sec_list_frame.grid_columnconfigure(0, weight=1)
+        self.sec_list_frame.grid_rowconfigure(0, weight=1)
+
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("AppList.Treeview", background="#0d1117", fieldbackground="#0d1117",
+                        foreground="#e6edf3", rowheight=36, borderwidth=0, font=("Segoe UI", 11))
+        style.map("AppList.Treeview", background=[("selected", "#1f6feb")],
+                  foreground=[("selected", "#ffffff")])
+        style.configure("AppList.Vertical.TScrollbar", background="#21262d", troughcolor="#0d1117",
+                        arrowcolor="#8b949e", bordercolor="#0d1117")
+
+        self.sec_tree = ttk.Treeview(self.sec_list_frame, columns=("chk", "name", "badges", "desc"),
+                                     show="tree", selectmode="browse", style="AppList.Treeview")
+        self.sec_tree.grid(row=0, column=0, sticky="nsew")
+        self.sec_tree.configure(yscrollcommand=self._sec_tree_scroll_set)
+        self.sec_vsb = ttk.Scrollbar(self.sec_list_frame, orient="vertical", command=self.sec_tree.yview, style="AppList.Vertical.TScrollbar")
+        self.sec_vsb.grid(row=0, column=1, sticky="ns")
+        self.sec_tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
+        self.sec_tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
+        self.sec_tree.column("name", width=280, minwidth=160, stretch=True, anchor="w")
+        self.sec_tree.column("badges", width=150, minwidth=120, stretch=False, anchor="w")
+        self.sec_tree.column("desc", width=300, minwidth=140, stretch=True, anchor="w")
+
+        self.sec_tree.tag_configure("threat", background="#2a1015", foreground="#ff6b6b")
+        self.sec_tree.tag_configure("both_excl", background="#241a33", foreground="#d2a8ff")
+        self.sec_tree.tag_configure("uninstall_excl", background="#2a1212", foreground="#ff8f8f")
+        self.sec_tree.tag_configure("clean_excl", background="#2a2010", foreground="#ffd08a")
+        self.sec_tree.tag_configure("normal", background="#0f2017", foreground="#e6edf3")
+
+        self.sec_tree.bind("<Button-1>", self._sec_tree_click)
+        self.sec_tree.bind("<Button-3>", self._sec_tree_menu)
+
         self.sec_list_empty = ctk.CTkLabel(self.sec_list_frame, text="\U0001f4e6 Connect a device and press Refresh to load apps", font=ctk.CTkFont(size=12), text_color="#484f58")
-        self.sec_list_empty.pack(pady=30)
+        self.sec_list_empty.grid(row=0, column=0, pady=30)
+        self.sec_tree.grid_remove()
 
         # Row 4 - Big emoji action buttons (spread evenly across available width)
         actions = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
@@ -177,13 +215,13 @@ class UiMixin:
         for i in range(7):
             actions.grid_columnconfigure(i, weight=1, uniform="act")
         btn_style = dict(height=40, width=0, font=ctk.CTkFont(size=11, weight="bold"), border_width=1, corner_radius=8)
-        btn_clean = ctk.CTkButton(actions, text="\U0001f9f9 Clean", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=self.action_sec_clean_checked, **btn_style)
+        btn_clean = ctk.CTkButton(actions, text="\U0001f9f9 Clear App Data", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=self.action_sec_clean_checked, **btn_style)
         btn_clean.grid(row=0, column=0, padx=4, pady=8, sticky="ew")
         Tooltip(btn_clean, "Clears storage/data of the CHECKED apps only (apps stay installed, only data/cache is wiped). Fixes full-storage and app-crashing bugs. Apps in the Clean Excluded list are skipped.")
-        btn_uninstall = ctk.CTkButton(actions, text="\u274c Uninstall Virus", fg_color="#c0392b", hover_color="#a82521", border_color="#e05d4a", command=self.action_sec_uninstall_checked, **btn_style)
+        btn_uninstall = ctk.CTkButton(actions, text="\u274c Remove Adware", fg_color="#c0392b", hover_color="#a82521", border_color="#e05d4a", command=self.action_sec_uninstall_checked, **btn_style)
         btn_uninstall.grid(row=0, column=1, padx=4, pady=8, sticky="ew")
         Tooltip(btn_uninstall, "Uninstalls only the CHECKED 3rd-party apps that cause the popup-ad virus. Apps in the Uninstall Excluded list are safe. Removed apps are recorded for later restore.")
-        btn_bugs = ctk.CTkButton(actions, text="\U0001f41b Fix Popup Ad", fg_color="#b45309", hover_color="#92400e", border_color="#d97706", command=self.action_sec_remove_bugs, **btn_style)
+        btn_bugs = ctk.CTkButton(actions, text="\U0001f41b Remove Popup Ads", fg_color="#b45309", hover_color="#92400e", border_color="#d97706", command=self.action_sec_remove_bugs, **btn_style)
         btn_bugs.grid(row=0, column=2, padx=4, pady=8, sticky="ew")
         Tooltip(btn_bugs, "One-tap fix for popup-ad bug on the CHECKED apps: Phase 1 cleans storage of checked apps, Phase 2 uninstalls the checked 3rd-party apps (system apps are never removed).")
         btn_backup = ctk.CTkButton(actions, text="\U0001f4be Restore/Backup", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_sec_backup_restore, **btn_style)
@@ -191,7 +229,7 @@ class UiMixin:
         Tooltip(btn_backup, "Your saved settings in one place: view exclusion counts and restore apps you uninstalled earlier (reinstalls them on your phone).")
         btn_all = ctk.CTkButton(actions, text="\U0001f4e6 All", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_all_packages, **btn_style)
         btn_all.grid(row=0, column=4, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_all, "Loads EVERY installed package into this list. The action buttons below (Clean / Uninstall / Disable / Exclude...) then work on the apps you check. Right-click any app row for per-app actions (Disable / Uninstall / Clean / Backup / Exclude / Info).")
+        Tooltip(btn_all, "Loads EVERY installed package into this list. The action buttons below (Clear App Data / Remove Adware / Disable / Exclude...) then work on the apps you check. Right-click any app row for per-app actions (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).")
         btn_disabled = ctk.CTkButton(actions, text="\U0001f4e5 Disabled", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_disabled_packages, **btn_style)
         btn_disabled.grid(row=0, column=5, padx=4, pady=8, sticky="ew")
         Tooltip(btn_disabled, "Loads the disabled packages on your phone into this list. The action buttons below work on the apps you check.")

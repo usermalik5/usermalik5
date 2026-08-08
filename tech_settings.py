@@ -10,12 +10,16 @@ import sys
 import requests
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS, APP_VERSION
 from tech_admin import AdminPanelMixin
 
 from tech_reg import (_parse_repo, _api_fetch, _verify_manifest_sig, _fetch_verified_sources,
                       _fetch_verified_users, _purge_session_database, _is_valid_email,
                       _request_password, hash_password, verify_password)
+
+# Local runtime settings file (exclusions + debloated history). Deliberately NOT
+# named secret.json: that name is reserved for the live accounts file on GitHub.
+SETTINGS_FILE = "exclusions.json"
 
 
 
@@ -123,69 +127,91 @@ class SettingsMixin(AdminPanelMixin):
     # APK CLEANER STYLE PACKAGE LIST
     # ----------------------------------------------------
     def _migrate_settings(self):
-        """First-run: consolidate legacy state into secret.json (credentials +
-        runtime debloated history). Exclusion lists now live in the database."""
+        """First-run: consolidate legacy runtime state into exclusions.json
+        (exclusions + debloated history). Runtime settings live in
+        exclusions.json, NEVER secret.json — that name is reserved for the
+        live accounts file on GitHub and must never be treated as local
+        settings (or written next to the exe). Credentials never live on
+        disk: users are fetched from the signed update server on every login."""
         app = get_app_dir()
-        sfile = os.path.join(get_settings_dir(), "secret.json")
+        sfile = os.path.join(get_settings_dir(), SETTINGS_FILE)
         old_sfile = os.path.join(app, "secret.json")
+        settings_old = os.path.join(get_settings_dir(), "secret.json")
         legacy_app_sfile = os.path.join(app, "gelotech_settings.json")
         legacy_sfile = os.path.join(get_settings_dir(), "gelotech_settings.json")
-        if os.path.isfile(legacy_app_sfile) and not os.path.isfile(legacy_sfile) and not os.path.isfile(sfile):
+
+        def _is_runtime(p):
             try:
-                shutil.copy2(legacy_app_sfile, legacy_sfile)
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
             except Exception:
-                pass
-        if os.path.isfile(legacy_sfile) and not os.path.isfile(sfile):
-            try:
-                with open(legacy_sfile, "r", encoding="utf-8") as f:
-                    legacy = json.load(f)
-            except Exception:
-                legacy = None
-            if isinstance(legacy, dict):
-                # Exclusions now live in the database as per-package flags;
-                # drop the legacy lists so only banking apps are seeded.
-                # Credentials never live on disk: users are fetched from the
-                # signed update server on every login.
-                legacy.pop("clean_excluded", None)
-                legacy.pop("uninstall_excluded", None)
-                legacy.pop("users", None)
+                return None
+            if not isinstance(data, dict):
+                return None
+            # The accounts file (users key) must NEVER be treated as runtime
+            # settings or deleted, even if it sits at a legacy path.
+            if data.get("users") is not None:
+                return None
+            return data
+
+        if not os.path.isfile(sfile):
+            data = _is_runtime(old_sfile)
+            if data is None:
+                data = _is_runtime(settings_old)
+            if data is None and os.path.isfile(legacy_sfile):
                 try:
-                    with open(sfile, "w", encoding="utf-8") as f:
-                        json.dump(legacy, f, indent=2, ensure_ascii=False)
-                    os.remove(legacy_sfile)
+                    with open(legacy_sfile, "r", encoding="utf-8") as f:
+                        legacy = json.load(f)
+                    if isinstance(legacy, dict):
+                        # Exclusions now live in the database as per-package
+                        # flags; drop the legacy lists so only banking apps
+                        # are seeded. Credentials never live on disk.
+                        legacy.pop("clean_excluded", None)
+                        legacy.pop("uninstall_excluded", None)
+                        legacy.pop("users", None)
+                        data = legacy
                 except Exception:
-                    pass
+                    data = None
+            if data is None and os.path.isfile(legacy_app_sfile):
+                try:
+                    with open(legacy_app_sfile, "r", encoding="utf-8") as f:
+                        legacy = json.load(f)
+                    if isinstance(legacy, dict):
+                        legacy.pop("clean_excluded", None)
+                        legacy.pop("uninstall_excluded", None)
+                        legacy.pop("users", None)
+                        data = legacy
+                except Exception:
+                    data = None
+            if data is not None:
+                self._save_settings(data)
             else:
-                try:
-                    os.rename(legacy_sfile, sfile)
-                except Exception:
-                    shutil.copy2(legacy_sfile, sfile)
+                clean = self._read_lines_file(os.path.join(app, "clean_excluded.txt"))
+                if not clean:
+                    clean = self._read_lines_file(os.path.join(get_bundle_dir(), "clean_excluded.txt"))
+                uninstall = self._read_lines_file(os.path.join(app, "uninstall_excluded.txt"))
+                if not uninstall:
+                    uninstall = self._read_lines_file(os.path.join(get_bundle_dir(), "uninstall_excluded.txt"))
+                debloated = []
+                uad = os.path.join(app, "uad_debloat_backup.json")
+                if os.path.isfile(uad):
                     try:
-                        os.remove(legacy_sfile)
+                        with open(uad, "r", encoding="utf-8") as f:
+                            debloated = json.load(f).get("packages", []) or []
+                    except Exception:
+                        debloated = []
+                self._save_settings({
+                    "clean_excluded": [],
+                    "uninstall_excluded": [],
+                    "debloated": sorted(set(debloated)),
+                })
+            # Remove migrated legacy runtime files ONLY (never an accounts file).
+            for p in (old_sfile, settings_old, legacy_sfile, legacy_app_sfile):
+                if os.path.isfile(p) and _is_runtime(p) is not None:
+                    try:
+                        os.remove(p)
                     except Exception:
                         pass
-        if os.path.isfile(old_sfile) and not os.path.isfile(sfile):
-            shutil.copy2(old_sfile, sfile)
-        if not os.path.isfile(sfile):
-            clean = self._read_lines_file(os.path.join(app, "clean_excluded.txt"))
-            if not clean:
-                clean = self._read_lines_file(os.path.join(get_bundle_dir(), "clean_excluded.txt"))
-            uninstall = self._read_lines_file(os.path.join(app, "uninstall_excluded.txt"))
-            if not uninstall:
-                uninstall = self._read_lines_file(os.path.join(get_bundle_dir(), "uninstall_excluded.txt"))
-            debloated = []
-            uad = os.path.join(app, "uad_debloat_backup.json")
-            if os.path.isfile(uad):
-                try:
-                    with open(uad, "r", encoding="utf-8") as f:
-                        debloated = json.load(f).get("packages", []) or []
-                except Exception:
-                    debloated = []
-            self._save_settings({
-                "clean_excluded": [],
-                "uninstall_excluded": [],
-                "debloated": sorted(set(debloated)),
-            })
         for name in ("clean_excluded.txt", "uninstall_excluded.txt", "uad_debloat_backup.json"):
             p = os.path.join(app, name)
             if os.path.isfile(p):
@@ -195,16 +221,17 @@ class SettingsMixin(AdminPanelMixin):
                     pass
 
     def _drop_settings_copy(self):
-        """Copy the AppData settings json next to the exe after login, so the
+        """Copy the AppData exclusions.json next to the exe after login, so the
         user can grab it and ship it to another PC. On the other PC, the first
         run of _migrate_settings imports it into AppData automatically.
-        The copy is set as a hidden Windows file. It only contains runtime
-        state (exclusions, debloated history) - login credentials are never
-        stored on disk, so the file contains no secrets."""
+        The copy is named exclusions.json (NOT secret.json — that name is
+        reserved for the live accounts file on GitHub) and is set as a hidden
+        Windows file. It only contains runtime state (exclusions, debloated
+        history) - login credentials are never stored on disk."""
         try:
-            src = os.path.join(get_settings_dir(), "secret.json")
+            src = os.path.join(get_settings_dir(), SETTINGS_FILE)
             if os.path.isfile(src):
-                dest = os.path.join(get_app_dir(), "secret.json")
+                dest = os.path.join(get_app_dir(), SETTINGS_FILE)
                 shutil.copy2(src, dest)
                 try:
                     import ctypes
@@ -333,7 +360,7 @@ class SettingsMixin(AdminPanelMixin):
 
     def _show_login(self):
         win = ctk.CTkToplevel(self)
-        win.title("GeloTech Tool - Login")
+        win.title(f"GeloTech Tool v{APP_VERSION} - Login")
         win.resizable(False, False)
         win.configure(fg_color="#0d1117")
         win.transient(self)
@@ -355,7 +382,7 @@ class SettingsMixin(AdminPanelMixin):
         if icon:
             ctk.CTkLabel(win, text="", image=icon).pack(pady=(28, 4))
         ctk.CTkLabel(win, text="GELOTECH", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1a8cff").pack()
-        ctk.CTkLabel(win, text="TECH TOOL v1.0 - Restricted Access", font=ctk.CTkFont(size=11), text_color="#a6a6a6").pack(pady=(0, 14))
+        ctk.CTkLabel(win, text=f"TECH TOOL v{APP_VERSION}", font=ctk.CTkFont(size=11), text_color="#a6a6a6").pack(pady=(0, 14))
 
         admin_mode = {"on": False}
 
@@ -592,7 +619,7 @@ class SettingsMixin(AdminPanelMixin):
             return []
 
     def _load_settings(self):
-        path = os.path.join(get_settings_dir(), "secret.json")
+        path = os.path.join(get_settings_dir(), SETTINGS_FILE)
         data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": []}
         if os.path.isfile(path):
             try:
@@ -609,7 +636,7 @@ class SettingsMixin(AdminPanelMixin):
         return data
 
     def _save_settings(self, data):
-        path = os.path.join(get_settings_dir(), "secret.json")
+        path = os.path.join(get_settings_dir(), SETTINGS_FILE)
         try:
             payload = {}
             for key, value in data.items():

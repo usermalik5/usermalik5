@@ -53,7 +53,7 @@ class SecOps2Mixin:
 
     def action_sec_uninstall_checked(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
@@ -68,7 +68,7 @@ class SecOps2Mixin:
 
     def action_sec_disable_checked(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
@@ -102,26 +102,26 @@ class SecOps2Mixin:
 
     def action_sec_remove_bugs(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
             self._sec_status("Nothing to process. Check apps first.", "#f39c12")
             return
-        if not self._sec_typed_confirm("Fix Popup Ad",
-            f"Fix Popup Ad will process {len(pkgs)} checked app(s).\n\n"
-            "Phase 1: Clean (clear storage) checked apps + built-in browsers.\n"
-            "Phase 2: Uninstall checked 3rd-party apps only (system/browsers are not removed).\n\n"
+        if not self._sec_typed_confirm("Remove Popup Ads",
+            f"Remove Popup Ads will process {len(pkgs)} checked app(s).\n\n"
+            "Phase 1: Clear App Data (clear storage) checked apps + built-in browsers.\n"
+            "Phase 2: Remove Adware — uninstalls checked 3rd-party apps only (system/browsers are not removed).\n\n"
             "Only apps you check are affected — nothing runs by default."):
             return
-        self._sec_log(f"[GeloTech] Fix Popup Ad: phase 1 cleaning {len(pkgs)} app(s)...", "#f39c12")
+        self._sec_log(f"[GeloTech] Remove Popup Ads: phase 1 clearing app data on {len(pkgs)} app(s)...", "#f39c12")
         self._sec_run_clean(pkgs, auto_refresh=False)
-        self._sec_log("[GeloTech] Fix Popup Ad: phase 2 uninstalling 3rd-party apps...", "#f39c12")
+        self._sec_log("[GeloTech] Remove Popup Ads: phase 2 removing 3rd-party adware...", "#f39c12")
         self._sec_run_uninstall(pkgs)
 
     def action_sec_add_excluded(self):
         if not self._can("cleaner"):
-            self._sec_status("Permission denied: Popup Ad Virus Cleaner is disabled for this account.", "#e74c3c")
+            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
             return
         pkgs = self._sec_checked_packages()
         if not pkgs:
@@ -345,6 +345,15 @@ class SecOps2Mixin:
 
         def worker():
             try:
+                # Confirm the device is reachable & authorized BEFORE pushing anything
+                st = run_cmd(["get-state"]).stdout.strip().lower()
+                if st == "unauthorized":
+                    self.after(0, lambda: self._sec_log("[GeloTech] Icons: phone not authorized — accept the USB debugging prompt on the phone, then press Icons again.", "#e74c3c"))
+                    return
+                if st != "device":
+                    self.after(0, lambda: self._sec_log(f"[GeloTech] Icons: no device in 'device' state (got '{st}'). Connect and authorize the phone.", "#e74c3c"))
+                    return
+
                 r = run_cmd(["shell", "pm", "path", "com.drox.apkiconhelper"])
                 if "package:" not in r.stdout:
                     helper = os.path.join(get_bundle_dir(), "ApkIconHelper.apk")
@@ -353,8 +362,22 @@ class SecOps2Mixin:
                         return
                     self.after(0, lambda: self._sec_log("[GeloTech] Installing APKIconHelper on device...", "#58a6ff"))
                     inst = run_cmd(["install", "-r", "-t", helper], 60)
-                    if "Success" not in (inst.stdout + inst.stderr):
-                        self.after(0, lambda: self._sec_log(f"[GeloTech] Helper install failed: {inst.stdout[-200:]}", "#e74c3c"))
+                    combined = inst.stdout + inst.stderr
+                    if "Success" not in combined:
+                        msg = combined.strip()[-300:]
+                        hint = ""
+                        if "INSTALL_FAILED_USER_RESTRICTED" in combined:
+                            hint = " On Android 11+ this means 'Install via USB' is off or the Allow prompt was declined: enable Developer options → 'Install via USB', then press Icons again and tap Allow when the phone asks."
+                        elif "not authorized" in combined.lower() or "unauthorized" in combined.lower():
+                            hint = " Accept the USB debugging prompt on the phone, then press Icons again."
+                        elif "offline" in combined.lower():
+                            hint = " The phone looks offline — reconnect the cable and press Icons again."
+                        self.after(0, lambda m=msg, h=hint: self._sec_log(f"[GeloTech] Helper install failed: {m}{h}", "#e74c3c"))
+                        return
+                    # verify the install actually registered before launching
+                    ver = run_cmd(["shell", "pm", "path", "com.drox.apkiconhelper"])
+                    if "package:" not in ver.stdout:
+                        self.after(0, lambda: self._sec_log("[GeloTech] Helper install reported Success but the package is missing — enable 'Install via USB' in Developer options and press Icons again.", "#e74c3c"))
                         return
                 export = "/sdcard/Android/data/com.drox.apkiconhelper/files/apk_icon_export"
                 flag = export + "/DONE.flag"
@@ -412,6 +435,7 @@ class SecOps2Mixin:
                                 pass
                 run_cmd(["shell", "am", "force-stop", "com.drox.apkiconhelper"])
                 self._sec_icon_cache = {}
+                self._sec_tree_icon_cache = {}
                 self._app_labels = None
                 self.after(0, lambda: self._sec_render_rows())
                 self.after(0, lambda: self._sec_log(f"[GeloTech] Icons synced: {count} apps (helper closed automatically).", "#2ecc71"))

@@ -37,14 +37,14 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         "mirror": "Screen Mirror & Logcat",
         "power": "Reboot (Recovery / Fastboot)",
         "connection": "Re-authorize ADB & Fix Drivers",
-        "cleaner": "Popup Ad Virus Cleaner",
+        "cleaner": "Adware Remover",
         "monitor": "Monitor Running Apps",
         "dns": "Block Ads via DNS",
         "virustotal": "VirusTotal Scanner",
         "restore": "Restore Uninstalled Apps",
     }
     TAB_PERMS = {
-        "Popup Ad Virus Cleaner": "cleaner",
+        "Adware Remover": "cleaner",
         "Monitor Running Apps": "monitor",
         "Block Ads via DNS": "dns",
         "VirusTotal": "virustotal",
@@ -188,7 +188,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.tabview = ctk.CTkTabview(self, fg_color="#16191e", command=self.on_tab_changed)
         self.tabview.grid(row=0, column=1, padx=(6, 3), pady=8, sticky="nsew")
         
-        tabs = ["Popup Ad Virus Cleaner", "Monitor Running Apps", "Block Ads via DNS", "VirusTotal"]
+        tabs = ["Adware Remover", "Monitor Running Apps", "Block Ads via DNS", "VirusTotal"]
         for tab in tabs:
             self.tabview.add(tab)
             self.tabview.tab(tab).grid_columnconfigure(0, weight=1)

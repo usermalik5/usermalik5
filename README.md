@@ -14,7 +14,7 @@ batch actions for all checked apps (disable / uninstall / APK backup /
 exclude).
 Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
-reset). The toolbar keeps Clean, Uninstall Virus, Fix Popup Ad, Restore/Backup,
+reset). The toolbar keeps Clear App Data, Remove Adware, Remove Popup Ads, Restore/Backup,
 All, Disabled, and Filter. A permanent legend in the sidebar explains the app
 removal levels (Recommended = safe to remove, Advanced = mostly safe,
 Expert = may break features, Unsafe = dangerous) and the list row colors
