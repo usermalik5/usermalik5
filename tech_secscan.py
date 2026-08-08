@@ -43,29 +43,7 @@ class SecScanMixin:
         self.sec_scan_anim.configure(text="")
 
     def _sec_log(self, message, color="#8b949e"):
-        def do():
-            try:
-                self.sec_result_panel.insert("end", message + "\n")
-                self.sec_result_panel.see("end")
-            except Exception:
-                pass
-        if threading.current_thread() is not threading.main_thread():
-            self.after(0, do)
-        else:
-            do()
-
-    def _toggle_sec_help(self):
-        self.sec_help_visible = not self.sec_help_visible
-        if self.sec_help_visible:
-            self.sec_help_body.pack(fill="x", padx=0, pady=(0, 8))
-            self.sec_help_btn.configure(text="\U0001f4f1 How to enable USB Debugging  \u25b4")
-        else:
-            self.sec_help_body.pack_forget()
-            self.sec_help_btn.configure(text="\U0001f4f1 How to enable USB Debugging  \u25be")
-
-    def _show_sec_help(self):
-        if not self.sec_help_visible:
-            self._toggle_sec_help()
+        self.log_message(message)
 
     def _sec_status(self, text, color="#8b949e"):
         def do():
@@ -120,10 +98,11 @@ class SecScanMixin:
                 self._sec_status("\u26a0 Device NOT detected. Connect your phone via USB...", "#e74c3c")
                 self._sec_log("[GeloTech] No 3rd-party packages found or device not connected.", "#e74c3c")
                 self.sec_threats_label.configure(text="\U0001f9a0 Possible Threats: 0")
-                self.after(0, self._show_sec_help)
                 return
 
             self._sec_log(f"[GeloTech] {len(pkgs)} user apps found.", "#58a6ff")
+            self.sec_removal_filter = None
+            self.sec_legend_filter = None
             labels = self._load_app_labels()
             uad = self._build_uad_lookup()
             excl_clean = self._load_excluded_clean()

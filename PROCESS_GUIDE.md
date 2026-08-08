@@ -10,7 +10,8 @@ code is organised. Updated on major code changes.
 ```
 GeloTechTool (techtool.py)
   └─ GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin,
-                  SecOpsMixin, SecOps2Mixin, VtOpsMixin, MiscMixin)
+                  SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin,
+                  VtOpsMixin, MiscMixin)
 ```
 
 | File | Class / Role | Owns |
@@ -22,8 +23,10 @@ GeloTechTool (techtool.py)
 | `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: server-verified account list with BLOCK/UNBLOCK per account (writes `blocked` flag to repo secret.json via write token) |
 | `tech_ui.py` | `UiMixin` | tab UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans (popup-ads, sideloaded apps, risk permissions); user-mode package load with local cache save + offline fallback |
-| `tech_secops.py` | `SecOpsMixin` | cleaner list on a virtualized `ttk.Treeview` (checkbox column, icon column, color-coded row tags, legend filter, right-click menu), clean/uninstall/backup runners, DB filter dialog; batched initial render (`_sec_render_rows` → `_sec_render_chunk` / `_sec_create_row`) |
-| `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Remove Popup Ads, APK Info (+permissions), Restore/Backup dialog, device info |
+| `tech_secops.py` | `SecOpsMixin` | cleaner list on a virtualized `ttk.Treeview` (checkbox column, icon column, color-coded row tags, legend filter, search); batched initial render (`_sec_render_rows` → `_sec_render_chunk` / `_sec_create_row`) |
+| `tech_secops3.py` | `SecOps3Mixin` | right-click row menu + per-app actions, batch checked actions (disable/uninstall/backup), icon tiles, Load Apps / Scan Bloatware level menus, Scan Bloatware level filter + actions popup, clean/uninstall/backup runners, DB filter dialog (split out of `tech_secops.py` for the PyArmor ~38KB per-file limit) |
+| `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Remove Popup Ads, APK Info (+permissions), Restore/Backup dialog |
+| `tech_secops4.py` | `SecOps4Mixin` | icon generation, Restore/Backup dialog, device info strip + Wikipedia model lookup (split out of `tech_secops2.py` for the PyArmor ~38KB per-file limit) |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps tab (process/package tables) |
 | `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter) with local Windows app-list cache — stale-while-revalidate (cached list renders instantly, then refresh from device in background; offline fallback to cache), shared filter matcher `_sec_apply_filter`; scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
@@ -145,7 +148,7 @@ CODE update (needs new exe):
   → update README.md + PROCESS_GUIDE.md (project rules)
   → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
     tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py
-    tech_secops2.py tech_vtop.py tech_misc.py
+    tech_secops3.py tech_secops2.py tech_secops4.py tech_vtop.py tech_misc.py
         tech_settings.py tech_admin.py tech_secscan.py tech_secops.py
         tech_secops2.py tech_vtop.py tech_misc.py
         (ALWAYS re-run over ALL modules; obfuscation applies to all builds)

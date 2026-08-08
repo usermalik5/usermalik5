@@ -93,27 +93,37 @@ class UiMixin:
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(3, weight=1)
 
-        # Row 0 - Device header (APK Cleaner style)
+        # Row 0 - Device header (UAD Bloatware Remover window)
         header = ctk.CTkFrame(tab, fg_color="#1b222c", corner_radius=8, border_width=0)
         header.grid(row=0, column=0, padx=15, pady=(12, 6), sticky="ew")
         header.grid_columnconfigure(1, weight=1)
+
+        # Upper-left: title
         title_block = ctk.CTkFrame(header, fg_color="transparent")
         title_block.grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
         ctk.CTkLabel(title_block, text="UAD Bloatware Remover", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
-        ctk.CTkLabel(title_block, text="Universal Android Debloater (UAD) \u2014 Adware Remover", font=ctk.CTkFont(size=9, weight="bold"), text_color="#8b949e").pack(anchor="w")
+        ctk.CTkLabel(title_block, text="Universal Android Debloater (UAD) \u2014 Adware Remover", font=ctk.CTkFont(size=10, weight="bold"), text_color="#8b949e").pack(anchor="w")
 
-        dev = ctk.CTkFrame(header, fg_color="transparent")
-        dev.grid(row=1, column=0, columnspan=3, padx=14, pady=(0, 10), sticky="w")
-        self.sec_dev_model = ctk.CTkLabel(dev, text="Model: -", font=ctk.CTkFont(size=10), text_color="#8b949e")
-        self.sec_dev_model.pack(side="left", padx=(0, 14))
-        self.sec_dev_android = ctk.CTkLabel(dev, text="Android: -", font=ctk.CTkFont(size=10), text_color="#8b949e")
-        self.sec_dev_android.pack(side="left", padx=(0, 14))
-        self.sec_dev_patch = ctk.CTkLabel(dev, text="Security Patch: -", font=ctk.CTkFont(size=10), text_color="#8b949e")
-        self.sec_dev_patch.pack(side="left", padx=(0, 14))
-        self.sec_dev_build = ctk.CTkLabel(dev, text="Build ID: -", font=ctk.CTkFont(size=10), text_color="#8b949e")
-        self.sec_dev_build.pack(side="left", padx=(0, 14))
-        self.sec_dev_conn = ctk.CTkLabel(dev, text="\u26a0 No device", font=ctk.CTkFont(size=10, weight="bold"), text_color="#e74c3c")
-        self.sec_dev_conn.pack(side="left", padx=(6, 0))
+        # Row 1: device info strip (single line) | USB debugging tip (single wrapped line)
+        strip = ctk.CTkFrame(header, fg_color="transparent")
+        strip.grid(row=1, column=0, columnspan=2, padx=14, pady=(0, 4), sticky="w")
+
+        self.sec_dev_conn = ctk.CTkLabel(strip, text="\U0001f916 DEVICE CONNECTED", font=ctk.CTkFont(size=13, weight="bold"), text_color="#2ecc71")
+        self.sec_dev_conn.pack(side="left", padx=(0, 16), pady=3)
+        self.sec_dev_model = ctk.CTkLabel(strip, text="Model Name: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
+        self.sec_dev_model.pack(side="left", padx=(0, 16), pady=3)
+        self.sec_dev_android = ctk.CTkLabel(strip, text="Android: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
+        self.sec_dev_android.pack(side="left", padx=(0, 16), pady=3)
+        self.sec_dev_patch = ctk.CTkLabel(strip, text="Security Patch: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
+        self.sec_dev_patch.pack(side="left", padx=(0, 16), pady=3)
+        self.sec_dev_build = ctk.CTkLabel(strip, text="Build ID: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
+        self.sec_dev_build.pack(side="left", pady=3)
+
+        ctk.CTkLabel(header, text="\U0001f4f1 USB debugging: Settings \u2192 About Phone \u2192 tap Build Number 7\u00d7 \u2192 Developer Options \u2192 USB debugging ON \u2192 connect cable \u2192 tap \u201cAllow\u201d (tick Always allow) \u2192 Refresh",
+                     font=ctk.CTkFont(size=10), text_color="#aeb8c2", anchor="w", justify="left", wraplength=1150).grid(row=2, column=0, columnspan=2, padx=14, pady=(0, 2), sticky="w")
+
+        ctk.CTkLabel(header, text="\U0001f4a1 How to use: press Refresh to load user apps. Load Apps \u25be loads All / User / System / Disabled lists \u2014 Advanced Filter loads apps from the database. Scan Bloatware \u25be picks a UAD level (Recommended / Advanced / Expert / Unsafe), checks all matching apps and offers actions. Restore/Backup restores apps you removed. Right-click any row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
+                     font=ctk.CTkFont(size=10), text_color="#58a6ff", anchor="w", justify="left", wraplength=1150).grid(row=3, column=0, columnspan=2, padx=14, pady=(0, 8), sticky="w")
 
         # Row 1 - Status bar: status | scan anim | threats counter | progress
         stats = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
@@ -140,7 +150,7 @@ class UiMixin:
         Tooltip(self.sec_search_entry, "Type to filter the list — matches the app name or package ID. Example: typing 'bank' shows only apps with 'bank' in the name.")
         self.sec_select_all_btn = ctk.CTkButton(toolbar, text="\u2610 Select All", width=120, height=30, fg_color="#21262d", hover_color="#30363d", border_width=1, border_color="#30363d", font=ctk.CTkFont(size=10, weight="bold"), command=self.action_sec_toggle_all)
         self.sec_select_all_btn.grid(row=0, column=3, padx=(8, 6), pady=6)
-        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones the Remove Bloatware button acts on.")
+        Tooltip(self.sec_select_all_btn, "Check or uncheck every app at once. Remember: CHECKED apps are the ones the Scan Bloatware button acts on.")
 
         legend_items = [
             ("lightgreen", "Removable", "removable"),
@@ -164,10 +174,18 @@ class UiMixin:
         self.sec_refresh_btn.grid(row=0, column=4 + len(legend_items) * 2, padx=(10, 10), pady=6)
         Tooltip(self.sec_refresh_btn, "Reload the app list from your phone and re-scan for threats (popup-ads / sideloaded apps).")
 
-        # Row 1 (toolbar) - short usage guide below the removal-level legend
-        ctk.CTkLabel(toolbar, text="\U0001f4a1 How to use: press Refresh to load apps, check the apps to fix, then use the Remove Bloatware button below. Right-click any app row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
-                     font=ctk.CTkFont(size=9, slant="italic"), text_color="#58a6ff", anchor="w", justify="left",
-                     wraplength=1000).grid(row=1, column=0, columnspan=12, padx=10, pady=(0, 6), sticky="ew")
+        # Row 1 (toolbar) - removal levels legend (moved from the header)
+        rem_legend = ctk.CTkFrame(toolbar, fg_color="transparent")
+        rem_legend.grid(row=1, column=0, columnspan=12, padx=10, pady=(0, 4), sticky="w")
+        ctk.CTkLabel(rem_legend, text="REMOVAL LEVELS:", font=ctk.CTkFont(size=11, weight="bold"), text_color="#7a8699").pack(side="left", padx=(0, 6), pady=2)
+        for color, term in (
+            ("#2ea043", "Recommended"),
+            ("#58a6ff", "Advanced"),
+            ("#e3b341", "Expert"),
+            ("#e5534b", "Unsafe"),
+        ):
+            ctk.CTkLabel(rem_legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=12)).pack(side="left", padx=(3, 2), pady=2)
+            ctk.CTkLabel(rem_legend, text=term, font=ctk.CTkFont(size=11), text_color="#aeb8c2").pack(side="left", padx=(0, 4), pady=2)
 
         # Row 3 - Package list (virtualized ttk.Treeview: only visible rows render)
         self.sec_list_frame = ctk.CTkFrame(tab, fg_color="#0d1117", corner_radius=8, border_width=1, border_color="#30363d")
@@ -201,6 +219,7 @@ class UiMixin:
         self.sec_tree.tag_configure("uninstall_excl", background="#2a1212", foreground="#ff8f8f")
         self.sec_tree.tag_configure("clean_excl", background="#2a2010", foreground="#ffd08a")
         self.sec_tree.tag_configure("normal", background="#0f2017", foreground="#e6edf3")
+        self.sec_tree.tag_configure("normal_alt", background="#0c1b13", foreground="#e6edf3")
 
         self.sec_tree.bind("<Button-1>", self._sec_tree_click)
         self.sec_tree.bind("<Button-3>", self._sec_tree_menu)
@@ -209,53 +228,25 @@ class UiMixin:
         self.sec_list_empty.grid(row=0, column=0, pady=30)
         self.sec_tree.grid_remove()
 
-        # Row 4 - Big action buttons: single "Remove Bloatware" menu + utility buttons
+        # Row 4 - Big action buttons: single "Scan Bloatware" menu + utility buttons
         actions = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
         actions.grid(row=4, column=0, padx=15, pady=(0, 6), sticky="ew")
         for i in range(5):
             actions.grid_columnconfigure(i, weight=1, uniform="act")
         btn_style = dict(height=40, width=0, font=ctk.CTkFont(size=11, weight="bold"), border_width=1, corner_radius=8)
-        btn_bloat = ctk.CTkButton(actions, text="\U0001f5d1 Remove Bloatware  \u25be", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=lambda: self._sec_open_action_menu(btn_bloat), **btn_style)
+        btn_bloat = ctk.CTkButton(actions, text="\U0001f50e Scan Bloatware  \u25be", fg_color="#1f6feb", hover_color="#1a5fd0", border_color="#2f81f7", command=lambda: self._sec_open_action_menu(btn_bloat), **btn_style)
         btn_bloat.grid(row=0, column=0, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_bloat, "One button for everything: pick a UAD recommendation level to uninstall bloatware automatically, or run Remove Popup Ads / Uninstall checked / Clear App Data on the apps you check.")
+        Tooltip(btn_bloat, "Pick a UAD recommendation level (Recommended / Advanced / Expert / Unsafe). The list shows only apps of that level, all checked, and a menu appears with what you can do with them (Disable / Uninstall / Backup). Banking apps and excluded apps are skipped on uninstall.")
         btn_backup = ctk.CTkButton(actions, text="\U0001f4be Restore/Backup", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_sec_backup_restore, **btn_style)
         btn_backup.grid(row=0, column=1, padx=4, pady=8, sticky="ew")
         Tooltip(btn_backup, "Your saved settings in one place: view exclusion counts and restore apps you uninstalled earlier (reinstalls them on your phone).")
-        btn_all = ctk.CTkButton(actions, text="\U0001f4e6 All", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_all_packages, **btn_style)
+        btn_all = ctk.CTkButton(actions, text="\U0001f4e6 Load Apps  \u25be", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=lambda: self._sec_open_load_menu(btn_all), **btn_style)
         btn_all.grid(row=0, column=2, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_all, "Loads EVERY installed package into this list. Use the Remove Bloatware button menu (or right-click any row) for per-app actions: Disable / Uninstall / Clear App Data / Exclude / Info.")
-        btn_disabled = ctk.CTkButton(actions, text="\U0001f4e5 Disabled", fg_color="#21262d", hover_color="#30363d", border_color="#30363d", command=self.action_list_disabled_packages, **btn_style)
-        btn_disabled.grid(row=0, column=3, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_disabled, "Loads the disabled packages on your phone into this list. The Remove Bloatware button then works on the apps you check.")
-        btn_filter = ctk.CTkButton(actions, text="\U0001f50e Filter", fg_color="#0f7489", hover_color="#0c5f70", border_color="#1497ab", command=self.action_sec_db_filter, **btn_style)
-        btn_filter.grid(row=0, column=4, padx=4, pady=8, sticky="ew")
-        Tooltip(btn_filter, "Loads apps matching database criteria (removal level, risk, category, manufacturer, source) into the list. Review, then use Remove Bloatware.")
-        self._perm_sidebar_btns.setdefault("device_info", []).extend([btn_all, btn_disabled, btn_filter])
-
-        # Row 5 - Inline result / log panel
-        self.sec_result_panel = ctk.CTkTextbox(tab, fg_color="#0d1117", border_color="#30363d", border_width=1, corner_radius=8, height=110, font=ctk.CTkFont(size=9, family="Consolas"), text_color="#c9d1d9")
-        self.sec_result_panel.grid(row=5, column=0, padx=15, pady=(0, 6), sticky="ew")
-        self._sec_result_tags = {}
-        self._sec_log("[GeloTech] UAD Bloatware Remover ready. Connect device, press Refresh.", "#8b949e")
-
-        # Row 6 - USB debugging help (collapsible)
-        self.sec_help_frame = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
-        self.sec_help_frame.grid(row=6, column=0, padx=15, pady=(0, 12), sticky="ew")
-        self.sec_help_btn = ctk.CTkButton(self.sec_help_frame, text="\U0001f4f1 How to enable USB Debugging  \u25be", height=26, fg_color="transparent", hover_color="#21262d", font=ctk.CTkFont(size=10, weight="bold"), text_color="#58a6ff", anchor="w", command=self._toggle_sec_help)
-        self.sec_help_btn.pack(fill="x", padx=6, pady=2)
-        self.sec_help_body = ctk.CTkFrame(self.sec_help_frame, fg_color="transparent")
-        self.sec_help_visible = False
-        steps = [
-            "1. On your phone, open Settings \u2192 About Phone",
-            "2. Tap \u201cBuild Number\u201d 7 times until \u201cYou are now a developer!\u201d appears",
-            "3. Go back \u2192 open Developer Options (usually under System / Additional Settings)",
-            "4. Turn ON \u201cUSB debugging\u201d",
-            "5. Connect the phone to this PC with a USB cable (use a data cable, not a charge-only one)",
-            "6. On the phone, tap \u201cAllow\u201d when the \u201cAllow USB debugging?\u201d prompt appears (tick Always allow)",
-            "7. Back in this tool, press \U0001f504 Refresh \u2014 the header should show \u2705 Device connected",
-        ]
-        for s in steps:
-            ctk.CTkLabel(self.sec_help_body, text=s, font=ctk.CTkFont(size=9), text_color="#8b949e", anchor="w", justify="left", wraplength=1100).pack(fill="x", padx=12, pady=1)
+        Tooltip(btn_all, "Load a package list into this window: all apps, user (3rd-party) apps, system apps, or disabled apps. The Scan Bloatware button then works on the apps you check.")
+        btn_filter = ctk.CTkButton(actions, text="\U0001f50e Advanced Filter", fg_color="#0f7489", hover_color="#0c5f70", border_color="#1497ab", command=self.action_sec_db_filter, **btn_style)
+        btn_filter.grid(row=0, column=3, padx=4, pady=8, sticky="ew")
+        Tooltip(btn_filter, "Loads apps matching database criteria (removal level, risk, category, manufacturer, source) into the list. Review, then use Scan Bloatware.")
+        self._perm_sidebar_btns.setdefault("device_info", []).extend([btn_all, btn_filter])
 
         self._sec_anim_running = False
         self.after(300, self._sec_load_device_info)

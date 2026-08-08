@@ -27,11 +27,13 @@ from tech_ui import UiMixin
 from tech_settings import SettingsMixin
 from tech_secscan import SecScanMixin
 from tech_secops import SecOpsMixin
+from tech_secops3 import SecOps3Mixin
 from tech_secops2 import SecOps2Mixin
+from tech_secops4 import SecOps4Mixin
 from tech_vtop import VtOpsMixin
 from tech_misc import MiscMixin
 
-class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, SecOps2Mixin, VtOpsMixin, MiscMixin):
+class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin, VtOpsMixin, MiscMixin):
     PERMISSIONS = {
         "device_info": "Device Info & Package Lists",
         "mirror": "Screen Mirror & Logcat",
@@ -72,7 +74,8 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         ctk.set_widget_scaling(min(1.5, max(1.0, 1.15 * sh / 900)))
         self.grid_columnconfigure(0, weight=0)  # sidebar fixed
         self.grid_columnconfigure(1, weight=1)  # tab content fills the remaining width
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)     # main content
+        self.grid_rowconfigure(1, weight=0)     # hint banner
 
         self.debloat_packages = []
         self.background_scan_running = False
@@ -166,20 +169,9 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self._admin_panel_btn = _add_btn("\U0001f511", "Admin Panel", self._open_admin_panel, color="#d4af37")
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
 
-        legend = ctk.CTkFrame(self.sidebar_frame, fg_color="#11151c", corner_radius=8)
-        legend.grid(row=row, column=0, padx=10, pady=(4, 2), sticky="ew")
-        lr = 0
-        ctk.CTkLabel(legend, text="REMOVAL LEVELS", font=ctk.CTkFont(size=10, weight="bold"), text_color="#7a8699", height=20).grid(row=lr, column=0, columnspan=2, sticky="w", padx=10, pady=(5, 2)); lr += 1
-        for color, term, meaning in (
-            ("#2ea043", "Recommended", "safe to remove"),
-            ("#58a6ff", "Advanced", "mostly safe"),
-            ("#e3b341", "Expert", "may break features"),
-            ("#e5534b", "Unsafe", "dangerous, avoid"),
-        ):
-            ctk.CTkLabel(legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=11), height=24).grid(row=lr, column=0, padx=(10, 4), pady=0)
-            ctk.CTkLabel(legend, text=f"{term} \u2014 {meaning}", font=ctk.CTkFont(size=10), text_color="#8b949e", anchor="w", height=24).grid(row=lr, column=1, sticky="w", padx=(0, 8), pady=0)
-            lr += 1
-        row += 1
+        # Log console lives in the sidebar, below the buttons (non-collapsible)
+        self._sidebar_log_row = row
+        self.sidebar_frame.grid_rowconfigure(row, weight=1)
 
         # ----------------------------------------------------
         # MIDDLE: TAB VIEW
@@ -246,87 +238,65 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # UNIFIED LOG PANEL
     # ----------------------------------------------------
     def _build_log_panel(self):
-        # Compact console floating over the top-right corner of the UI.
-        self._log_console_collapsed = False
-        self._log_console = ctk.CTkFrame(self, fg_color="#01030a", corner_radius=10,
-                                         border_width=1, border_color="#0a5a24",
-                                         width=460, height=180)
-        self._log_console.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
-        self._log_console.grid_propagate(False)
+        # Integrated console inside the left sidebar, below the buttons.
+        # Fixed, non-collapsible, stretches to the bottom of the sidebar.
+        self._log_console = ctk.CTkFrame(self.sidebar_frame, fg_color="#01030a", corner_radius=8,
+                                         border_width=1, border_color="#2c3340")
+        self._log_console.grid(row=self._sidebar_log_row, column=0, padx=8, pady=(6, 8), sticky="nsew")
         self._log_console.grid_columnconfigure(0, weight=1)
         self._log_console.grid_rowconfigure(1, weight=1)
 
-        # Header bar
-        hdr = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=8, height=28)
-        hdr.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 2))
-        hdr.grid_columnconfigure(1, weight=1)
+        # Header bar: title + clear
+        hdr = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=6, height=26)
+        hdr.grid(row=0, column=0, sticky="ew", padx=4, pady=(4, 2))
+        hdr.grid_columnconfigure(0, weight=1)
         hdr.grid_propagate(False)
-
         ctk.CTkLabel(hdr, text="\u25a0 LOG CONSOLE", font=ctk.CTkFont(size=10, weight="bold"),
-                     text_color="#00ff66").grid(row=0, column=0, padx=(8, 4), pady=4, sticky="w")
-
-        # Filter chips
-        filter_frame = ctk.CTkFrame(hdr, fg_color="transparent")
-        filter_frame.grid(row=0, column=1, padx=2, pady=4, sticky="e")
-        filters = ["ALL", "ADB", "SECURITY", "VT", "DNS"]
-        colors = {"ALL": "#0f3d1e", "ADB": "#0f5a2a", "SECURITY": "#0a7a33", "VT": "#3d1e0f", "DNS": "#0f5a5a"}
-        for f in filters:
-            btn = ctk.CTkButton(filter_frame, text=f, width=40, height=20,
-                                fg_color=colors[f], hover_color="#14582b",
-                                font=ctk.CTkFont(size=8, weight="bold"),
-                                command=lambda ff=f: self._set_log_filter(ff))
-            btn.pack(side="left", padx=1)
-
-        # Collapse + Clear buttons
-        self._collapse_btn = ctk.CTkButton(hdr, text="\u2013", width=24, height=20,
-                                           fg_color="#21262d", hover_color="#30363d",
-                                           font=ctk.CTkFont(size=10, weight="bold"),
-                                           command=self._toggle_log_console)
-        self._collapse_btn.grid(row=0, column=2, padx=(2, 2), pady=4)
-        ctk.CTkButton(hdr, text="\u2715", width=24, height=20,
+                     text_color="#00ff66").grid(row=0, column=0, padx=(8, 4), pady=3, sticky="w")
+        self._log_clear_btn = ctk.CTkButton(hdr, text="\u2715", width=24, height=22,
                       fg_color="#3a2a2a", hover_color="#5a3a3a",
                       font=ctk.CTkFont(size=10, weight="bold"),
-                      command=self.clear_logs).grid(row=0, column=3, padx=(0, 6), pady=4)
+                      command=self.clear_logs)
+        self._log_clear_btn.grid(row=0, column=1, padx=(0, 4), pady=3)
 
-        # Log display
-        self.main_log = ctk.CTkTextbox(self._log_console, font=ctk.CTkFont(family="Consolas", size=9),
+        # Log display (color-coded by process)
+        self.main_log = ctk.CTkTextbox(self._log_console, font=ctk.CTkFont(family="Consolas", size=10),
                                         fg_color="#000200", text_color="#00ff41",
                                         border_color="#0a5a24", border_width=1,
                                         wrap="word")
-        self.main_log.grid(row=1, column=0, sticky="nsew", padx=6, pady=2)
-        self.main_log.tag_config("ADB", foreground="#00ff41")
-        self.main_log.tag_config("SECURITY", foreground="#7cff00")
-        self.main_log.tag_config("VT", foreground="#29ffbf")
-        self.main_log.tag_config("DNS", foreground="#00d8ff")
-        self.main_log.tag_config("EXEC", foreground="#b8ff66")
-        self.main_log.tag_config("SYSTEM", foreground="#33ff99")
-        self.main_log.tag_config("ERROR", foreground="#ff3355")
+        self.main_log.grid(row=1, column=0, sticky="nsew", padx=4, pady=2)
+        self.main_log.tag_config("ADB", foreground="#00ff41")       # adb / device commands
+        self.main_log.tag_config("SECURITY", foreground="#7cff00")  # Adware Remover / cleaner
+        self.main_log.tag_config("VT", foreground="#29ffbf")        # VirusTotal
+        self.main_log.tag_config("DNS", foreground="#00d8ff")       # DNS / ad blocking
+        self.main_log.tag_config("EXEC", foreground="#b8ff66")      # system command execution
+        self.main_log.tag_config("SYSTEM", foreground="#33ff99")    # system / login events
+        self.main_log.tag_config("ERROR", foreground="#ff3355")     # errors
         self.main_log.tag_config("INFO", foreground="#00cc55")
         self.main_log.tag_config("HINT", foreground="#338844")
         self.main_log.tag_config("DEFAULT", foreground="#00ff41")
         self._log_filter_active = "ALL"
 
-        # Stats bar at bottom
-        stats_bar = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=6, height=22)
-        stats_bar.grid(row=2, column=0, sticky="ew", padx=6, pady=(0, 6))
-        stats_bar.grid_propagate(False)
-        self.log_line_count_label = ctk.CTkLabel(stats_bar, text="Lines: 0", font=ctk.CTkFont(size=8), text_color="#00cc55")
-        self.log_line_count_label.pack(side="left", padx=8, pady=3)
-        self.log_filter_label = ctk.CTkLabel(stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=8), text_color="#00cc55")
-        self.log_filter_label.pack(side="left", padx=6, pady=3)
+        # Filter chips row
+        self._log_filter_frame = ctk.CTkFrame(self._log_console, fg_color="transparent")
+        self._log_filter_frame.grid(row=2, column=0, sticky="ew", padx=4, pady=(0, 2))
+        filters = ["ALL", "ADB", "SECURITY", "VT", "DNS"]
+        colors = {"ALL": "#0f3d1e", "ADB": "#0f5a2a", "SECURITY": "#0a7a33", "VT": "#3d1e0f", "DNS": "#0f5a5a"}
+        for f in filters:
+            btn = ctk.CTkButton(self._log_filter_frame, text=f, width=38, height=22,
+                                fg_color=colors[f], hover_color="#14582b",
+                                font=ctk.CTkFont(size=9, weight="bold"),
+                                command=lambda ff=f: self._set_log_filter(ff))
+            btn.pack(side="left", padx=1, fill="x", expand=True)
 
-    def _toggle_log_console(self):
-        try:
-            if self._log_console_collapsed:
-                self._log_console.configure(height=180)
-                self._collapse_btn.configure(text="\u2013")
-                self._log_console_collapsed = False
-            else:
-                self._log_console.configure(height=32)
-                self._collapse_btn.configure(text="\u25a0")
-                self._log_console_collapsed = True
-        except Exception:
-            pass
+        # Stats bar at bottom
+        self._console_stats_bar = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=6, height=22)
+        self._console_stats_bar.grid(row=3, column=0, sticky="ew", padx=4, pady=(0, 4))
+        self._console_stats_bar.grid_propagate(False)
+        self.log_line_count_label = ctk.CTkLabel(self._console_stats_bar, text="Lines: 0", font=ctk.CTkFont(size=9), text_color="#00cc55")
+        self.log_line_count_label.pack(side="left", padx=8, pady=2)
+        self.log_filter_label = ctk.CTkLabel(self._console_stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=9), text_color="#00cc55")
+        self.log_filter_label.pack(side="left", padx=6, pady=2)
 
     def _set_log_filter(self, f):
         self._log_filter_active = f

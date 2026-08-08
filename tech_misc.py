@@ -195,6 +195,12 @@ class MiscMixin:
     def action_list_all_packages(self):
         self._sec_load_package_list("all")
 
+    def action_list_user_packages(self):
+        self._sec_load_package_list("user")
+
+    def action_list_system_packages(self):
+        self._sec_load_package_list("system")
+
     def action_list_disabled_packages(self):
         self._sec_load_package_list("disabled")
 
@@ -206,6 +212,12 @@ class MiscMixin:
         if mode == "all":
             args = ["shell", "pm", "list", "packages"]
             label = "ALL"
+        elif mode == "user":
+            args = ["shell", "pm", "list", "packages", "-3"]
+            label = "USER APPS"
+        elif mode == "system":
+            args = ["shell", "pm", "list", "packages", "-s"]
+            label = "SYSTEM APPS"
         else:
             args = ["shell", "pm", "list", "packages", "-d"]
             label = "DISABLED"
@@ -218,6 +230,7 @@ class MiscMixin:
             entries = cached["entries"]
             self.sec_packages = entries
             self.sec_legend_filter = None
+            self.sec_removal_filter = None
             self.after(0, self._sec_render_rows)
             self.after(0, lambda: self.sec_threats_label.configure(text=f"{label}: {len(entries)} apps (cached)", text_color="#58a6ff"))
             self.after(0, lambda: self._sec_status(f"\U0001f4be Showing cached {label} list from {fmt_cache_time(cached.get('timestamp', 0))}. Refreshing from device...", "#58a6ff"))
@@ -258,6 +271,7 @@ class MiscMixin:
                 self.sec_list_mode = mode
                 self.sec_packages = entries
                 self.sec_legend_filter = None
+                self.sec_removal_filter = None
                 save_apps_cache(mode, entries)
                 self.after(0, self._sec_render_rows)
                 self.after(0, lambda: self.sec_threats_label.configure(text=f"{label}: {len(entries)} apps", text_color="#58a6ff"))
@@ -309,6 +323,7 @@ class MiscMixin:
             self.sec_list_mode = "filter"
             self.sec_packages = matches
             self.sec_legend_filter = None
+            self.sec_removal_filter = None
             self.after(0, self._sec_render_rows)
             if matches:
                 note = " (cached)" if cached_ts else ""
@@ -380,10 +395,14 @@ class MiscMixin:
             self.action_sec_refresh()
         elif mode == "all":
             self.action_list_all_packages()
+        elif mode == "system":
+            self.action_list_system_packages()
+        elif mode == "disabled":
+            self.action_list_disabled_packages()
         elif mode == "filter":
             self._sec_load_db_filter(getattr(self, "_filter_criteria", {}))
         else:
-            self.action_list_disabled_packages()
+            self.action_sec_refresh()
 
     def action_scrcpy_mirror(self):
         if not os.path.exists(self.scrcpy_exe):
@@ -437,6 +456,10 @@ class MiscMixin:
             tag = "DNS"
         elif message.startswith("[EXEC"):
             tag = "EXEC"
+        elif message.startswith("[GeloTech ERROR]"):
+            tag = "ERROR"
+        elif message.startswith("[GeloTech"):
+            tag = "SECURITY"
         elif message.startswith("[CRITICAL") or "ERROR" in message[:20]:
             tag = "ERROR"
         elif message.startswith("[ADB") or message.startswith("System") or message.startswith("Logged"):
