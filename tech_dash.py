@@ -1,10 +1,38 @@
 # -*- coding: utf-8 -*-
-# Dashboard page (3uTools-style): Android phone mockup whose SCREEN shows the
-# live log console, plus a device info card with real ADB stats.
-import customtkinter as ctk
+# Dashboard page (3uTools-style): real iPhone 17 PNG mockup whose transparent
+# SCREEN shows the live log console, plus a device info card with real ADB stats.
+import os
+import ctypes
 import threading
 import re
-from tech_common import THEME, subprocess
+import customtkinter as ctk
+from PIL import Image
+from tech_common import THEME, subprocess, get_bundle_dir
+
+# Phone mockup image: bundled in assets/phone_devices (720x824 @2x, screen
+# area is transparent). SCREEN_RECT is the transparent cutout in image px,
+# SCREEN_RADIUS the cutout corner radius @2x (measured from the PNG alpha).
+PHONE_IMG_DIR = os.path.join(get_bundle_dir(), "assets", "phone_devices")
+PHONE_IMG = os.path.join(PHONE_IMG_DIR, "iPhone17_P_PM_CosmicOrange@2x.png")
+PHONE_IMG_NATIVE = (720, 824)
+PHONE_SCREEN_RECT = (176, 12, 368, 800)   # x, y, w, h in image px (2x)
+PHONE_SCREEN_RADIUS = 24                  # screen corner radius at 2x
+DASH_PHONE_W = 400                        # displayed width in px
+
+
+def clip_widget_rounded(widget, width, height, radius):
+    """Win32: round a widget window's corners (used to match the phone
+    screen cutout). Must run after the widget is mapped."""
+    try:
+        hwnd = widget.winfo_id()
+        if not hwnd:
+            return
+        rgn = ctypes.windll.gdi32.CreateRoundRectRgn(0, 0, width + 1, height + 1,
+                                                     radius * 2, radius * 2)
+        if rgn:
+            ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
+    except Exception:
+        pass
 
 
 class DashboardMixin:
@@ -19,46 +47,35 @@ class DashboardMixin:
         outer.grid_rowconfigure(0, weight=1)
 
         # ------------------------------------------------------------
-        # LEFT: ANDROID PHONE MOCKUP (screen = live log console)
+        # LEFT: PHONE MOCKUP (real image, transparent screen = live log console)
         # ------------------------------------------------------------
         phone_col = ctk.CTkFrame(outer, fg_color="transparent")
         phone_col.grid(row=0, column=0, padx=(14, 8), pady=10, sticky="n")
         phone_col.grid_rowconfigure(0, weight=1)
 
-        phone_h = min(700, max(560, self.winfo_screenheight() - 240))
-        self.dash_phone = ctk.CTkFrame(phone_col, fg_color="#05080c", corner_radius=26,
-                                       width=330, height=phone_h, border_width=3,
-                                       border_color="#223040")
+        s = DASH_PHONE_W / PHONE_IMG_NATIVE[0]
+        img_h = int(PHONE_IMG_NATIVE[1] * s)
+        self.dash_phone = ctk.CTkFrame(phone_col, fg_color="transparent",
+                                       width=DASH_PHONE_W, height=img_h)
         self.dash_phone.pack(expand=True)
         self.dash_phone.grid_propagate(False)
-        self.dash_phone.grid_columnconfigure(0, weight=1)
-        self.dash_phone.grid_rowconfigure(1, weight=1)
 
-        # earpiece + camera
-        top = ctk.CTkFrame(self.dash_phone, fg_color="transparent")
-        top.grid(row=0, column=0, pady=(10, 0))
-        ctk.CTkFrame(top, width=60, height=5, corner_radius=3, fg_color="#223040").pack(side="left", padx=(0, 8))
-        ctk.CTkFrame(top, width=7, height=7, corner_radius=4, fg_color="#1a2430").pack(side="left")
+        try:
+            self._dash_phone_img = ctk.CTkImage(light_image=Image.open(PHONE_IMG),
+                                                dark_image=Image.open(PHONE_IMG),
+                                                size=(DASH_PHONE_W, img_h))
+            ctk.CTkLabel(self.dash_phone, image=self._dash_phone_img,
+                         text="", fg_color="transparent").place(x=0, y=0)
+        except Exception:
+            pass
 
-        # screen
-        screen = ctk.CTkFrame(self.dash_phone, fg_color="#010409", corner_radius=10,
-                              border_width=1, border_color="#131a22")
-        screen.grid(row=1, column=0, sticky="nsew", padx=7, pady=8)
-        screen.grid_columnconfigure(0, weight=1)
-        screen.grid_rowconfigure(1, weight=1)
-
-        # phone status bar (cosmetic)
-        ph = ctk.CTkFrame(screen, fg_color="transparent")
-        ph.grid(row=0, column=0, sticky="ew", padx=10, pady=(4, 0))
-        ctk.CTkLabel(ph, text="GeloTechOS", font=ctk.CTkFont(size=8, weight="bold"), text_color="#4b5563").pack(side="left")
-        ctk.CTkLabel(ph, text="\u25c9 \u25c9 \u25c9  \U0001f4f6  86%", font=ctk.CTkFont(size=8), text_color="#4b5563").pack(side="right")
-
-        # live log console lives inside the phone screen
-        self._build_log_panel(screen)
-
-        # home indicator
-        ctk.CTkFrame(self.dash_phone, width=110, height=4, corner_radius=2,
-                     fg_color="#223040").grid(row=2, column=0, pady=(0, 8))
+        # live log console sits inside the transparent screen cutout
+        sx, sy, sw, sh = PHONE_SCREEN_RECT
+        cx, cy, cw, ch = int(sx * s), int(sy * s), int(sw * s), int(sh * s)
+        self._build_log_panel(self.dash_phone, place_rect=(cx, cy, cw, ch),
+                              log_font_size=max(6, round(cw / 24)))
+        self.after(300, lambda: self._clip_dash_console(cw, ch,
+                                                        int(PHONE_SCREEN_RADIUS * s)))
 
         # ------------------------------------------------------------
         # RIGHT: DEVICE INFO CARD
@@ -151,6 +168,22 @@ class DashboardMixin:
     # ------------------------------------------------------------
     # DATA: periodic refresh while the Dashboard page is visible
     # ------------------------------------------------------------
+    def _clip_dash_console(self, cw, ch, radius, attempts=10):
+        try:
+            console = self._log_console
+            if console.winfo_ismapped():
+                # Widget may be DPI-scaled (CTk scaling); clip to its ACTUAL
+                # on-screen size and scale the cutout radius to match.
+                rw = console.winfo_width()
+                rh = console.winfo_height()
+                r = max(1, int(radius * rw / cw))
+                clip_widget_rounded(console, rw, rh, r)
+            elif attempts > 0:
+                self.after(500, lambda: self._clip_dash_console(cw, ch, radius,
+                                                                attempts - 1))
+        except Exception:
+            pass
+
     def _dash_refresh_click(self):
         self._dash_fetch_stats()
 

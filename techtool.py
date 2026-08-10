@@ -270,12 +270,22 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # ----------------------------------------------------
     # UNIFIED LOG PANEL
     # ----------------------------------------------------
-    def _build_log_panel(self, parent, fixed_height=None):
+    def _build_log_panel(self, parent, fixed_height=None, place_rect=None, log_font_size=10):
         # Live log console rendered INSIDE the Android phone screen on the
         # Dashboard, and (compacted) on top of the App Cleaner page.
+        # place_rect=(x, y, w, h): instead of grid(), position the console
+        # with place() at the given rect (used for the phone-image screen
+        # cutout on the Dashboard). log_font_size scales the log text to
+        # the console's on-screen width.
         console = ctk.CTkFrame(parent, fg_color="#01030a", corner_radius=6,
-                               border_width=1, border_color="#131a22")
-        console.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
+                               border_width=0 if place_rect else 1, border_color="#131a22",
+                               width=(place_rect[2] if place_rect else 0),
+                               height=(place_rect[3] if place_rect else 0))
+        if place_rect:
+            console.place(x=place_rect[0], y=place_rect[1])
+            console.grid_propagate(False)
+        else:
+            console.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
         console.grid_columnconfigure(0, weight=1)
         console.grid_rowconfigure(1, weight=1)
         if fixed_height:
@@ -296,7 +306,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         clear_btn.grid(row=0, column=1, padx=(0, 4), pady=2)
 
         # Log display (color-coded by process)
-        main_log = ctk.CTkTextbox(console, font=ctk.CTkFont(family="Consolas", size=10),
+        main_log = ctk.CTkTextbox(console, font=ctk.CTkFont(family="Consolas", size=log_font_size),
                                   fg_color="#000200", text_color="#00ff41",
                                   border_color="#0a5a24", border_width=1,
                                   wrap="word")

@@ -25,7 +25,9 @@ purple = both excluded) — rows in the app list follow the same color scheme,
 and removal-level badges use the same colors. The sidebar header shows
 `© 2026 GeloTech` with clickable links to Gsmcodeph.com and
 facebook.com/gelotechxyz, and the title/tool name always shows the current
-version (e.g. v1.0.9).
+version (e.g. v1.0.9). The Dashboard tab shows a real device mockup (phone
+image with the live log console rendered inside its screen) next to a device
+info card with live ADB stats (model, Android version, storage, battery, MACs).
 
 Loading the app list is fast even without the phone plugged in: the first
 successful scan caches the package list locally on the PC, later loads render
@@ -36,7 +38,7 @@ stays responsive with hundreds of apps loaded.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.3.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.4.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
