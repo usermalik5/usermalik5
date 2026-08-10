@@ -48,8 +48,16 @@ def save(data):
 def file_sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
+        raw = f.read()
+    # .gitattributes forces eol=lf for the data files, so git normalizes CRLF
+    # to LF on commit and GitHub serves the LF bytes. Hash the exact bytes the
+    # server will serve, otherwise the manifest pins the wrong hash and every
+    # login fails the sha256 check.
+    if b"\r\n" in raw:
+        raw = raw.replace(b"\r\n", b"\n")
+    for chunk in iter(lambda: raw, b""):
+        h.update(chunk)
+        raw = b""
     return h.hexdigest()
 
 
