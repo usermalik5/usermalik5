@@ -16,7 +16,8 @@ GeloTechTool (techtool.py)
 
 | File | Class / Role | Owns |
 |---|---|---|
-| `techtool.py` | `GeloTechTool` | entry point, window, sidebar, tabview, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks |
+| `techtool.py` | `GeloTechTool` | entry point, window, sidebar, tabview, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks, dark/light theme toggle (sidebar) + `_theme_walk` color apply |
+| `tech_dash.py` | `DashboardMixin` | Dashboard tab: stat tiles (battery, storage, apps, virus threats), device quick info, quick actions, live per-tile refresh, quick-action log lines |
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions (non-admin users with no explicit perms in secret.json get `DEFAULT_USER_PERMS` = everything except admin-only `virustotal`), `_check_updates` (pinned GitHub API pull + Ed25519 sig + SHA-256 verify, banking list only), first-run migration + seeding |
 | `tech_reg.py` | helpers | self-service account flow + server fetching: `_fetch_verified_sources` (signed manifest + live accounts + DB sha256), `_request_password` (generate PBKDF2 password → write to repo secret.json via write token → email via SMTP), `hash_password`/`verify_password`, `_purge_session_database` |
@@ -148,9 +149,7 @@ CODE update (needs new exe):
   → update README.md + PROCESS_GUIDE.md (project rules)
   → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
     tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py
-    tech_secops3.py tech_secops2.py tech_secops4.py tech_vtop.py tech_misc.py
-        tech_settings.py tech_admin.py tech_secscan.py tech_secops.py
-        tech_secops2.py tech_vtop.py tech_misc.py
+    tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py
         (ALWAYS re-run over ALL modules; obfuscation applies to all builds)
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe  → distribute

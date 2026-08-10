@@ -11,6 +11,23 @@ def _no_window(func):
     return wrapper
 
 _subprocess.Popen = _no_window(_subprocess.Popen)
+
+# Windows cp1252 locale cannot decode arbitrary adb output (UTF-8 multibyte,
+# dumpsys dumps, app names...). Force UTF-8 + lossless-ish decoding on every
+# text-mode subprocess call so reader threads never crash.
+def _utf8_text(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if (kwargs.get("text") or kwargs.get("universal_newlines")) and "encoding" not in kwargs:
+            kwargs["encoding"] = "utf-8"
+        if kwargs.get("encoding") and kwargs.get("errors") is None:
+            kwargs["errors"] = "replace"
+        return func(*args, **kwargs)
+    return wrapper
+
+_subprocess.run = _utf8_text(_subprocess.run)
+_subprocess.check_output = _utf8_text(_subprocess.check_output)
+_subprocess.check_call = _utf8_text(_subprocess.check_call)
 subprocess = _subprocess
 
 import threading
@@ -77,7 +94,167 @@ DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
 # Bump this on every iteration; shown in the window title and the sidebar
 # tool name, and must match the release tag (v<APP_VERSION>).
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.3.0"
+
+# 3uTools-style theme palettes (shared by all UI modules)
+THEMES = {
+    "dark": {
+        "bg": "#0e1217",        # window / page background
+        "panel": "#141b24",     # panels & cards
+        "panel2": "#10161e",    # darker nested panels (toolbars/stats)
+        "card": "#1a2330",      # header cards
+        "border": "#26303d",
+        "input": "#0a0e13",
+        "accent": "#3b82f6",    # 3uTools blue
+        "accent_h": "#2f6fe4",
+        "green": "#22c55e",
+        "red": "#ef4444",
+        "amber": "#f59e0b",
+        "text": "#e6edf3",
+        "muted": "#8b98a9",
+        "sidebar": "#0c1015",
+    },
+    "light": {
+        "bg": "#eef1f5",        # window / page background
+        "panel": "#ffffff",     # panels & cards
+        "panel2": "#f2f4f7",    # lighter nested panels (toolbars/stats)
+        "card": "#ffffff",      # header cards
+        "border": "#d4dae1",
+        "input": "#ffffff",
+        "accent": "#3b82f6",    # 3uTools blue (both modes)
+        "accent_h": "#2f6fe4",
+        "green": "#16a34a",
+        "red": "#dc2626",
+        "amber": "#d97706",
+        "text": "#1b2530",
+        "muted": "#5a6673",
+        "sidebar": "#e4e8ee",
+    },
+}
+
+THEME = THEMES["dark"]
+
+# Dark -> light hex swap used by the runtime theme walker. Phone screen / log
+# console colors are intentionally absent (a phone display stays dark).
+COLOR_SWAP = {
+    "#0e1217": "#eef1f5",
+    "#0c1015": "#e4e8ee",
+    "#141b24": "#ffffff",
+    "#10161e": "#f2f4f7",
+    "#1a2330": "#ffffff",
+    "#26303d": "#d4dae1",
+    "#0a0e13": "#ffffff",
+    "#1b222c": "#ffffff",
+    "#131921": "#eef1f5",
+    "#0d1117": "#fbfcfd",
+    "#16191e": "#e8ebf0",
+    "#11151c": "#e8ebf0",
+    "#21262d": "#dde2e8",
+    "#27313d": "#dde2e8",
+    "#30363d": "#c2c9d2",
+    "#2c3340": "#c2c9d2",
+    "#282e37": "#c2c9d2",
+    "#1c2026": "#e8ebf0",
+    "#1f2a3a": "#e2e6eb",
+    "#2a3340": "#d4dae1",
+    "#395670": "#d4dae1",
+    "#e6edf3": "#1b2530",
+    "#e8ecf2": "#1b2530",
+    "#d9e5ee": "#263140",
+    "#d1d5db": "#263140",
+    "#cbd9e6": "#33404f",
+    "#aab7c4": "#566170",
+    "#aeb8c2": "#566170",
+    "#8da1b8": "#4a5a6b",
+    "#8b949e": "#566170",
+    "#8b98a9": "#5a6673",
+    "#a6a6a6": "#6a7480",
+    "#7a8699": "#66707d",
+    "#484f58": "#7a838d",
+    "#5b6773": "#8a94a0",
+    "#e67e22": "#c2570b",
+    "#1abc9c": "#0e9480",
+    "#2980b9": "#1f6cb0",
+    "#8e44ad": "#7a3ba0",
+    "#16a085": "#0f8270",
+    "#138d75": "#0f7a64",
+    "#d35400": "#b84500",
+    "#c0392b": "#a93226",
+    "#2ecc71": "#16a34a",
+    "#e74c3c": "#dc2626",
+    "#f39c12": "#d97706",
+    "#2ea043": "#1a8a3a",
+    "#58a6ff": "#2563c2",
+    "#1f6feb": "#2563c2",
+    "#1a5fd0": "#1f58b8",
+    "#0f7489": "#0e6478",
+    "#0c5f70": "#0b5566",
+    "#1497ab": "#13849a",
+    "#0d0f12": "#e4e8ee",
+    "#161b22": "#eef1f5",
+    "#111622": "#f2f4f7",
+    "#303645": "#d4dae1",
+    "#1b232d": "#ffffff",
+    "#222c37": "#eef1f5",
+    "#3d1212": "#fbe9e9",
+    "#c9d1d9": "#263140",
+    "#66727e": "#566170",
+    "#3a3a3a": "#6b7684",
+    "#4a4a4a": "#7a838d",
+    "#3d444d": "#6b7684",
+    "#a82521": "#a93226",
+    "#71368a": "#7a3ba0",
+    "#a8420f": "#b84500",
+    "#bf8700": "#9c6f00",
+    "#e5534b": "#d64545",
+    "#e3b341": "#c79a1a",
+    "#d4af37": "#b8960c",
+    "#2d1a4a": "#f3eafa",
+    "#3d3210": "#faf5e3",
+    "#1f3d2a": "#e9f6ee",
+    "#edf3f8": "#1b2530",
+    "#d8e0e7": "#263140",
+    "#34495e": "#566170",
+    "#27ae60": "#16a34a",
+    "#da3633": "#d64545",
+    "#b62324": "#a93226",
+    "#b91c1c": "#a93226",
+    "#bc4c00": "#b84500",
+    "#1f618d": "#1f6cb0",
+    "#117a65": "#0e9480",
+    "#ff4d4d": "#d64545",
+    "#2ecc71": "#16a34a",
+}
+
+# Canonical dark color for each shared light color, so the theme walker
+# round-trips exactly (several dark colors share one light twin).
+CANONICAL_DARK = {
+    "#eef1f5": "#0e1217",
+    "#ffffff": "#141b24",
+    "#e8ebf0": "#16191e",
+    "#d4dae1": "#26303d",
+    "#dde2e8": "#21262d",
+    "#c2c9d2": "#30363d",
+    "#f2f4f7": "#10161e",
+    "#263140": "#d9e5ee",
+    "#566170": "#8b949e",
+    "#1b2530": "#e6edf3",
+    "#d64545": "#e5534b",
+    "#a93226": "#c0392b",
+    "#16a34a": "#2ecc71",
+    "#b84500": "#bc4c00",
+    "#1f6cb0": "#2980b9",
+    "#0e9480": "#1abc9c",
+    "#7a3ba0": "#8e44ad",
+    "#6b7684": "#3a3a3a",
+    "#5a6673": "#8b98a9",
+    "#7a838d": "#484f58",
+    "#6a7480": "#a6a6a6",
+    "#8a94a0": "#5b6773",
+    "#dc2626": "#e74c3c",
+    "#2563c2": "#1f6feb",
+    "#e4e8ee": "#0c1015",
+}
 
 
 def get_bundle_dir():

@@ -17,7 +17,7 @@ a = Analysis(
                    'sys', 'tempfile', 'threading', 'time', 'base64', 'secrets', 'smtplib', 'webbrowser',
                    'email', 'email.message', 'email.utils',
                    'cryptography', 'cryptography.hazmat.primitives.asymmetric.ed25519',
-                   'tech_common', 'tech_ui', 'tech_settings', 'tech_admin', 'tech_reg', 'tech_secscan', 'tech_secops', 'tech_secops3', 'tech_secops2', 'tech_secops4', 'tech_vtop', 'tech_misc'],
+                   'tech_common', 'tech_ui', 'tech_settings', 'tech_admin', 'tech_reg', 'tech_secscan', 'tech_secops', 'tech_secops3', 'tech_secops2', 'tech_secops4', 'tech_dash', 'tech_vtop', 'tech_misc'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

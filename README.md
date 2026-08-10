@@ -36,7 +36,7 @@ stays responsive with hundreds of apps loaded.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.2.2)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.3.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
@@ -87,7 +87,7 @@ only supported release build** — obfuscation applies to all modules and all
 release exes:
 
 ```bash
-pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_vtop.py tech_misc.py
+pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 

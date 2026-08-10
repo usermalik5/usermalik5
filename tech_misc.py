@@ -442,9 +442,13 @@ class MiscMixin:
 
     def log_message(self, message):
         if threading.current_thread() is not threading.main_thread():
-            self.after(0, self.log_message, message)
+            try:
+                self.after(0, self.log_message, message)
+            except Exception:
+                pass
             return
-        if not hasattr(self, 'main_log') or not self.main_log.winfo_exists():
+        consoles = getattr(self, "_log_consoles", None)
+        if not consoles:
             return
 
         # Determine tag based on prefix
@@ -476,35 +480,36 @@ class MiscMixin:
         if len(self._log_history) > 1000:
             self._log_history = self._log_history[-500:]
 
-        # Only insert if filter matches
-        if self._log_filter_active != "ALL":
-            if self._log_filter_active == tag or (self._log_filter_active == "ADB" and tag in ("ADB", "EXEC", "SYSTEM")):
-                self.main_log.insert("end", message + "\n", tag)
-                self.main_log.see("end")
-                self._update_log_count()
-        else:
-            self.main_log.insert("end", message + "\n", tag)
-            self.main_log.see("end")
-            self._update_log_count()
+        # Insert into every live console, honoring each console's own filter
+        for c in consoles:
+            tb = c.get("text")
+            if tb is None or not tb.winfo_exists():
+                continue
+            if c.get("filter", "ALL") != "ALL":
+                if c["filter"] == tag or (c["filter"] == "ADB" and tag in ("ADB", "EXEC", "SYSTEM")):
+                    tb.insert("end", message + "\n", tag)
+                    tb.see("end")
+            else:
+                tb.insert("end", message + "\n", tag)
+                tb.see("end")
+        self._update_log_count()
 
     def _update_log_count(self):
-        try:
-            count = int(self.main_log.index("end-1c").split(".")[0])
-            self.log_line_count_label.configure(text=f"Lines: {count}")
-        except:
-            pass
+        for c in getattr(self, "_log_consoles", ()):
+            try:
+                count = int(c["text"].index("end-1c").split(".")[0])
+                c["count_label"].configure(text=f"Lines: {count}")
+            except Exception:
+                pass
 
     def clear_logs(self):
-        for log_name in ('main_log',):
-            log = getattr(self, log_name, None)
-            if log:
-                try:
-                    log.delete("1.0", "end")
-                except:
-                    pass
+        for c in getattr(self, "_log_consoles", ()):
+            try:
+                c["text"].delete("1.0", "end")
+                c["count_label"].configure(text="Lines: 0")
+            except Exception:
+                pass
         self._log_history = []
-        if hasattr(self, 'log_line_count_label'):
-            self.log_line_count_label.configure(text="Lines: 0")
 
     def run_system_cmd_async(self, command_list, execution_text="Processing offline task parameters..."):
         """Ensures system operations run independently from the UI layout thread to prevent freezes."""

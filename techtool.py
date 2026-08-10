@@ -14,7 +14,7 @@ import datetime
 import shutil
 import webbrowser
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION
+from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION, THEME, THEMES, COLOR_SWAP, CANONICAL_DARK
 
 # Application Global Styling Configurations
 ctk.set_appearance_mode("Dark")
@@ -30,10 +30,11 @@ from tech_secops import SecOpsMixin
 from tech_secops3 import SecOps3Mixin
 from tech_secops2 import SecOps2Mixin
 from tech_secops4 import SecOps4Mixin
+from tech_dash import DashboardMixin
 from tech_vtop import VtOpsMixin
 from tech_misc import MiscMixin
 
-class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin, VtOpsMixin, MiscMixin):
+class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin, DashboardMixin, VtOpsMixin, MiscMixin):
     PERMISSIONS = {
         "device_info": "Device Info & Package Lists",
         "mirror": "Screen Mirror & Logcat",
@@ -58,6 +59,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.current_user = None
         self.is_admin = True
         self.user_perms = None
+        self._theme_mode = self._load_settings().get("theme", "dark")
 
         # Primary Window Geometry & Title setup
         self.title(f"GeloTech Tool v{APP_VERSION}")
@@ -125,20 +127,25 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         _brand_link(links, "Gsmcodeph.com", "https://gsmcodeph.com")
         _brand_link(links, "facebook.com/gelotechxyz", "https://www.facebook.com/gelotechxyz")
 
-        self.license_label = ctk.CTkLabel(self.sidebar_frame, text="Valid until: 2030-07-17\n● ALL FUNCTIONS ACTIVE", font=ctk.CTkFont(size=10, weight="bold"), text_color="#2ecc71", height=30, justify="center")
-        self.license_label.grid(row=4, column=0, padx=14, pady=2)
-
         separator = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#2c3340")
         separator.grid(row=5, column=0, padx=12, pady=(2, 3), sticky="ew")
 
+        self.theme_btn = ctk.CTkButton(
+            self.sidebar_frame, text="\u2600\ufe0f  Light Mode" if self._theme_mode == "dark" else "\U0001f319  Dark Mode",
+            anchor="w", fg_color=THEME["panel2"], hover_color="#1f6feb", text_color="#e8ecf2",
+            border_color="#2c3340", border_width=1, corner_radius=8,
+            height=26, font=ctk.CTkFont(size=10, weight="bold"),
+            command=self._toggle_theme)
+        self.theme_btn.grid(row=6, column=0, padx=10, pady=(4, 0), sticky="ew")
+
         # Sidebar menu: grouped icon buttons
-        row = 6
+        row = 7
 
         def _add_btn(icon, text, command, color="#4d6bfe", perm=None):
             nonlocal row
             btn = ctk.CTkButton(
                 self.sidebar_frame, text=f"{icon}  {text}", anchor="w",
-                fg_color="#1c2026", hover_color=color, text_color="#e8ecf2",
+                fg_color=THEME["panel2"], hover_color=color, text_color="#e8ecf2",
                 border_color="#2c3340", border_width=1, corner_radius=8,
                 height=26, font=ctk.CTkFont(size=10, weight="bold"),
                 command=command)
@@ -153,6 +160,34 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             ctk.CTkLabel(self.sidebar_frame, text=title, font=ctk.CTkFont(size=8, weight="bold"),
                          text_color="#7a8699", height=14).grid(row=row, column=0, padx=14, pady=(4, 0), sticky="w")
             row += 1
+
+        self.page_nav_btns = {}
+
+        def _add_nav_btn(name, icon, text, perm):
+            nonlocal row
+            btn = ctk.CTkButton(
+                self.sidebar_frame, text=f"{icon}  {text}", anchor="w",
+                fg_color=THEME["panel2"], hover_color="#1f6feb", text_color="#e8ecf2",
+                border_color="#2c3340", border_width=1, corner_radius=8,
+                height=28, font=ctk.CTkFont(size=11, weight="bold"),
+                command=lambda n=name: self._show_page(n))
+            btn.grid(row=row, column=0, padx=10, pady=0, sticky="ew")
+            row += 1
+            self.page_nav_btns[name] = btn
+            if perm:
+                self._perm_sidebar_btns.setdefault(perm, []).append(btn)
+            return btn
+
+        _add_header("PAGES")
+        _add_nav_btn("Dashboard", "\U0001f4ca", "Dashboard", None)
+        _add_nav_btn("Adware Remover", "\U0001f9f9", "App Cleaner", "cleaner")
+        _add_nav_btn("Monitor Running Apps", "\U0001f50d", "Monitor Apps", "monitor")
+        _add_nav_btn("Block Ads via DNS", "\U0001f30f", "Block Ads DNS", "dns")
+        _add_nav_btn("VirusTotal", "\U0001f9a0", "VirusTotal", "virustotal")
+
+        sep2 = ctk.CTkFrame(self.sidebar_frame, height=1, fg_color="#2c3340")
+        sep2.grid(row=row, column=0, padx=12, pady=(4, 3), sticky="ew")
+        row += 1
 
         _add_header("DISPLAY")
         _add_btn("\U0001f4f1", "Screen Mirror (scrcpy)", self.action_scrcpy_mirror, color="#2ecc71", perm="mirror")
@@ -169,34 +204,32 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self._admin_panel_btn = _add_btn("\U0001f511", "Admin Panel", self._open_admin_panel, color="#d4af37")
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
 
-        # Log console lives in the sidebar, below the buttons (non-collapsible)
-        self._sidebar_log_row = row
-        self.sidebar_frame.grid_rowconfigure(row, weight=1)
-
         # ----------------------------------------------------
-        # MIDDLE: TAB VIEW
+        # MIDDLE: PAGE STACK (3uTools-style sidebar navigation)
         # ----------------------------------------------------
-        self.tabview = ctk.CTkTabview(self, fg_color="#16191e", command=self.on_tab_changed)
-        self.tabview.grid(row=0, column=1, columnspan=2, padx=(6, 6), pady=8, sticky="nsew")
-        
-        tabs = ["Adware Remover", "Monitor Running Apps", "Block Ads via DNS", "VirusTotal"]
-        for tab in tabs:
-            self.tabview.add(tab)
-            self.tabview.tab(tab).grid_columnconfigure(0, weight=1)
+        self.page_container = ctk.CTkFrame(self, fg_color=THEME["bg"], corner_radius=0)
+        self.page_container.grid(row=0, column=1, padx=(6, 6), pady=8, sticky="nsew")
+        self.page_container.grid_columnconfigure(0, weight=1)
+        self.page_container.grid_rowconfigure(0, weight=1)
+        self.pages = {}
+        self._current_page = None
 
+        self.build_dashboard_page()
         self.build_virustotal_tab()
         self.build_security_tab()
         self.build_monitor_tab()
         self.build_dns_tab()
+        self._show_page("Dashboard")
 
         # ----------------------------------------------------
-        # RIGHT: UNIFIED LOG PANEL (TSM/UnlockTool style)
+        # HINT BANNER + STATUS BAR
         # ----------------------------------------------------
-        self._build_log_panel()
         self._build_hint_banner()
+        self._build_status_bar()
 
         self.log_message("System Initialized. Welcome to GeloTech Tool.")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._apply_theme(self._theme_mode)
         self.after(150, self.start_adb_device_monitor)
         self.after(200, self._login_gate)
 
@@ -237,77 +270,102 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # ----------------------------------------------------
     # UNIFIED LOG PANEL
     # ----------------------------------------------------
-    def _build_log_panel(self):
-        # Integrated console inside the left sidebar, below the buttons.
-        # Fixed, non-collapsible, stretches to the bottom of the sidebar.
-        self._log_console = ctk.CTkFrame(self.sidebar_frame, fg_color="#01030a", corner_radius=8,
-                                         border_width=1, border_color="#2c3340")
-        self._log_console.grid(row=self._sidebar_log_row, column=0, padx=8, pady=(6, 8), sticky="nsew")
-        self._log_console.grid_columnconfigure(0, weight=1)
-        self._log_console.grid_rowconfigure(1, weight=1)
+    def _build_log_panel(self, parent, fixed_height=None):
+        # Live log console rendered INSIDE the Android phone screen on the
+        # Dashboard, and (compacted) on top of the App Cleaner page.
+        console = ctk.CTkFrame(parent, fg_color="#01030a", corner_radius=6,
+                               border_width=1, border_color="#131a22")
+        console.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
+        console.grid_columnconfigure(0, weight=1)
+        console.grid_rowconfigure(1, weight=1)
+        if fixed_height:
+            console.configure(height=fixed_height)
+            console.grid_propagate(False)
 
         # Header bar: title + clear
-        hdr = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=6, height=26)
+        hdr = ctk.CTkFrame(console, fg_color="#03160d", corner_radius=6, height=24)
         hdr.grid(row=0, column=0, sticky="ew", padx=4, pady=(4, 2))
         hdr.grid_columnconfigure(0, weight=1)
         hdr.grid_propagate(False)
-        ctk.CTkLabel(hdr, text="\u25a0 LOG CONSOLE", font=ctk.CTkFont(size=10, weight="bold"),
-                     text_color="#00ff66").grid(row=0, column=0, padx=(8, 4), pady=3, sticky="w")
-        self._log_clear_btn = ctk.CTkButton(hdr, text="\u2715", width=24, height=22,
+        ctk.CTkLabel(hdr, text="\u25a0 LIVE LOGS", font=ctk.CTkFont(size=9, weight="bold"),
+                     text_color="#00ff66").grid(row=0, column=0, padx=(8, 4), pady=2, sticky="w")
+        clear_btn = ctk.CTkButton(hdr, text="\u2715", width=22, height=20,
                       fg_color="#3a2a2a", hover_color="#5a3a3a",
-                      font=ctk.CTkFont(size=10, weight="bold"),
+                      font=ctk.CTkFont(size=9, weight="bold"),
                       command=self.clear_logs)
-        self._log_clear_btn.grid(row=0, column=1, padx=(0, 4), pady=3)
+        clear_btn.grid(row=0, column=1, padx=(0, 4), pady=2)
 
         # Log display (color-coded by process)
-        self.main_log = ctk.CTkTextbox(self._log_console, font=ctk.CTkFont(family="Consolas", size=10),
-                                        fg_color="#000200", text_color="#00ff41",
-                                        border_color="#0a5a24", border_width=1,
-                                        wrap="word")
-        self.main_log.grid(row=1, column=0, sticky="nsew", padx=4, pady=2)
-        self.main_log.tag_config("ADB", foreground="#00ff41")       # adb / device commands
-        self.main_log.tag_config("SECURITY", foreground="#7cff00")  # Adware Remover / cleaner
-        self.main_log.tag_config("VT", foreground="#29ffbf")        # VirusTotal
-        self.main_log.tag_config("DNS", foreground="#00d8ff")       # DNS / ad blocking
-        self.main_log.tag_config("EXEC", foreground="#b8ff66")      # system command execution
-        self.main_log.tag_config("SYSTEM", foreground="#33ff99")    # system / login events
-        self.main_log.tag_config("ERROR", foreground="#ff3355")     # errors
-        self.main_log.tag_config("INFO", foreground="#00cc55")
-        self.main_log.tag_config("HINT", foreground="#338844")
-        self.main_log.tag_config("DEFAULT", foreground="#00ff41")
-        self._log_filter_active = "ALL"
+        main_log = ctk.CTkTextbox(console, font=ctk.CTkFont(family="Consolas", size=10),
+                                  fg_color="#000200", text_color="#00ff41",
+                                  border_color="#0a5a24", border_width=1,
+                                  wrap="word")
+        main_log.grid(row=1, column=0, sticky="nsew", padx=4, pady=2)
+        main_log.tag_config("ADB", foreground="#00ff41")       # adb / device commands
+        main_log.tag_config("SECURITY", foreground="#7cff00")  # Adware Remover / cleaner
+        main_log.tag_config("VT", foreground="#29ffbf")        # VirusTotal
+        main_log.tag_config("DNS", foreground="#00d8ff")       # DNS / ad blocking
+        main_log.tag_config("EXEC", foreground="#b8ff66")      # system command execution
+        main_log.tag_config("SYSTEM", foreground="#33ff99")    # system / login events
+        main_log.tag_config("ERROR", foreground="#ff3355")     # errors
+        main_log.tag_config("INFO", foreground="#00cc55")
+        main_log.tag_config("HINT", foreground="#338844")
+        main_log.tag_config("DEFAULT", foreground="#00ff41")
 
         # Filter chips row
-        self._log_filter_frame = ctk.CTkFrame(self._log_console, fg_color="transparent")
-        self._log_filter_frame.grid(row=2, column=0, sticky="ew", padx=4, pady=(0, 2))
+        filter_frame = ctk.CTkFrame(console, fg_color="transparent")
+        filter_frame.grid(row=2, column=0, sticky="ew", padx=4, pady=(0, 2))
         filters = ["ALL", "ADB", "SECURITY", "VT", "DNS"]
         colors = {"ALL": "#0f3d1e", "ADB": "#0f5a2a", "SECURITY": "#0a7a33", "VT": "#3d1e0f", "DNS": "#0f5a5a"}
+
+        # Stats bar at bottom (phone home indicator strip)
+        stats_bar = ctk.CTkFrame(console, fg_color="#03160d", corner_radius=6, height=20)
+        stats_bar.grid(row=3, column=0, sticky="ew", padx=4, pady=(0, 4))
+        stats_bar.grid_propagate(False)
+        count_label = ctk.CTkLabel(stats_bar, text="Lines: 0", font=ctk.CTkFont(size=8), text_color="#00cc55")
+        count_label.pack(side="left", padx=8, pady=2)
+        filter_label = ctk.CTkLabel(stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=8), text_color="#00cc55")
+        filter_label.pack(side="left", padx=6, pady=2)
+
+        entry = {
+            "frame": console, "text": main_log,
+            "count_label": count_label, "filter_label": filter_label,
+            "filter": "ALL",
+        }
+        if not hasattr(self, "_log_consoles"):
+            self._log_consoles = []
+            # Backward-compat: the first console (Dashboard phone) keeps the
+            # original attribute names used by the rest of the app.
+            self._log_console = console
+            self.main_log = main_log
+            self.log_line_count_label = count_label
+            self.log_filter_label = filter_label
+            self._log_filter_active = "ALL"
+            self._log_clear_btn = clear_btn
+        self._log_consoles.append(entry)
+
         for f in filters:
-            btn = ctk.CTkButton(self._log_filter_frame, text=f, width=38, height=22,
+            btn = ctk.CTkButton(filter_frame, text=f, width=38, height=20,
                                 fg_color=colors[f], hover_color="#14582b",
-                                font=ctk.CTkFont(size=9, weight="bold"),
-                                command=lambda ff=f: self._set_log_filter(ff))
+                                font=ctk.CTkFont(size=8, weight="bold"),
+                                command=lambda ff=f, e=entry: self._set_log_filter(ff, e))
             btn.pack(side="left", padx=1, fill="x", expand=True)
 
-        # Stats bar at bottom
-        self._console_stats_bar = ctk.CTkFrame(self._log_console, fg_color="#03160d", corner_radius=6, height=22)
-        self._console_stats_bar.grid(row=3, column=0, sticky="ew", padx=4, pady=(0, 4))
-        self._console_stats_bar.grid_propagate(False)
-        self.log_line_count_label = ctk.CTkLabel(self._console_stats_bar, text="Lines: 0", font=ctk.CTkFont(size=9), text_color="#00cc55")
-        self.log_line_count_label.pack(side="left", padx=8, pady=2)
-        self.log_filter_label = ctk.CTkLabel(self._console_stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=9), text_color="#00cc55")
-        self.log_filter_label.pack(side="left", padx=6, pady=2)
-
-    def _set_log_filter(self, f):
-        self._log_filter_active = f
-        self.log_filter_label.configure(text=f"Filter: {f}")
+    def _set_log_filter(self, f, entry=None):
+        if entry is None:
+            consoles = getattr(self, "_log_consoles", None)
+            entry = consoles[0] if consoles else None
+            if entry is None:
+                return
+        entry["filter"] = f
+        entry["filter_label"].configure(text=f"Filter: {f}")
         # Re-display all log entries with new filter
         if hasattr(self, '_log_history') and self._log_history:
-            self.main_log.delete("1.0", "end")
+            entry["text"].delete("1.0", "end")
             for tag, msg in self._log_history:
                 if f == "ALL" or f == tag or (f == "ADB" and tag in ("ADB", "EXEC", "SYSTEM")):
-                    self.main_log.insert("end", msg + "\n", tag)
-            self.main_log.see("end")
+                    entry["text"].insert("end", msg + "\n", tag)
+            entry["text"].see("end")
 
     def _extract_scrcpy(self):
         """Extract scrcpy zip to a temp directory and set paths."""
@@ -357,6 +415,40 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # ----------------------------------------------------
     def on_tab_changed(self, *_args):
         pass
+
+    def page(self, name):
+        """Return (creating on first use) the frame of the named page."""
+        if name not in self.pages:
+            frame = ctk.CTkFrame(self.page_container, fg_color=THEME["bg"])
+            frame.grid(row=0, column=0, sticky="nsew")
+            self.pages[name] = frame
+        return self.pages[name]
+
+    def _show_page(self, name):
+        for n, frame in self.pages.items():
+            if n == name:
+                frame.grid()
+            else:
+                frame.grid_remove()
+        self._current_page = name
+        for n, btn in self.page_nav_btns.items():
+            active = (n == name)
+            try:
+                btn.configure(fg_color=THEME["accent"] if active else THEME["panel2"],
+                              text_color="#ffffff" if active else "#e8ecf2",
+                              hover_color=THEME["accent_h"] if active else "#1f6feb")
+            except Exception:
+                pass
+        if name == "Dashboard":
+            self.after(60, self._dash_refresh_if_visible)
+
+    def _build_status_bar(self):
+        self.status_bar = ctk.CTkFrame(self, fg_color=THEME["sidebar"], corner_radius=0, height=26)
+        self.status_bar.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.status_bar.grid_columnconfigure(1, weight=1)
+        self.status_bar.grid_propagate(False)
+        ctk.CTkLabel(self.status_bar, text=f"GeloTech Tool v{APP_VERSION} \u2014 3uTools-style UI",
+                     font=ctk.CTkFont(size=9), text_color="#5b6773").grid(row=0, column=1, padx=12, pady=3, sticky="e")
 
     def start_adb_device_monitor(self):
         self.log_message("[ADB] Scanning for connected devices...")
@@ -415,9 +507,91 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             self.known_adb_devices = status
             self.log_message(f"[ADB] {status}")
 
+    def _toggle_theme(self):
+        mode = "light" if self._theme_mode != "light" else "dark"
+        self._theme_mode = mode
+        try:
+            data = self._load_settings()
+            data["theme"] = mode
+            self._save_settings(data)
+        except Exception:
+            pass
+        self._apply_theme(mode)
+
+    def _apply_theme(self, mode):
+        """Recolor the whole widget tree for light/dark (phone + log console stay dark)."""
+        THEME.update(THEMES[mode])
+        ctk.set_appearance_mode("Light" if mode == "light" else "Dark")
+        swap = COLOR_SWAP if mode == "light" else {v: CANONICAL_DARK.get(v, k) for k, v in COLOR_SWAP.items()}
+        self._theme_walk(self, swap)
+        try:
+            self.theme_btn.configure(
+                text="\U0001f319  Dark Mode" if mode == "light" else "\u2600\ufe0f  Light Mode")
+        except Exception:
+            pass
+        try:
+            style = ttk.Style()
+            if mode == "light":
+                style.configure("AppList.Treeview", background="#fbfcfd", fieldbackground="#fbfcfd",
+                                foreground="#1b2530")
+                style.configure("AppList.Vertical.TScrollbar", background="#dde2e8", troughcolor="#fbfcfd",
+                                arrowcolor="#566170", bordercolor="#fbfcfd")
+                tags = {
+                    "threat": ("#fdecef", "#c0392b"), "both_excl": ("#f1eafb", "#7d3fb8"),
+                    "uninstall_excl": ("#fdeaea", "#d64545"), "clean_excl": ("#faf1e0", "#b7791f"),
+                    "normal": ("#eaf6ef", "#1b2530"), "normal_alt": ("#e2f1e8", "#1b2530"),
+                }
+            else:
+                style.configure("AppList.Treeview", background="#0d1117", fieldbackground="#0d1117",
+                                foreground="#e6edf3")
+                style.configure("AppList.Vertical.TScrollbar", background="#21262d", troughcolor="#0d1117",
+                                arrowcolor="#8b949e", bordercolor="#0d1117")
+                tags = {
+                    "threat": ("#2a1015", "#ff6b6b"), "both_excl": ("#241a33", "#d2a8ff"),
+                    "uninstall_excl": ("#2a1212", "#ff8f8f"), "clean_excl": ("#2a2010", "#ffd08a"),
+                    "normal": ("#0f2017", "#e6edf3"), "normal_alt": ("#0c1b13", "#e6edf3"),
+                }
+            for tag, (bg, fg) in tags.items():
+                try:
+                    self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    @staticmethod
+    def _theme_walk(root, swap=COLOR_SWAP):
+        stack = list(root.winfo_children())
+        while stack:
+            w = stack.pop()
+            try:
+                stack.extend(w.winfo_children())
+            except Exception:
+                pass
+            for attr in ("fg_color", "text_color", "border_color", "hover_color",
+                         "progress_color", "button_color", "button_hover_color",
+                         "dropdown_fg_color", "dropdown_hover_color",
+                         "dropdown_text_color", "trough_color", "arrow_color",
+                         "scrollbar_button_color", "scrollbar_button_hover_color"):
+                try:
+                    v = w.cget(attr)
+                except Exception:
+                    continue
+                if isinstance(v, str) and v in swap:
+                    try:
+                        w.configure(**{attr: swap[v]})
+                    except Exception:
+                        pass
+
     def on_close(self):
         self.adb_monitor_enabled = False
         self.appwatch_monitoring = False
+        dash_id = getattr(self, "_dash_refresh_after", None)
+        if dash_id is not None:
+            try:
+                self.after_cancel(dash_id)
+            except Exception:
+                pass
         self._purge_session_database()
         self.destroy()
 

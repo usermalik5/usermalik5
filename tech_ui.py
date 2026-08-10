@@ -18,7 +18,7 @@ from tech_common import get_bundle_dir, get_app_dir, Tooltip, subprocess
 
 class UiMixin:
     def build_virustotal_tab(self):
-        tab = self.tabview.tab("VirusTotal")
+        tab = self.page("VirusTotal")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(4, weight=1)
 
@@ -89,35 +89,16 @@ class UiMixin:
     # SECURITY SCAN TAB UI
     # ----------------------------------------------------
     def build_security_tab(self):
-        tab = self.tabview.tab("Adware Remover")
+        tab = self.page("Adware Remover")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(3, weight=1)
 
-        # Row 0 - Device header (UAD Bloatware Remover window)
+        # Row 0 - Log console header (title text removed; logs moved here)
         header = ctk.CTkFrame(tab, fg_color="#1b222c", corner_radius=8, border_width=0)
         header.grid(row=0, column=0, padx=15, pady=(12, 6), sticky="ew")
-        header.grid_columnconfigure(1, weight=1)
-
-        # Upper-left: title
-        title_block = ctk.CTkFrame(header, fg_color="transparent")
-        title_block.grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
-        ctk.CTkLabel(title_block, text="UAD Bloatware Remover", font=ctk.CTkFont(size=20, weight="bold"), text_color="#58a6ff").pack(anchor="w")
-        ctk.CTkLabel(title_block, text="Universal Android Debloater (UAD) \u2014 Adware Remover", font=ctk.CTkFont(size=10, weight="bold"), text_color="#8b949e").pack(anchor="w")
-
-        # Row 1: device info strip (single line) | USB debugging tip (single wrapped line)
-        strip = ctk.CTkFrame(header, fg_color="transparent")
-        strip.grid(row=1, column=0, columnspan=2, padx=14, pady=(0, 4), sticky="w")
-
-        self.sec_dev_conn = ctk.CTkLabel(strip, text="\U0001f916 DEVICE CONNECTED", font=ctk.CTkFont(size=13, weight="bold"), text_color="#2ecc71")
-        self.sec_dev_conn.pack(side="left", padx=(0, 16), pady=3)
-        self.sec_dev_model = ctk.CTkLabel(strip, text="Model Name: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
-        self.sec_dev_model.pack(side="left", padx=(0, 16), pady=3)
-        self.sec_dev_android = ctk.CTkLabel(strip, text="Android: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
-        self.sec_dev_android.pack(side="left", padx=(0, 16), pady=3)
-        self.sec_dev_patch = ctk.CTkLabel(strip, text="Security Patch: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
-        self.sec_dev_patch.pack(side="left", padx=(0, 16), pady=3)
-        self.sec_dev_build = ctk.CTkLabel(strip, text="Build ID: -", font=ctk.CTkFont(size=12), text_color="#e6edf3")
-        self.sec_dev_build.pack(side="left", pady=3)
+        header.grid_columnconfigure(0, weight=1)
+        header.grid_rowconfigure(1, weight=1)
+        self._build_log_panel(header, fixed_height=150)
 
         ctk.CTkLabel(header, text="\U0001f4f1 USB debugging: Settings \u2192 About Phone \u2192 tap Build Number 7\u00d7 \u2192 Developer Options \u2192 USB debugging ON \u2192 connect cable \u2192 tap \u201cAllow\u201d (tick Always allow) \u2192 Refresh",
                      font=ctk.CTkFont(size=10), text_color="#aeb8c2", anchor="w", justify="left", wraplength=1150).grid(row=2, column=0, columnspan=2, padx=14, pady=(0, 2), sticky="w")
@@ -186,6 +167,18 @@ class UiMixin:
         ):
             ctk.CTkLabel(rem_legend, text="\u25cf", text_color=color, font=ctk.CTkFont(size=12)).pack(side="left", padx=(3, 2), pady=2)
             ctk.CTkLabel(rem_legend, text=term, font=ctk.CTkFont(size=11), text_color="#aeb8c2").pack(side="left", padx=(0, 4), pady=2)
+
+        ctk.CTkFrame(rem_legend, width=1, height=20, fg_color="#30363d").pack(side="left", padx=(10, 12), pady=2)
+        self.sec_dev_conn = ctk.CTkLabel(rem_legend, text="\U0001f916 DEVICE CONNECTED", font=ctk.CTkFont(size=11, weight="bold"), text_color="#2ecc71")
+        self.sec_dev_conn.pack(side="left", padx=(0, 12), pady=2)
+        self.sec_dev_model = ctk.CTkLabel(rem_legend, text="Model Name: -", font=ctk.CTkFont(size=10), text_color="#e6edf3")
+        self.sec_dev_model.pack(side="left", padx=(0, 12), pady=2)
+        self.sec_dev_android = ctk.CTkLabel(rem_legend, text="Android: -", font=ctk.CTkFont(size=10), text_color="#e6edf3")
+        self.sec_dev_android.pack(side="left", padx=(0, 12), pady=2)
+        self.sec_dev_patch = ctk.CTkLabel(rem_legend, text="Security Patch: -", font=ctk.CTkFont(size=10), text_color="#e6edf3")
+        self.sec_dev_patch.pack(side="left", padx=(0, 12), pady=2)
+        self.sec_dev_build = ctk.CTkLabel(rem_legend, text="Build ID: -", font=ctk.CTkFont(size=10), text_color="#e6edf3")
+        self.sec_dev_build.pack(side="left", pady=2)
 
         # Row 3 - Package list (virtualized ttk.Treeview: only visible rows render)
         self.sec_list_frame = ctk.CTkFrame(tab, fg_color="#0d1117", corner_radius=8, border_width=1, border_color="#30363d")
@@ -256,7 +249,7 @@ class UiMixin:
     # DNS TAB UI
     # ----------------------------------------------------
     def build_dns_tab(self):
-        tab = self.tabview.tab("Block Ads via DNS")
+        tab = self.page("Block Ads via DNS")
         tab.grid_columnconfigure(0, weight=1)
 
         # Header
@@ -302,7 +295,7 @@ class UiMixin:
     # MONITOR RUNNING APPS (APP WATCH) TAB UI
     # ----------------------------------------------------
     def build_monitor_tab(self):
-        tab = self.tabview.tab("Monitor Running Apps")
+        tab = self.page("Monitor Running Apps")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(3, weight=1)
 

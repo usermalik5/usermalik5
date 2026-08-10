@@ -298,13 +298,7 @@ class SettingsMixin(AdminPanelMixin):
 
     def _set_tab_visible(self, name, visible):
         try:
-            tab = self.tabview._tab_dict.get(name)
-            btn = self.tabview._segmented_button._buttons_dict.get(name)
-            if tab is not None:
-                if visible:
-                    tab.grid()
-                else:
-                    tab.grid_remove()
+            btn = self.page_nav_btns.get(name)
             if btn is not None:
                 if visible:
                     btn.grid()
@@ -344,7 +338,7 @@ class SettingsMixin(AdminPanelMixin):
                 visible.append(name)
         if visible:
             try:
-                self.tabview.set(visible[0])
+                self._show_page(visible[0])
             except Exception:
                 pass
 
@@ -607,6 +601,9 @@ class SettingsMixin(AdminPanelMixin):
 
         show_login_step()
 
+        if getattr(self, "_theme_mode", "dark") != "dark":
+            self._theme_walk(win)
+
     @staticmethod
     def _read_lines_file(path):
         if not os.path.isfile(path):
@@ -619,7 +616,7 @@ class SettingsMixin(AdminPanelMixin):
 
     def _load_settings(self):
         path = os.path.join(get_settings_dir(), SETTINGS_FILE)
-        data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": []}
+        data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": [], "theme": "dark"}
         if os.path.isfile(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
