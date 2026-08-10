@@ -2,7 +2,7 @@
   "database": 2,
   "banking": 2,
   "sha256": {
-    "gelotech_database_v3.json": "c4944975c063729dfb4324a6bd953d1be2545190b62a7b150591f1087a4f853e",
+    "gelotech_database_v3.json": "02a3c2b232f27fb118b3bbeb3a0c6157e11388587d27b8821bf34f1d4e88d195",
     "banking_apps.json": "2fc23a606173fa42d1ea1ac17a2a6ff6f098e3376e984158fe741b9ffbd33bab"
   }
 }
