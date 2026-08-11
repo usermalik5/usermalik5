@@ -35,10 +35,11 @@ GeloTechTool (techtool.py)
 | `tech_phone_mirror_embedded.py` | `PhoneMirrorManager` | True Dashboard embedding: native scrcpy child window + transparent iPhone frame inside `dash_phone`; Dashboard log hide/restore |
 | `tech_phone_mirror_host.py` | host mirror manager | Captures Dashboard HWNDs, manages native mirror lifetime/visibility, alignment and clipping |
 | `tech_phone_mirror.py` | legacy native mirror implementation | Native scrcpy process/window and transparent iPhone-frame primitives used by the embedded manager |
-| `tech_phone_mirror_restore_patch.py` | source-tree mirror restore patch | Retries Dashboard log remapping on Tk's UI thread after native mirror shutdown |
+| `tech_phone_mirror_restore_patch.py` | mirror restore compatibility patch | Retries Dashboard log remapping on Tk's UI thread after native mirror shutdown |
 | `tech_hardening.py` | `apply_hardening()` | runtime safety/reliability patches |
 | `tech_dashboard_redesign.py` | helpers | 3uTools-style dashboard layout integration |
-| `sitecustomize.py` | source-tree compatibility hooks | Ensures the embedded mirror manager and restore patch are selected, suppresses URL hover tooltips, and forces Dashboard navigation after login in source-tree execution |
+| `sitecustomize.py` | compatibility hooks | Selects embedded mirror/restore behavior, suppresses URL hover tooltips, and forces Dashboard navigation after login |
+| `runtime_hook_gelotech.py` | PyInstaller runtime hook | Explicitly loads the same compatibility hooks in packaged release builds; frozen apps do not rely on CPython auto-loading `sitecustomize.py` |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
 
 ---
@@ -67,7 +68,7 @@ python techtool.py
   │         ├─ fetch users + DB → verify credentials and DB hash
   │         ├─ write verified DB to temp session cache → clear stale lookups → re-seed
   │         ├─ apply permissions
-  │         ├─ source-tree hook schedules `_show_page("Dashboard")`
+  │         ├─ compatibility hook schedules `_show_page("Dashboard")`
   │         └─ show main window
   │
   └─ on_close() → stop mirror, purge session database copy, destroy window
@@ -75,8 +76,8 @@ python techtool.py
 
 **Post-login default:** Dashboard is the intended first visible page after a
 successful login. The page-stack method is `_show_page("Dashboard")`; the
-source-tree compatibility hook explicitly selects it after permissions are
-applied so the sidebar selection and `_current_page` stay synchronized.
+compatibility hook explicitly selects it after permissions are applied so the
+sidebar selection and `_current_page` stay synchronized.
 
 ---
 
@@ -158,10 +159,15 @@ CODE update (needs new exe):
     tech_misc.py tech_hardening.py tech_dashboard_redesign.py
     tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py
     tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py
-    tech_phone_mirror/__init__.py
+    tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe
 ```
+
+The release spec includes `runtime_hook_gelotech.py`, which explicitly loads
+the compatibility hooks inside the frozen application. This keeps the
+Dashboard-default, URL-tooltip, and mirror-restore behavior from depending on
+CPython's normal `sitecustomize` auto-import behavior.
 
 ---
 
