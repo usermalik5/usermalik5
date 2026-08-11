@@ -125,6 +125,61 @@ def _install_dashboard_redesign(self):
     self.after(1000,self._dash_update_secondary)
 
 
+def _dash_toggle_monitor(self):
+    try:
+        switch = getattr(self, 'appwatch_switch', None)
+        if switch is not None:
+            if switch.get() == 0:
+                switch.select()
+            else:
+                switch.deselect()
+            self.toggle_appwatch()
+            self.dash_monitor_events.configure(text=f"Events: {len(getattr(self, 'appwatch_history', []))}")
+            self.dash_monitor_btn.configure(text='⏹ Stop Monitoring' if getattr(self, 'appwatch_monitoring', False) else '▶  Start Monitoring')
+        else:
+            self._show_page('Monitor Running Apps')
+    except Exception:
+        self._show_page('Monitor Running Apps')
+
+
+def _dash_vt_scan(self):
+    try:
+        self._show_page('VirusTotal')
+        self.action_vt_scan_installed()
+    except Exception:
+        pass
+
+
+def _dash_vt_upload(self):
+    try:
+        self._show_page('VirusTotal')
+        self.action_vt_upload_apk()
+    except Exception:
+        pass
+
+
+def _dash_dns_selected_label(self):
+    mapping = {'AdGuard DNS': '🛡️ AdGuard DNS (blocks ads & trackers)', 'Cloudflare': '☁️ Cloudflare 1.1.1.1 (fast & private)', 'Google DNS': '🔍 Google DNS (reliable)', 'Quad9': '🔒 Quad9 (blocks malware & phishing)'}
+    return mapping.get(self.dash_dns_dropdown.get(), mapping['AdGuard DNS'])
+
+
+def _dash_dns_apply(self):
+    try:
+        if hasattr(self, 'dns_dropdown'):
+            self.dns_dropdown.set(_dash_dns_selected_label(self))
+            self.action_dns_apply()
+        else:
+            self._show_page('Block Ads via DNS')
+    except Exception:
+        pass
+
+
+def _dash_dns_disable(self):
+    try:
+        self.action_dns_disable()
+    except Exception:
+        self._show_page('Block Ads via DNS')
+
 def install_dashboard_redesign(cls):
     if getattr(cls, "_dashboard_redesign_patch_installed", False):
         return
@@ -133,4 +188,10 @@ def install_dashboard_redesign(cls):
         original(self, *args, **kwargs)
         self.after(0, lambda: _install_dashboard_redesign(self))
     cls.build_dashboard_page = wrapped
+    cls._dash_toggle_monitor = _dash_toggle_monitor
+    cls._dash_vt_scan = _dash_vt_scan
+    cls._dash_vt_upload = _dash_vt_upload
+    cls._dash_dns_selected_label = _dash_dns_selected_label
+    cls._dash_dns_apply = _dash_dns_apply
+    cls._dash_dns_disable = _dash_dns_disable
     cls._dashboard_redesign_patch_installed = True
