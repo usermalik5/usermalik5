@@ -533,8 +533,79 @@ class PhoneMirrorManager(object):
         self._stop = threading.Event()
         self._monitor = None
         self.log_path = None
+        self._dashboard = getattr(self.log, "__self__", None)
+        self._hidden_console = None
+        self._console_place = None
+        self._phone_cache = None
 
     # ---------------- public API ----------------
+    def _phone_geometry(self, from_monitor=False):
+        if from_monitor and self._phone_cache:
+            return self._phone_cache
+        d = self._dashboard
+        phone = getattr(d, "dash_phone", None) if d else None
+        if phone is None:
+            return None
+        try:
+            phone.update_idletasks()
+            w = max(1, int(phone.winfo_width()))
+            h = max(1, int(phone.winfo_height()))
+            x = int(phone.winfo_rootx())
+            y = int(phone.winfo_rooty())
+            scale = min(w / PHONE_IMG_NATIVE[0], h / PHONE_IMG_NATIVE[1])
+            fw = int(PHONE_IMG_NATIVE[0] * scale + 0.5)
+            fh = int(PHONE_IMG_NATIVE[1] * scale + 0.5)
+            x += (w - fw) // 2
+            y += (h - fh) // 2
+            geom = (x, y, scale, fw, fh)
+            self._phone_cache = geom
+            return geom
+        except Exception:
+            return None
+
+    def geometry_updated(self):
+        """Call from the UI thread (e.g. on <Configure>) so the monitor loop
+        never touches Tk from its own thread."""
+        self._phone_cache = self._phone_geometry(from_monitor=False)
+
+    def _hide_dashboard_console(self):
+        d = self._dashboard
+        if not d or self._hidden_console is not None:
+            return
+        try:
+            rect = getattr(d, "_dash_log_rect", None)
+            consoles = getattr(d, "_log_consoles", [])
+            if consoles:
+                c = consoles[0]["frame"]
+                self._hidden_console = c
+                self._console_place = rect
+                c.place_forget()
+        except Exception:
+            self._hidden_console = None
+
+    def _restore_dashboard_console(self):
+        c = self._hidden_console
+        if c is None:
+            return
+        try:
+            r = self._console_place
+            if r:
+                c.place(x=r[0], y=r[1], width=r[2], height=r[3])
+        except Exception:
+            pass
+        self._hidden_console = None
+        self._console_place = None
+
+    def _restore_console_safe(self):
+        d = self._dashboard
+        if d is not None:
+            try:
+                d.after(0, self._restore_dashboard_console)
+                return
+            except Exception:
+                pass
+        self._restore_dashboard_console()
+
     def start(self, scrcpy_exe, scrcpy_adb, scrcpy_dir, spawn_x, spawn_y):
         if self.state != "off":
             self.stop()
@@ -542,35 +613,43 @@ class PhoneMirrorManager(object):
         self.scrcpy_adb = scrcpy_adb
         self.scrcpy_dir = scrcpy_dir
         self._stop.clear()
-        fw = int(PHONE_IMG_NATIVE[0] * self.scale + 0.5)
-        fh = int(PHONE_IMG_NATIVE[1] * self.scale + 0.5)
-        if spawn_x is None or spawn_x < 0 or spawn_y is None or spawn_y < 0:
-            spawn_x, spawn_y = _screen_center()
+        geom = self._phone_geometry()
+        if geom:
+            x, y, self.scale, fw, fh = geom
+        else:
+            fw = int(PHONE_IMG_NATIVE[0] * self.scale + 0.5)
+            fh = int(PHONE_IMG_NATIVE[1] * self.scale + 0.5)
+            if spawn_x is None or spawn_x < 0 or spawn_y is None or spawn_y < 0:
+                spawn_x, spawn_y = _screen_center()
+            x, y = int(spawn_x), int(spawn_y)
         dx = int(DISPLAY_RECT[0] * self.scale)
         dy = int(DISPLAY_RECT[1] * self.scale)
         dw = int(DISPLAY_RECT[2] * self.scale)
         dh = int(DISPLAY_RECT[3] * self.scale)
         self._log("[SCRCPY] Starting screen mirror")
         self._log("[PHONE] Creating iPhone frame overlay")
+        self._hide_dashboard_console()
         try:
             self.overlay = PhoneFrameOverlay(self.overlay_path, self.scale,
                                              self._log)
-            self.overlay.show(spawn_x, spawn_y)
+            self.overlay.show(x, y)
         except Exception as e:
             self._log(f"[PHONE ERROR] overlay creation failed: {e}")
+            self._restore_dashboard_console()
             self.state = "off"
             return False
         self._log(f"[PHONE] Frame size: {fw}x{fh}")
         self._log(f"[PHONE] Display area: x={dx} y={dy} w={dw} h={dh} "
                   f"(scale {self.scale})")
-        self._log(f"[PHONE] Positioning scrcpy: {spawn_x + dx},{spawn_y + dy} "
+        self._log(f"[PHONE] Positioning scrcpy: {x + dx},{y + dy} "
                   f"{dw}x{dh}")
         try:
             self.proc, self.log_path = ScrcpyWindowManager.launch(
                 scrcpy_exe, scrcpy_adb, scrcpy_dir,
-                spawn_x + dx, spawn_y + dy, dw, dh, self._log)
+                x + dx, y + dy, dw, dh, self._log)
         except Exception as e:
             self._log(f"[SCRCPY ERROR] scrcpy launch failed: {e}")
+            self._restore_dashboard_console()
             self.overlay.close()
             self.overlay = None
             self.state = "off"
@@ -604,6 +683,7 @@ class PhoneMirrorManager(object):
         self.overlay = None
         self.hwnd = 0
         self.state = "off"
+        self._restore_console_safe()
         if self.on_state:
             try:
                 self.on_state("stopped")
@@ -629,14 +709,22 @@ class PhoneMirrorManager(object):
                 pass
 
     def _expected_scrcpy_rect(self):
-        rect = self.overlay.rect() if self.overlay else None
-        if not rect:
-            return None
-        dx = int(DISPLAY_RECT[0] * self.scale)
-        dy = int(DISPLAY_RECT[1] * self.scale)
-        dw = int(DISPLAY_RECT[2] * self.scale)
-        dh = int(DISPLAY_RECT[3] * self.scale)
-        return (rect[0] + dx, rect[1] + dy, dw, dh)
+        geom = self._phone_geometry(from_monitor=True)
+        if not geom:
+            rect = self.overlay.rect() if self.overlay else None
+            if not rect:
+                return None
+            dx = int(DISPLAY_RECT[0] * self.scale)
+            dy = int(DISPLAY_RECT[1] * self.scale)
+            dw = int(DISPLAY_RECT[2] * self.scale)
+            dh = int(DISPLAY_RECT[3] * self.scale)
+            return (rect[0] + dx, rect[1] + dy, dw, dh)
+        x, y, scale, fw, fh = geom
+        dx = int(DISPLAY_RECT[0] * scale)
+        dy = int(DISPLAY_RECT[1] * scale)
+        dw = int(DISPLAY_RECT[2] * scale)
+        dh = int(DISPLAY_RECT[3] * scale)
+        return (x + dx, y + dy, dw, dh)
 
     def _monitor_loop(self):
         timeout = 15.0
@@ -693,6 +781,16 @@ class PhoneMirrorManager(object):
         expected = self._expected_scrcpy_rect()
         if not expected:
             return
+        geom = self._phone_geometry(from_monitor=True)
+        if geom:
+            x, y, scale, fw, fh = geom
+            self.scale = scale
+            if self.overlay is not None and self.overlay.alive():
+                _user32().SetWindowPos(self.overlay.hwnd, HWND_TOPMOST,
+                                       int(x), int(y),
+                                       int(PHONE_IMG_NATIVE[0] * scale + 0.5),
+                                       int(PHONE_IMG_NATIVE[1] * scale + 0.5),
+                                       SWP_NOACTIVATE)
         ScrcpyWindowManager.align(self.hwnd, *expected)
         if self.overlay is not None and self.overlay.alive():
             # re-raise after every align: aligning scrcpy (HWND_TOPMOST)
@@ -714,6 +812,7 @@ class PhoneMirrorManager(object):
         self.overlay = None
         self.hwnd = 0
         self.state = "off"
+        self._restore_console_safe()
         self._log("[SCRCPY] Mirror stopped")
         if self.on_state:
             try:

@@ -81,6 +81,7 @@ class DashboardMixin:
                                        width=phone_w, height=img_h)
         self.dash_phone.pack(expand=True)
         self.dash_phone.grid_propagate(False)
+        self.dash_phone.bind("<Configure>", self._dash_phone_configure)
 
         try:
             self._dash_phone_img = ctk.CTkImage(light_image=Image.open(PHONE_IMG),
@@ -236,6 +237,14 @@ class DashboardMixin:
                 log=self.log_message, on_state=self._dash_mirror_state)
         if not mgr.start(self.scrcpy_exe, self.scrcpy_adb, self.scrcpy_dir, sx, sy):
             self._dash_mirror_ui("stopped")
+
+    def _dash_phone_configure(self, _event=None):
+        try:
+            mgr = getattr(self, "_phone_mirror", None)
+            if mgr is not None:
+                mgr.geometry_updated()
+        except Exception:
+            pass
 
     def _dash_mirror_state(self, state):
         # callback runs on manager threads -> marshal onto the Tk main thread
