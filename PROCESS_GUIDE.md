@@ -11,7 +11,8 @@ code is organised. Updated on major code changes.
 GeloTechTool (techtool.py)
   └─ GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin,
                   SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin,
-                  VtOpsMixin, MiscMixin)
+                  DashboardMixin, VtOpsMixin, MiscMixin)
+  └─ apply_hardening(GeloTechTool)  ← tech_hardening.py (import-time patches)
 ```
 
 | File | Class / Role | Owns |
@@ -29,7 +30,11 @@ GeloTechTool (techtool.py)
 | `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch checked actions, disable, Remove Popup Ads, APK Info (+permissions), Restore/Backup dialog |
 | `tech_secops4.py` | `SecOps4Mixin` | icon generation, Restore/Backup dialog, device info strip + Wikipedia model lookup (split out of `tech_secops2.py` for the PyArmor ~38KB per-file limit) |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps tab (process/package tables) |
-| `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter) with local Windows app-list cache — stale-while-revalidate (cached list renders instantly, then refresh from device in background; offline fallback to cache), shared filter matcher `_sec_apply_filter`; scrcpy mirror, driver fixes, reboots, logout, ADB kill/restart |
+| `tech_misc.py` | `MiscMixin` | package list loading (All / Disabled / Filter) with local Windows app-list cache — stale-while-revalidate (cached list renders instantly, then refresh from device in background; offline fallback to cache), shared filter matcher `_sec_apply_filter`; scrcpy mirror entry, driver fixes, reboots, logout, ADB kill/restart |
+| `tech_phone_mirror/` + `tech_phone_mirror*.py` | `PhoneMirrorManager` | Dashboard-embedded scrcpy mirror: native scrcpy video in a child window inside the phone widget, iPhone frame overlay, log console hide/restore during mirroring |
+| `tech_hardening.py` | `apply_hardening()` | runtime safety/reliability patches (diagnostics, mirror visibility, dashboard redesign hook); applied at import before `mainloop` |
+| `tech_dashboard_redesign.py` | helpers | 3uTools-style dashboard layout integration (called from hardening) |
+| `sitecustomize.py` | dev hooks | optional source-tree patches (embedded mirror manager, URL tooltip suppression, post-login Dashboard focus); not bundled in the exe |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
 
 ---
@@ -150,6 +155,9 @@ CODE update (needs new exe):
   → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
     tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py
     tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py
+    tech_hardening.py tech_dashboard_redesign.py tech_phone_mirror.py
+    tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py
+    tech_phone_mirror/__init__.py
         (ALWAYS re-run over ALL modules; obfuscation applies to all builds)
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe  → distribute
