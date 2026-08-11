@@ -1,0 +1,47 @@
+name: Apply GeloTech hardening bootstrap
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-hardening:
+    # The workflow exists only to apply the runtime hardening module to the
+    # existing techtool.py without requiring a full-file replacement through
+    # the GitHub Contents API. It removes itself after the patch is committed.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install hardening import hook
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('techtool.py')
+          s = p.read_text(encoding='utf-8')
+          marker = 'if __name__ == "__main__":'
+          hook = 'from tech_hardening import apply_hardening\napply_hardening(GeloTechTool)\n\n'
+          if 'from tech_hardening import apply_hardening' not in s:
+              if marker not in s:
+                  raise SystemExit('Could not find techtool.py main marker')
+              s = s.replace(marker, hook + marker, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Syntax check
+        run: |
+          python -m py_compile tech_hardening.py techtool.py tech_common.py tech_settings.py tech_secscan.py tech_secops2.py tech_secops3.py tech_secops4.py tech_misc.py tech_vtop.py
+
+      - name: Commit hardening integration and remove bootstrap workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add techtool.py
+          git rm .github/workflows/apply-hardening-bootstrap.yml
+          git commit -m 'Integrate GeloTech safety and reliability hardening'
+          git push
