@@ -189,6 +189,17 @@ def _signed16(v):
     return v - 0x10000 if v & 0x8000 else v
 
 
+def _log_tail(path, lines=20):
+    """Last lines of the scrcpy log file (utf-8, replace undecodable)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()[-16384:]
+        text = data.decode("utf-8", "replace").replace("\r\n", "\n")
+        return "\n".join(text.splitlines()[-lines:])
+    except Exception:
+        return ""
+
+
 def _screen_center():
     w = _user32().GetSystemMetrics(SM_CXSCREEN)
     h = _user32().GetSystemMetrics(SM_CYSCREEN)
@@ -376,29 +387,38 @@ class ScrcpyWindowManager(object):
     @staticmethod
     def launch(exe, adb, cwd, x, y, w, h, log=None):
         log = log or (lambda *a, **k: None)
+        # scrcpy 3.x removed the --adb CLI option: the adb executable path is
+        # passed via the ADB environment variable (see `scrcpy --help`).
         cmd = [exe,
-               "--adb", adb,
-               "--window-title", MIRROR_WINDOW_TITLE,
-               "--window-x", str(x), "--window-y", str(y),
-               "--window-width", str(w), "--window-height", str(h),
+               f"--window-title={MIRROR_WINDOW_TITLE}",
+               f"--window-x={int(x)}", f"--window-y={int(y)}",
+               f"--window-width={int(w)}", f"--window-height={int(h)}",
                "--window-borderless",
                "--always-on-top",
-               "--no-audio", "--max-size", "1280", "--no-power-on"]
+               "--no-audio", "--max-size=1280", "--no-power-on"]
+        env = dict(os.environ)
+        if adb:
+            env["ADB"] = adb
         log_file = os.path.join(
             os.environ.get("TEMP") or os.environ.get("TMP") or ".", "gelotech_scrcpy.log")
         err = open(log_file, "wb")
         try:
-            proc = subprocess.Popen(cmd, cwd=cwd,
+            proc = subprocess.Popen(cmd, cwd=cwd, env=env,
                                     stdout=subprocess.DEVNULL, stderr=err)
         except Exception:
             err.close()
             raise
         log(f"[SCRCPY] log: {log_file}")
-        return proc
+        return proc, log_file
 
     @staticmethod
     def find_hwnd(proc, timeout=15.0, poll=0.2):
-        """Find the scrcpy window by its process PID (title fallback)."""
+        """Find the scrcpy window by its process PID.
+
+        Prefers the window carrying MIRROR_WINDOW_TITLE (or an empty title,
+        which matches real scrcpy until it sets the title); after a short
+        grace period falls back to any visible window of the PID.
+        """
         user32 = _user32()
         pid = None
         if proc is not None and proc.poll() is None:
@@ -407,10 +427,15 @@ class ScrcpyWindowManager(object):
             except Exception:
                 pid = None
         deadline = time.time() + timeout
+        grace = time.time() + 3.0
         while time.time() < deadline:
-            hwnd = _enum_scrcpy_window(pid, user32)
-            if hwnd:
-                return hwnd
+            prefer = _enum_scrcpy_window(pid, user32, title_required=True)
+            if prefer:
+                return prefer
+            if time.time() > grace and pid:
+                any_win = _enum_scrcpy_window(pid, user32, title_required=False)
+                if any_win:
+                    return any_win
             time.sleep(poll)
         return 0
 
@@ -443,7 +468,7 @@ class ScrcpyWindowManager(object):
                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 
 
-def _enum_scrcpy_window(pid, user32):
+def _enum_scrcpy_window(pid, user32, title_required=True):
     found = []
 
     @ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
@@ -454,13 +479,15 @@ def _enum_scrcpy_window(pid, user32):
             wpid = ctypes.c_ulong()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(wpid))
             if wpid.value == pid:
-                length = user32.GetWindowTextLengthW(hwnd)
-                buf = ctypes.create_unicode_buffer(length + 1)
-                user32.GetWindowTextW(hwnd, buf, length + 1)
-                txt = buf.value
-                if txt == MIRROR_WINDOW_TITLE or not txt.strip():
-                    found.append(hwnd)
-                    return False
+                if title_required:
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    buf = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buf, length + 1)
+                    txt = buf.value
+                    if txt != MIRROR_WINDOW_TITLE and txt.strip():
+                        return True
+                found.append(hwnd)
+                return False
         else:
             length = user32.GetWindowTextLengthW(hwnd)
             buf = ctypes.create_unicode_buffer(length + 1)
@@ -505,6 +532,7 @@ class PhoneMirrorManager(object):
         self.state = "off"
         self._stop = threading.Event()
         self._monitor = None
+        self.log_path = None
 
     # ---------------- public API ----------------
     def start(self, scrcpy_exe, scrcpy_adb, scrcpy_dir, spawn_x, spawn_y):
@@ -538,7 +566,7 @@ class PhoneMirrorManager(object):
         self._log(f"[PHONE] Positioning scrcpy: {spawn_x + dx},{spawn_y + dy} "
                   f"{dw}x{dh}")
         try:
-            self.proc = ScrcpyWindowManager.launch(
+            self.proc, self.log_path = ScrcpyWindowManager.launch(
                 scrcpy_exe, scrcpy_adb, scrcpy_dir,
                 spawn_x + dx, spawn_y + dy, dw, dh, self._log)
         except Exception as e:
@@ -624,8 +652,17 @@ class PhoneMirrorManager(object):
                     self._log("[PHONE] Mirror ready")
                     self._set_state("active")
                 elif self._stop.is_set() or time.time() - t0 > timeout:
+                    try:
+                        code = self.proc.poll() if self.proc is not None else None
+                    except Exception:
+                        code = None
                     self._log("[SCRCPY ERROR] scrcpy window not found "
-                              "- is the phone connected?")
+                              f"(exit={code}) - is the phone connected?")
+                    tail = _log_tail(self.log_path) if self.log_path else ""
+                    if tail:
+                        self._log("[SCRCPY] --- gelotech_scrcpy.log tail ---")
+                        for line in tail.splitlines()[-12:]:
+                            self._log(f"[SCRCPY LOG] {line}")
                     self._cleanup()
                     return
                 continue
