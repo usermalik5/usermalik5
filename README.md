@@ -33,7 +33,8 @@ After a successful login, the application always returns to the **Dashboard**
 page regardless of the page that was previously selected. The Dashboard
 phone mirror uses the native scrcpy stream embedded into the Dashboard phone
 widget; the existing log console is temporarily hidden during mirroring and
-restored when mirroring stops.
+restored when mirroring stops. The source-tree mirror compatibility patch
+also retries log restoration if Tk has not completed its geometry update yet.
 
 Loading the app list is fast even without the phone plugged in: the first
 successful scan caches the package list locally on the PC, later loads render
@@ -96,7 +97,7 @@ only supported release build** — obfuscation applies to all modules and all
 release exes:
 
 ```bash
-pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror/__init__.py
+pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_phone_mirror/__init__.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 
