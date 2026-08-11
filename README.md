@@ -8,10 +8,10 @@ virus cleanup, and DNS-based ad blocking.
 
 Access is protected by a login system with per-user permissions and tabs
 (admin always has everything). Logs stream to a Matrix-style console, and
-hover hints appear in a red attention banner at the bottom of the window.
-The package-list context menu (right-click) offers per-app actions plus
-batch actions for all checked apps (disable / uninstall / APK backup /
-exclude).
+non-URL application hints appear in a red attention banner at the bottom of
+the window. Website links remain clickable without a hover tooltip. The
+package-list context menu (right-click) offers per-app actions plus batch
+actions for all checked apps (disable / uninstall / APK backup / exclude).
 Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
 reset). The toolbar keeps a single **Remove Bloatware** button (its menu
@@ -28,6 +28,12 @@ facebook.com/gelotechxyz, and the title/tool name always shows the current
 version (e.g. v1.0.9). The Dashboard tab shows a real device mockup (phone
 image with the live log console rendered inside its screen) next to a device
 info card with live ADB stats (model, Android version, storage, battery, MACs).
+
+After a successful login, the application always returns to the **Dashboard**
+page regardless of the page that was previously selected. The Dashboard
+phone mirror uses the native scrcpy stream embedded into the Dashboard phone
+widget; the existing log console is temporarily hidden during mirroring and
+restored when mirroring stops.
 
 Loading the app list is fast even without the phone plugged in: the first
 successful scan caches the package list locally on the PC, later loads render
@@ -78,6 +84,7 @@ click "Forgot password? Get a new one by email", and the app emails them a
 generated password (also check the spam folder); requesting a new password
 replaces the old one. The maintainer unlocks the admin login by typing the
 secret phrase into the email field (maintainer-only, not shown to users).
+After successful authentication, Dashboard is selected automatically.
 Non-admin users get all tabs and tools (Cleaner, Monitor, DNS, all sidebar
 actions); only the VirusTotal tab is reserved for the admin account.
 
