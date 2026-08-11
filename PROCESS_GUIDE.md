@@ -35,9 +35,10 @@ GeloTechTool (techtool.py)
 | `tech_phone_mirror_embedded.py` | `PhoneMirrorManager` | True Dashboard embedding: native scrcpy child window + transparent iPhone frame inside `dash_phone`; Dashboard log hide/restore |
 | `tech_phone_mirror_host.py` | host mirror manager | Captures Dashboard HWNDs, manages native mirror lifetime/visibility, alignment and clipping |
 | `tech_phone_mirror.py` | legacy native mirror implementation | Native scrcpy process/window and transparent iPhone-frame primitives used by the embedded manager |
+| `tech_phone_mirror_restore_patch.py` | source-tree mirror restore patch | Retries Dashboard log remapping on Tk's UI thread after native mirror shutdown |
 | `tech_hardening.py` | `apply_hardening()` | runtime safety/reliability patches |
 | `tech_dashboard_redesign.py` | helpers | 3uTools-style dashboard layout integration |
-| `sitecustomize.py` | source-tree compatibility hooks | Ensures the embedded mirror manager is selected, suppresses URL hover tooltips, and forces Dashboard navigation after login in source-tree execution |
+| `sitecustomize.py` | source-tree compatibility hooks | Ensures the embedded mirror manager and restore patch are selected, suppresses URL hover tooltips, and forces Dashboard navigation after login in source-tree execution |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
 
 ---
@@ -99,7 +100,8 @@ Stop / scrcpy exit / device loss
   ├─ reuse the existing Dashboard log widget
   ├─ use the Dashboard's current `_dash_log_rect`
   ├─ remap/lift the console and force Tk geometry update
-  └─ clear mirror state
+  ├─ verify `winfo_ismapped()` and retry briefly if necessary
+  └─ clear mirror state only after restoration succeeds
 ```
 
 The native scrcpy stream remains the video renderer; the iPhone frame is a
@@ -155,7 +157,8 @@ CODE update (needs new exe):
     tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py
     tech_misc.py tech_hardening.py tech_dashboard_redesign.py
     tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py
-    tech_phone_mirror_fix.py tech_phone_mirror/__init__.py
+    tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py
+    tech_phone_mirror/__init__.py
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe
 ```
