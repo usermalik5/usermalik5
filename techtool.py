@@ -777,6 +777,9 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # ----------------------------------------------------
     # VIRUSTOTAL TAB UI
     # ----------------------------------------------------
+from tech_hardening import apply_hardening
+apply_hardening(GeloTechTool)
+
 if __name__ == "__main__":
     app = GeloTechTool()
     app.mainloop()
