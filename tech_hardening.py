@@ -24,6 +24,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 
 from tech_common import get_settings_dir, load_banking_apps
+from tech_dashboard_redesign import install_dashboard_redesign
 
 
 _APPLIED = False
@@ -729,6 +730,67 @@ def _patch_init(cls):
     cls._hardening_init_patched = True
 
 
+
+def _patch_dashboard_navigation(cls):
+    if getattr(cls, "_dashboard_navigation_patched", False):
+        return
+    original_show = getattr(cls, "_show_page", None)
+    if original_show is None:
+        return
+    def _remove_mirror_button(self):
+        if getattr(self, "_mirror_sidebar_removed", False):
+            return
+        try:
+            for child in list(self.sidebar_frame.winfo_children()):
+                try:
+                    if isinstance(child, ctk.CTkButton) and "Screen Mirror" in str(child.cget("text")):
+                        child.destroy()
+                except Exception:
+                    pass
+            self._mirror_sidebar_removed = True
+        except Exception:
+            pass
+    def show_page(self, name, *args, **kwargs):
+        result = original_show(self, name, *args, **kwargs)
+        try:
+            _remove_mirror_button(self)
+            mgr = getattr(self, "_phone_mirror", None)
+            if mgr is not None:
+                mgr.set_visible(name == "Dashboard")
+        except Exception:
+            pass
+        return result
+    cls._show_page = show_page
+    cls._dashboard_navigation_patched = True
+
+
+def _patch_phone_mirror_visibility(manager_cls):
+    if getattr(manager_cls, "_mirror_visibility_patched", False):
+        return
+    original_align = getattr(manager_cls, "_align_all", None)
+    if original_align is None:
+        return
+    def set_visible(self, visible):
+        self._mirror_visible = bool(visible)
+        try:
+            import ctypes
+            u=ctypes.windll.user32
+            if self.hwnd:
+                u.ShowWindow(self.hwnd, 5 if visible else 0)
+            if self.overlay is not None and self.overlay.hwnd:
+                u.ShowWindow(self.overlay.hwnd, 5 if visible else 0)
+            if visible and self.hwnd and self.overlay is not None and self.overlay.alive():
+                original_align(self)
+        except Exception:
+            pass
+    def guarded_align(self):
+        if getattr(self, "_mirror_visible", True):
+            return original_align(self)
+    manager_cls.set_visible=set_visible
+    manager_cls._align_all=guarded_align
+    manager_cls._mirror_visibility_patched=True
+
+
 def apply_hardening(cls):
     global _APPLIED
     if _APPLIED:
@@ -743,4 +805,7 @@ def apply_hardening(cls):
     _patch_threat_scan(cls)
     _patch_vt(cls)
     _patch_icon_helper(cls)
+    _patch_dashboard_navigation(cls)
+    _patch_phone_mirror_visibility(__import__("tech_phone_mirror").PhoneMirrorManager)
+    install_dashboard_redesign(cls)
     _patch_init(cls)
