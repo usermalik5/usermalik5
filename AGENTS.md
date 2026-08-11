@@ -45,3 +45,184 @@ Provide output strictly matching this layout:
 2. **Planned / Changed Files**:
 3. **Verification Command Executed**:
 4. **Open Items for Human Review**:
+
+# CRITICAL DEVELOPMENT RULES — ROOT CAUSE FIRST
+
+## 1. STOP GUESSING — INSPECT FIRST
+
+Before modifying code for a bug or feature:
+
+1. Inspect the existing implementation and execution path.
+2. Identify the actual external component involved.
+3. Reproduce or inspect the failure.
+4. Determine the root cause.
+5. Only then implement a fix.
+
+Do NOT repeatedly change coordinates, delays, window positions, colors, sizes, or retry counts when the underlying component is not functioning.
+
+If the same approach fails twice, STOP and reconsider the architecture.
+
+Never claim a feature is working because a unit/fake test passes if the real external application has not been successfully tested.
+
+## 2. REAL IMPLEMENTATION > MOCK TEST
+
+Tests using fake processes, fake HWNDs, mocked subprocesses, or simulated windows are useful for regression testing, but they do NOT prove that a Windows GUI integration works.
+
+For features involving scrcpy, ADB, Win32 windows, SDL windows, native processes, device connections, or external executables, distinguish explicitly between:
+
+- Automated/unit/integration tests using mocks or simulated components.
+- Real-process tests using the actual executable.
+- Real-device tests using the actual connected Android device.
+
+A feature must NOT be declared complete until the real implementation has been tested whenever the required hardware/software is available.
+
+## 3. SCRCPY MUST REMAIN THE VIDEO RENDERER
+
+GeloTech screen mirroring MUST use the actual native scrcpy video stream.
+
+DO NOT implement mirroring using screenshots, PIL frame capture, ImageGrab, OpenCV screen capture, repeated screenshots, JPEG/PNG frame loops, converting screenshots to Tk images, video re-encoding, or fake/mock video in production.
+
+The intended flow is:
+
+    Android device
+         |
+        ADB
+         |
+       scrcpy
+         |
+    native video window
+         |
+    GeloTech native host/container
+         |
+    iPhone frame presentation
+
+## 4. DO NOT USE A TWO-WINDOW Z-ORDER HACK AS THE PRIMARY ARCHITECTURE
+
+Do not solve the mirror by creating unrelated top-level windows and repeatedly forcing their Z-order every few milliseconds.
+
+Avoid an architecture where a top-level scrcpy window and a separate topmost transparent overlay are kept synchronized by repeated `SetWindowPos(... TOPMOST ...)` calls and sleeps.
+
+Prefer a native Windows host/container relationship where practical. If a separate-window architecture is required, document why and prove it is stable with the real scrcpy executable.
+
+## 5. DO NOT ASSUME SCRCPY'S HWND
+
+Never assume the scrcpy title alone, the `Popen()` PID alone, or the first visible window belonging to a PID identifies the renderer window.
+
+Account for process startup delay, SDL window creation, child processes, actual window title, executable/process ownership, visibility, process exit, and multiple windows.
+
+If the window cannot be found, STOP and inspect the actual scrcpy log. Do not merely increase the timeout repeatedly.
+
+## 6. SCRCPY FAILURE MUST SHOW THE REAL ERROR
+
+Whenever scrcpy fails to create/show its window, collect and report:
+
+- exact command line used
+- executable path
+- ADB executable path
+- device detection state
+- scrcpy exit code
+- stdout/stderr where available
+- scrcpy log file path
+- relevant final log lines
+
+Never reduce a real failure to `scrcpy window not found`; that is a symptom, not a root cause.
+
+## 7. VERIFY SCRCPY INDEPENDENTLY BEFORE DEBUGGING EMBEDDING
+
+Before debugging HWND embedding, verify that the exact bundled scrcpy executable and ADB path used by GeloTech can independently start a live mirror against the connected device.
+
+Debug in this order:
+
+    ADB/device detection
+          -> scrcpy startup
+          -> scrcpy video window
+          -> native embedding/hosting
+          -> geometry/DPI
+          -> iPhone frame/clipping
+          -> input
+          -> resize/lifecycle
+
+Do not debug a later layer while an earlier layer is broken.
+
+## 8. NEVER HARD-CODE DYNAMIC DISPLAY COORDINATES
+
+Do not assume fixed values such as `x=280`, `y=12`, `width=368`, `height=800` when the phone is inside a DPI-scaled CustomTkinter UI.
+
+Derive geometry from the actual phone widget/window and account for CustomTkinter scaling, Windows DPI scaling, window resizing, screen resolution, and dashboard layout changes.
+
+Log the calculated phone position/size, image scale, display cutout position/size, scrcpy HWND position/size, overlay HWND position/size, and DPI scale when debugging alignment.
+
+## 9. DO NOT BLOCK TKINTER
+
+scrcpy process management and Win32 monitoring may run on worker threads, but Tk/CustomTkinter widget operations MUST run on the Tk main thread. Use `self.after(...)` to marshal UI changes back to Tk. Do not directly modify Tk widgets from background threads.
+
+## 10. DO NOT HIDE FAILURE WITH RETRIES
+
+Retries are acceptable for known transient conditions. They are NOT a substitute for diagnosis.
+
+Bad approach: repeatedly retrying, moving windows, sleeping, and forcing TOPMOST without collecting new evidence.
+
+Good approach: detect failure, collect diagnostics, identify root cause, then retry only if the failure is known to be transient.
+
+## 11. AFTER TWO FAILED ATTEMPTS, STOP AND RECONSIDER
+
+If two materially different attempts fail, STOP making another variation of the same approach.
+
+Review what the attempts had in common, identify the shared assumption that may be wrong, inspect logs/processes/windows, and consider an architectural change.
+
+For example, if repeated attempts to position a separate scrcpy top-level window fail, do not keep changing x/y, delays, TOPMOST, window size, or retry intervals. Investigate actual window creation and consider native embedding/hosting.
+
+## 12. NEVER DECLARE SUCCESS FROM APPEARANCE OR TEST COUNT ALONE
+
+For screen mirroring, success requires all of the following where applicable:
+
+- real scrcpy process running
+- real device connected
+- real live video visible
+- video inside the correct phone screen
+- no rectangular/sharp edges
+- correct rounded clipping
+- mouse input reaches the device
+- keyboard input reaches the device where applicable
+- resize remains aligned
+- Dashboard remains responsive
+- stopping mirror cleans up scrcpy
+- restarting mirror works
+- disconnect/reconnect does not leave orphan processes
+- no screenshot/frame-copy implementation
+
+Always report separately:
+
+    Automated tests: PASS/FAIL
+    Real scrcpy test: PASS/FAIL
+    Real device test: PASS/FAIL
+
+Do not collapse mocked tests into a single feature `PASS`.
+
+## 13. PRESERVE WORKING CODE
+
+Before changing a working subsystem, inspect its current behavior and minimize unrelated changes. Do not rewrite unrelated Dashboard functionality or remove working features just to simplify the implementation.
+
+For experimental architectural changes, use a separate branch or clearly isolated commit when practical.
+
+## 14. WHEN STUCK, REPORT FACTS
+
+If the implementation cannot be completed, report:
+
+- what works
+- what fails
+- exact error
+- relevant logs
+- what was tested
+- what assumptions were disproven
+- what remains unknown
+
+Do NOT keep making speculative changes just to produce a successful-looking result.
+
+## 15. NO-LOOP RULE
+
+After every failed implementation attempt, identify what NEW evidence was obtained. If no new evidence was obtained, do not make another speculative change.
+
+The goal is to solve the root cause, not accumulate patches.
+
+For external GUI integrations, always verify the external application independently before debugging the integration layer.
