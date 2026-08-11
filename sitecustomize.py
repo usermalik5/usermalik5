@@ -11,6 +11,7 @@ try:
     import tech_phone_mirror as _mirror
     from tech_phone_mirror_embedded import PhoneMirrorManager as _DashboardMirror
     _mirror.PhoneMirrorManager = _DashboardMirror
+    import tech_phone_mirror_restore_patch
 except Exception:
     pass
 
