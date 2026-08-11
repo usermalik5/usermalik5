@@ -5,6 +5,10 @@ Keeps the existing native scrcpy + transparent iPhone-frame implementation,
 but makes the two windows owned by the GeloTech application instead of
 independent always-on-top desktop windows. The mirror is visible only while
 the Dashboard phone widget is visible.
+
+The scrcpy window is also clipped to the rounded display opening of the
+phone frame. This prevents the square native scrcpy background from leaking
+through the four corners, which is especially visible in GeloTech Light Mode.
 """
 import ctypes
 import time
@@ -27,9 +31,19 @@ SWP_NOACTIVATE = 0x0010
 SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 
+# The transparent opening in iphone_frame_overlay.png is rounded.  scrcpy
+# itself is a normal rectangular native window, so its black background can
+# otherwise appear as four sharp corners inside the frame.  Clip only the
+# scrcpy window; the frame overlay remains unchanged and click-through.
+DISPLAY_CORNER_RADIUS = 30
+
 
 def _user32():
     return ctypes.windll.user32
+
+
+def _gdi32():
+    return ctypes.windll.gdi32
 
 
 def _set_owner(hwnd, owner):
@@ -52,6 +66,41 @@ def _set_owner(hwnd, owner):
         u.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
     except Exception:
+        pass
+
+
+def _clip_scrcpy_window(hwnd, width, height):
+    """Clip the native scrcpy window to the frame's rounded display opening.
+
+    SetWindowRgn affects only the visible shape of the top-level window; it
+    does not alter the scrcpy rendering surface or mouse coordinates.  This
+    is preferable to screenshot compositing and keeps the live stream fully
+    interactive.
+    """
+    if not hwnd or width <= 0 or height <= 0:
+        return
+    try:
+        gdi = _gdi32()
+        u = _user32()
+        radius = max(2, int(DISPLAY_CORNER_RADIUS * PHONE_SCALE + 0.5))
+        radius = min(radius, width // 2, height // 2)
+        gdi.CreateRoundRectRgn.restype = ctypes.c_void_p
+        gdi.CreateRoundRectRgn.argtypes = [
+            ctypes.c_int32, ctypes.c_int32, ctypes.c_int32, ctypes.c_int32,
+            ctypes.c_int32, ctypes.c_int32,
+        ]
+        u.SetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                   ctypes.c_bool]
+        region = gdi.CreateRoundRectRgn(0, 0, width + 1, height + 1,
+                                        radius * 2, radius * 2)
+        if region:
+            # Windows owns the region after SetWindowRgn succeeds; do not
+            # DeleteObject(region) here.
+            if not u.SetWindowRgn(hwnd, region, True):
+                gdi.DeleteObject(region)
+    except Exception:
+        # Clipping is cosmetic. Never allow it to prevent the mirror itself
+        # from starting if a Windows/GDI call is unavailable.
         pass
 
 
@@ -86,8 +135,6 @@ class PhoneMirrorManager(_BasePhoneMirrorManager):
         if not self._host_hwnd or not self._phone_hwnd:
             return True
         try:
-            # Dashboard page is represented by dash_phone. When navigation
-            # switches away, its native widget is no longer viewable.
             return bool(u.IsWindow(self._host_hwnd)
                         and u.IsWindow(self._phone_hwnd)
                         and u.IsWindowVisible(self._host_hwnd)
@@ -123,6 +170,9 @@ class PhoneMirrorManager(_BasePhoneMirrorManager):
         self._bind_windows()
         if self.hwnd:
             _user32().ShowWindow(self.hwnd, SW_SHOWNA)
+            rect = ScrcpyWindowManager.rect(self.hwnd)
+            if rect:
+                _clip_scrcpy_window(self.hwnd, rect[2], rect[3])
         if self.overlay is not None and self.overlay.hwnd:
             _user32().SetWindowPos(
                 self.overlay.hwnd, HWND_TOP, 0, 0, 0, 0,
@@ -164,9 +214,6 @@ class PhoneMirrorManager(_BasePhoneMirrorManager):
                 self._cleanup()
                 return
 
-            # Critical fix: when the user changes tabs, minimizes GeloTech, or
-            # otherwise makes the Dashboard phone unavailable, both native
-            # mirror windows are hidden. They can never remain on the desktop.
             dashboard_visible = self._dashboard_visible()
             if not dashboard_visible:
                 if self._host_visible:
@@ -188,6 +235,7 @@ class PhoneMirrorManager(_BasePhoneMirrorManager):
                 self._bind_windows()
                 _user32().SetWindowPos(self.hwnd, HWND_TOP, 0, 0, 0, 0,
                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                _clip_scrcpy_window(self.hwnd, actual[2], actual[3])
                 _user32().SetWindowPos(self.overlay.hwnd, HWND_TOP, 0, 0, 0, 0,
                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
             time.sleep(0.05)
