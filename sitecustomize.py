@@ -1,8 +1,7 @@
 """GeloTech source-tree compatibility hooks.
 
-This module is intentionally defensive: none of the hooks below are allowed
-
-to prevent the application from starting if an optional module changes.
+This module is intentionally defensive: optional hooks must never prevent the
+application from starting if an implementation changes.
 """
 
 # ---------------------------------------------------------------------------
@@ -53,10 +52,12 @@ try:
             result = _original_apply_permissions(self, *args, **kwargs)
 
             def _open_dashboard():
-                # Prefer the application's own navigation method if present.
+                # _show_page is the application's actual page-stack navigation
+                # method. Prefer it so the selected sidebar state and
+                # _current_page stay synchronized.
                 for method_name in (
-                    "show_page", "select_page", "switch_page", "navigate_to",
-                    "set_page",
+                    "_show_page", "show_page", "select_page", "switch_page",
+                    "navigate_to", "set_page",
                 ):
                     method = getattr(self, method_name, None)
                     if callable(method):
@@ -66,8 +67,8 @@ try:
                         except Exception:
                             pass
 
-                # Fallback used by the page-stack implementation: raise the
-                # existing Dashboard frame without rebuilding any tab.
+                # Last-resort fallback: raise the existing Dashboard frame
+                # without rebuilding the page.
                 try:
                     page = self.page("Dashboard")
                     if page is not None:
