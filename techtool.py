@@ -270,15 +270,17 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     # ----------------------------------------------------
     # UNIFIED LOG PANEL
     # ----------------------------------------------------
-    def _build_log_panel(self, parent, fixed_height=None, place_rect=None, log_font_size=10):
+    def _build_log_panel(self, parent, fixed_height=None, place_rect=None,
+                         log_font_size=10, minimal=False):
         # Live log console rendered INSIDE the Android phone screen on the
         # Dashboard, and (compacted) on top of the App Cleaner page.
         # place_rect=(x, y, w, h): instead of grid(), position the console
         # with place() at the given rect (used for the phone-image screen
         # cutout on the Dashboard). log_font_size scales the log text to
-        # the console's on-screen width.
+        # the console's on-screen width. minimal=True renders ONLY the log
+        # stream (no header/chips/stats bar) to look like a phone UI.
         console = ctk.CTkFrame(parent, fg_color="#01030a", corner_radius=6,
-                               border_width=0 if place_rect else 1, border_color="#131a22",
+                               border_width=0 if (place_rect or minimal) else 1, border_color="#131a22",
                                width=(place_rect[2] if place_rect else 0),
                                height=(place_rect[3] if place_rect else 0))
         if place_rect:
@@ -286,6 +288,42 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             console.grid_propagate(False)
         else:
             console.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
+
+        TAG_COLORS = {
+            "ADB": "#00ff41", "SECURITY": "#7cff00", "VT": "#29ffbf",
+            "DNS": "#00d8ff", "EXEC": "#b8ff66", "SYSTEM": "#33ff99",
+            "ERROR": "#ff3355", "INFO": "#00cc55", "HINT": "#338844",
+            "DEFAULT": "#00ff41",
+        }
+
+        def _style_textbox(tb):
+            for name, color in TAG_COLORS.items():
+                tb.tag_config(name, foreground=color)
+
+        if minimal:
+            console.grid_columnconfigure(0, weight=1)
+            console.grid_rowconfigure(0, weight=1)
+            main_log = ctk.CTkTextbox(console, font=ctk.CTkFont(family="Consolas", size=log_font_size),
+                                      fg_color="#000200", text_color="#00ff41",
+                                      border_width=0, wrap="word", corner_radius=0)
+            main_log.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
+            _style_textbox(main_log)
+            entry = {
+                "frame": console, "text": main_log,
+                "count_label": None, "filter_label": None,
+                "filter": "ALL",
+            }
+            if not hasattr(self, "_log_consoles"):
+                self._log_consoles = []
+                self._log_console = console
+                self.main_log = main_log
+                self.log_line_count_label = None
+                self.log_filter_label = None
+                self._log_filter_active = "ALL"
+                self._log_clear_btn = None
+            self._log_consoles.append(entry)
+            return
+
         console.grid_columnconfigure(0, weight=1)
         console.grid_rowconfigure(1, weight=1)
         if fixed_height:

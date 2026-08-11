@@ -14,10 +14,10 @@ from tech_common import THEME, subprocess, get_bundle_dir
 # SCREEN_RADIUS the cutout corner radius @2x (measured from the PNG alpha).
 PHONE_IMG_DIR = os.path.join(get_bundle_dir(), "assets", "phone_devices")
 PHONE_IMG = os.path.join(PHONE_IMG_DIR, "iPhone17_P_PM_CosmicOrange@2x.png")
-PHONE_IMG_NATIVE = (720, 824)
-PHONE_SCREEN_RECT = (176, 12, 368, 800)   # x, y, w, h in image px (2x)
+PHONE_IMG_NATIVE = (396, 824)
+PHONE_SCREEN_RECT = (14, 12, 368, 800)    # x, y, w, h in image px (2x)
 PHONE_SCREEN_RADIUS = 24                  # screen corner radius at 2x
-DASH_PHONE_W = 400                        # displayed width in px
+DASH_PHONE_MAX_H = 760                    # displayed height cap in px
 
 
 def clip_widget_rounded(widget, width, height, radius):
@@ -53,17 +53,18 @@ class DashboardMixin:
         phone_col.grid(row=0, column=0, padx=(14, 8), pady=10, sticky="n")
         phone_col.grid_rowconfigure(0, weight=1)
 
-        s = DASH_PHONE_W / PHONE_IMG_NATIVE[0]
-        img_h = int(PHONE_IMG_NATIVE[1] * s)
+        img_h = min(DASH_PHONE_MAX_H, max(520, self.winfo_screenheight() - 260))
+        s = img_h / PHONE_IMG_NATIVE[1]
+        phone_w = int(PHONE_IMG_NATIVE[0] * s)
         self.dash_phone = ctk.CTkFrame(phone_col, fg_color="transparent",
-                                       width=DASH_PHONE_W, height=img_h)
+                                       width=phone_w, height=img_h)
         self.dash_phone.pack(expand=True)
         self.dash_phone.grid_propagate(False)
 
         try:
             self._dash_phone_img = ctk.CTkImage(light_image=Image.open(PHONE_IMG),
                                                 dark_image=Image.open(PHONE_IMG),
-                                                size=(DASH_PHONE_W, img_h))
+                                                size=(phone_w, img_h))
             ctk.CTkLabel(self.dash_phone, image=self._dash_phone_img,
                          text="", fg_color="transparent").place(x=0, y=0)
         except Exception:
@@ -73,7 +74,7 @@ class DashboardMixin:
         sx, sy, sw, sh = PHONE_SCREEN_RECT
         cx, cy, cw, ch = int(sx * s), int(sy * s), int(sw * s), int(sh * s)
         self._build_log_panel(self.dash_phone, place_rect=(cx, cy, cw, ch),
-                              log_font_size=max(6, round(cw / 24)))
+                              log_font_size=max(6, round(cw / 24)), minimal=True)
         self.after(300, lambda: self._clip_dash_console(cw, ch,
                                                         int(PHONE_SCREEN_RADIUS * s)))
 
