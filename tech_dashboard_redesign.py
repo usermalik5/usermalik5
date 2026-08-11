@@ -57,6 +57,11 @@ def _install_dashboard_redesign(self):
     sx,sy,sw,sh = PHONE_SCREEN_RECT; cx,cy,cw,ch = [int(v*scale) for v in (sx,sy,sw,sh)]
     self._dash_log_rect=(cx,cy+int(61*scale),cw,max(1,ch-int(61*scale)))
     self._build_log_panel(self.dash_phone, place_rect=self._dash_log_rect, log_font_size=max(5,round(cw/25)), minimal=True)
+    if getattr(self, '_log_consoles', None):
+        self._log_console = self._log_consoles[-1]['frame']
+        self.main_log = self._log_consoles[-1]['text']
+    self.dash_mirror_btn = ctk.CTkButton(phone_col, text='📱 Screen Mirror', width=125, height=27, fg_color=THEME['panel2'], hover_color=THEME['input'], border_width=1, border_color=THEME['border'], command=self._dash_mirror_toggle)
+    self.dash_mirror_btn.pack(anchor='center', pady=(4,0))
 
     info=ctk.CTkFrame(dev,fg_color='transparent'); info.grid(row=1,column=1,padx=(2,10),pady=8,sticky='nsew'); info.grid_columnconfigure(1,weight=1)
     self._dash_vals={}
