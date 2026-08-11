@@ -1,6 +1,8 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 # Dashboard page (3uTools-style): real iPhone 17 PNG mockup whose transparent
-# SCREEN shows the live log console, plus a device info card with real ADB stats.
+# SCREEN shows the live log console. "Screen Mirror" runs the REAL scrcpy
+# stream in a two-window setup (see tech_phone_mirror): the native scrcpy
+# window is glued under a transparent iPhone frame overlay.
 import os
 import ctypes
 import threading
@@ -8,6 +10,7 @@ import re
 import customtkinter as ctk
 from PIL import Image
 from tech_common import THEME, subprocess, get_bundle_dir
+from tech_phone_mirror import PhoneMirrorManager, PHONE_SCALE
 
 # Phone mockup image: bundled in assets/phone_devices (720x824 @2x, screen
 # area is transparent). SCREEN_RECT is the transparent cutout in image px,
@@ -19,18 +22,36 @@ PHONE_SCREEN_RECT = (14, 12, 368, 800)    # x, y, w, h in image px (2x)
 PHONE_SCREEN_RADIUS = 24                  # screen corner radius at 2x
 DASH_PHONE_MAX_H = 760                    # displayed height cap in px
 
+# The phone PNG keeps its dynamic island as OPAQUE pixels inside the
+# transparent screen cutout, so the console must start below it to not
+# cover the island (native 2x px).
+ISLAND_BOTTOM_NATIVE = 55
+SCREEN_TOP_INSET_NATIVE = 61             # island bottom + small gap
 
-def clip_widget_rounded(widget, width, height, radius):
-    """Win32: round a widget window's corners (used to match the phone
-    screen cutout). Must run after the widget is mapped."""
+# Mirror overlay asset (derived from the frame PNG; the display opening is
+# already fully transparent, so the live scrcpy window shows through it).
+PHONE_OVERLAY_IMG = os.path.join(PHONE_IMG_DIR, "iphone_frame_overlay.png")
+
+
+def clip_hwnd_rounded(hwnd, width, height, radius):
+    """Win32: round ALL corners of a window (used for the phone screen
+    cutout). Must run after the window exists."""
     try:
-        hwnd = widget.winfo_id()
-        if not hwnd:
-            return
         rgn = ctypes.windll.gdi32.CreateRoundRectRgn(0, 0, width + 1, height + 1,
                                                      radius * 2, radius * 2)
         if rgn:
             ctypes.windll.user32.SetWindowRgn(hwnd, rgn, True)
+    except Exception:
+        pass
+
+
+def clip_widget_rounded(widget, width, height, radius):
+    """Win32: round a widget window's corners to match the phone screen
+    cutout. Must run after the widget is mapped."""
+    try:
+        hwnd = widget.winfo_id()
+        if hwnd:
+            clip_hwnd_rounded(hwnd, width, height, radius)
     except Exception:
         pass
 
@@ -70,12 +91,17 @@ class DashboardMixin:
         except Exception:
             pass
 
-        # live log console sits inside the transparent screen cutout
+        # live log console sits inside the transparent screen cutout, below
+        # the phone's dynamic island (the cutout's own pixels stay visible)
         sx, sy, sw, sh = PHONE_SCREEN_RECT
         cx, cy, cw, ch = int(sx * s), int(sy * s), int(sw * s), int(sh * s)
-        self._build_log_panel(self.dash_phone, place_rect=(cx, cy, cw, ch),
+        top_inset = int(SCREEN_TOP_INSET_NATIVE * s)
+        console_h = ch - top_inset
+        self._dash_log_rect = (cx, cy + top_inset, cw, console_h)
+        self._build_log_panel(self.dash_phone,
+                              place_rect=self._dash_log_rect,
                               log_font_size=max(6, round(cw / 24)), minimal=True)
-        self.after(300, lambda: self._clip_dash_console(cw, ch,
+        self.after(300, lambda: self._clip_dash_console(cw, console_h,
                                                         int(PHONE_SCREEN_RADIUS * s)))
 
         # ------------------------------------------------------------
@@ -153,12 +179,22 @@ class DashboardMixin:
                                              fg_color=THEME["panel2"], corner_radius=6, width=170, height=26)
         self.dash_conn2_badge.pack(side="left")
 
-        # footer: refresh
+        # footer: refresh + screen mirror
         foot = ctk.CTkFrame(card, fg_color="transparent")
         foot.grid(row=4, column=0, padx=16, pady=(0, 12), sticky="ew")
         foot.grid_columnconfigure(0, weight=1)
         self.dash_last_label = ctk.CTkLabel(foot, text="Last refresh: \u2014", font=ctk.CTkFont(size=9), text_color=THEME["muted"])
         self.dash_last_label.pack(side="left")
+        self.dash_mirror_btn = ctk.CTkButton(foot, text="\U0001f4f1 Screen Mirror",
+                                             width=130, height=32,
+                                             fg_color=THEME["panel2"],
+                                             hover_color=THEME["input"],
+                                             border_width=1,
+                                             border_color=THEME["border"],
+                                             text_color=THEME["text"],
+                                             font=ctk.CTkFont(size=11, weight="bold"),
+                                             command=self._dash_mirror_toggle)
+        self.dash_mirror_btn.pack(side="right", padx=(8, 0))
         ctk.CTkButton(foot, text="\U0001f504 Refresh", width=110, height=32,
                       fg_color=THEME["accent"], hover_color=THEME["accent_h"],
                       font=ctk.CTkFont(size=11, weight="bold"),
@@ -169,6 +205,59 @@ class DashboardMixin:
     # ------------------------------------------------------------
     # DATA: periodic refresh while the Dashboard page is visible
     # ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # SCREEN MIRROR (two-window): real scrcpy stream + transparent iPhone
+    # frame overlay on top (tech_phone_mirror). The overlay spawns over
+    # this phone mockup; SHIFT+drag (or dragging the bezel) moves it.
+    # ------------------------------------------------------------
+    def _dash_mirror_toggle(self):
+        mgr = getattr(self, "_phone_mirror", None)
+        if mgr is not None and mgr.state != "off":
+            self.log_message("[SCRCPY] Stopping screen mirror")
+            mgr.stop()
+            return
+        exc = getattr(self, "scrcpy_exe", None)
+        if not exc or not os.path.exists(exc):
+            self.log_message("[SCRCPY ERROR] scrcpy not available - mirror unavailable")
+            return
+        sx = sy = -1
+        phone = getattr(self, "dash_phone", None)
+        try:
+            if phone is not None and phone.winfo_ismapped():
+                fw = int(PHONE_IMG_NATIVE[0] * PHONE_SCALE)
+                fh = int(PHONE_IMG_NATIVE[1] * PHONE_SCALE)
+                sx = phone.winfo_rootx() - max(0, (fw - phone.winfo_width()) // 2)
+                sy = phone.winfo_rooty() - max(0, (fh - phone.winfo_height()) // 2)
+        except Exception:
+            pass
+        if mgr is None:
+            mgr = self._phone_mirror = PhoneMirrorManager(
+                PHONE_OVERLAY_IMG, scale=PHONE_SCALE,
+                log=self.log_message, on_state=self._dash_mirror_state)
+        if not mgr.start(self.scrcpy_exe, self.scrcpy_adb, self.scrcpy_dir, sx, sy):
+            self._dash_mirror_ui("stopped")
+
+    def _dash_mirror_state(self, state):
+        # callback runs on manager threads -> marshal onto the Tk main thread
+        try:
+            self.after(0, lambda: self._dash_mirror_ui(state))
+        except Exception:
+            pass
+
+    def _dash_mirror_ui(self, state):
+        if state == "starting":
+            text = "\u23f3 Starting..."
+        elif state == "active":
+            text = "\U0001f6d1 Stop Mirror"
+        else:
+            text = "\U0001f4f1 Screen Mirror"
+        try:
+            btn = getattr(self, "dash_mirror_btn", None)
+            if btn is not None and btn.winfo_exists():
+                btn.configure(text=text)
+        except Exception:
+            pass
+
     def _clip_dash_console(self, cw, ch, radius, attempts=10):
         try:
             console = self._log_console
@@ -333,3 +422,4 @@ def _fmt_bytes(n):
             return f"{n:.1f} {unit}" if unit != "B" else f"{int(n)} B"
         n /= 1024
     return f"{n:.1f} TB"
+

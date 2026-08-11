@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 from tech_common import (get_bundle_dir, get_app_dir, load_banking_apps,
                          load_apps_cache, save_apps_cache, fmt_cache_time,
                          Tooltip, subprocess)
+from tech_phone_mirror import PhoneMirrorManager, PHONE_SCALE
 
 
 class MiscMixin:
@@ -405,21 +406,44 @@ class MiscMixin:
             self.action_sec_refresh()
 
     def action_scrcpy_mirror(self):
+        mgr = getattr(self, "_phone_mirror", None)
+        if mgr is not None and mgr.state != "off":
+            self.log_message("[SCRCPY] Stopping screen mirror")
+            mgr.stop()
+            return
         if not os.path.exists(self.scrcpy_exe):
             self.log_message(f"[ADB ERROR] scrcpy not found at {self.scrcpy_exe}")
             return
         def worker():
-            self.log_message("[ADB] Launching scrcpy screen mirror...")
+            self.log_message("[ADB] Restarting ADB server for screen mirror...")
             try:
                 subprocess.run([self.scrcpy_adb, "kill-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
                 time.sleep(1)
                 subprocess.run([self.scrcpy_adb, "start-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 time.sleep(2)
-                subprocess.Popen([self.scrcpy_exe], cwd=self.scrcpy_dir,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception as e:
-                self.log_message(f"[ADB ERROR] scrcpy failed: {e}")
+                self.log_message(f"[ADB ERROR] {e}")
+            self._start_phone_mirror(-1, -1)
         threading.Thread(target=worker, daemon=True).start()
+
+    def _start_phone_mirror(self, sx, sy):
+        try:
+            mgr = getattr(self, "_phone_mirror", None)
+            if mgr is None:
+                mgr = self._phone_mirror = PhoneMirrorManager(
+                    os.path.join(get_bundle_dir(), "assets", "phone_devices",
+                                 "iphone_frame_overlay.png"),
+                    scale=PHONE_SCALE, log=self.log_message,
+                    on_state=self._mirror_state)
+            mgr.start(self.scrcpy_exe, self.scrcpy_adb, self.scrcpy_dir, sx, sy)
+        except Exception as e:
+            self.log_message(f"[PHONE ERROR] mirror start failed: {e}")
+
+    def _mirror_state(self, state):
+        if state == "active":
+            self.log_message("[PHONE] Mirror ready")
+        elif state == "stopped":
+            self.log_message("[SCRCPY] Mirror stopped")
     
     # --- Windows Host Driver Management & Log Tracing Utilities ---
     def action_fix_drivers(self):

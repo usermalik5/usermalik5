@@ -634,6 +634,12 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
     def on_close(self):
         self.adb_monitor_enabled = False
         self.appwatch_monitoring = False
+        mgr = getattr(self, "_phone_mirror", None)
+        if mgr is not None:
+            try:
+                mgr.stop()
+            except Exception:
+                pass
         dash_id = getattr(self, "_dash_refresh_after", None)
         if dash_id is not None:
             try:
