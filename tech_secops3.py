@@ -304,30 +304,6 @@ class SecOps3Mixin:
         finally:
             menu.grab_release()
 
-    def _sec_action_recommendation(self, level):
-        if not self._can("cleaner"):
-            self._sec_status("Permission denied: Adware Remover is disabled for this account.", "#e74c3c")
-            return
-        if getattr(self, "sec_removal_filter", None) == level:
-            self.sec_removal_filter = None
-            self.after(0, self._sec_render_rows)
-            self._sec_status("\U0001f4e6 Level filter cleared \u2014 showing all loaded apps.", "#58a6ff")
-            self._sec_log(f"[GeloTech] List filter removed (UAD '{level}' level).", "#8b949e")
-            return
-        pkgs = [entry for entry in (getattr(self, "sec_packages", []) or []) if entry.get("removal") == level]
-        if not pkgs:
-            self._sec_status(f"No apps at the '{level}' removal level in the loaded list.", "#f39c12")
-            return
-        self.sec_removal_filter = level
-        self.sec_legend_filter = None
-        for m, (dot, lbl) in getattr(self, "sec_legend_widgets", {}).items():
-            lbl.configure(text_color="#8b949e", font=ctk.CTkFont(size=9))
-            dot.configure(font=ctk.CTkFont(size=10))
-        self.after(0, self._sec_render_rows)
-        self.after(0, lambda: self._sec_check_level(level))
-        self.after(0, lambda: self._sec_show_level_actions(level, len(pkgs)))
-        self._sec_status(f"\U0001f50e Scanned: {len(pkgs)} '{level}' app(s) found and checked \u2014 choose what to do in the menu.", "#58a6ff")
-        self._sec_log(f"[GeloTech] Scan Bloatware: {len(pkgs)} app(s) at UAD '{level}' level checked.", "#58a6ff")
 
     def _sec_show_level_actions(self, level, count):
         """Popup after a Scan Bloatware level pick: bulk actions for the checked apps."""
