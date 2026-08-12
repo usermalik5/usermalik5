@@ -225,7 +225,7 @@ For normal code work, use this short path instead of repeating subsystem-wide se
 1. Run `python scripts/agent_preflight.py` and read `AGENTS.md` plus the relevant README/docs sections.
 2. Inspect and reproduce the actual execution path.
 3. Make the smallest root-cause fix. Avoid speculative retries, timing hacks, and global compatibility patches.
-4. Run `python -m compileall -q .` and `python -m pytest -q`.
+4. Run `python scripts/agent_check.py` to verify the dev environment, then `python -m compileall -q .` and `python -m pytest -q`; add `python -m ruff check .` for lint.
 5. For login/navigation changes, run `python techtool.py`; for mirror work, also read `docs/SCRCPY_GUIDE.md` and record whether testing used a real device.
 6. For a release build, run `python scripts/release.py`. Do not manually repeat the PyArmor/PyInstaller sequence unless debugging the build itself.
 7. Review the diff before commit/push.

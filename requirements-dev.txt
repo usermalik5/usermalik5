@@ -1,1 +1,8 @@
+# Development/test dependencies for the GeloTech Tool coding-agent workflow.
+# Install with: python -m pip install -r requirements-dev.txt
+# Versions are pinned to ranges around the versions verified in this environment
+# (Python 3.14) to avoid a blind upgrade breaking the PyInstaller/PyArmor build.
+
 pytest>=8,<10
+ruff>=0.16,<0.17
+basedpyright>=1.39,<2

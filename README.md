@@ -227,10 +227,41 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
+Agent environment check (Python, pytest, Ruff, BasedPyright, required files,
+test discovery, syntax compilation — fast, no network, no app imports):
+
+```bash
+python scripts/agent_check.py
+```
+
+Lint / format check (Ruff is configured in `pyproject.toml`; do not reformat
+the whole repo — fix findings incrementally):
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+```
+
+Python language server: BasedPyright is configured in `pyproject.toml`
+(`typeCheckingMode = "basic"`, excludes `build/`/`dist/`). Editors and OpenCode
+with LSP enabled use it for go-to-definition, find-references, and diagnostics.
+
 Release build:
 
 ```bash
 python scripts/release.py
 ```
+
+### Coding-agent tooling
+
+`opencode.json` enables LSP for the project. Semantic code navigation
+(go-to-definition / find-references / find-implementations over the code graph)
+is provided by the `codebase-memory-mcp` server, which is already configured
+globally. Filesystem and terminal access use OpenCode's built-in tools, GitHub
+work uses the `gh` CLI plus `git`, and documentation lookup uses the built-in
+web search/fetch tools. No extra MCP servers are required.
+
+See the **Code intelligence** section in `AGENTS.md` for the preferred
+navigation order before editing code.
 
 The release helper performs repository preflight, Python compile checks, tests, PyArmor generation, and the supported obfuscated PyInstaller build. It does not commit, tag, or push anything automatically.

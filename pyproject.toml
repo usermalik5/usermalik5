@@ -1,0 +1,46 @@
+# Developer tooling configuration for the GeloTech Tool codebase.
+# This file only configures dev tools (linting, type-checking, tests).
+# It intentionally contains no [build-system] / [project] table, so it does
+# not affect the PyInstaller / PyArmor release build or application behavior.
+
+[tool.basedpyright]
+# Practical, low-noise type checking for a legacy mixin-heavy codebase.
+typeCheckingMode = "basic"
+pythonVersion = "3.14"
+pythonPlatform = "Windows"
+exclude = [
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build/pyarmor_out",
+    "node_modules",
+]
+
+[tool.ruff]
+line-length = 200
+exclude = [
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build/pyarmor_out",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# E: errors (syntax/obvious bugs)  F: pyflakes (undefined/unused)  I: imports
+# W: warnings  UP: pyupgrade (safe modernizations only)
+select = ["E", "F", "I", "W", "UP"]
+# Line length is a style preference, not a bug; keep Ruff practical.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["W291", "W293"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
