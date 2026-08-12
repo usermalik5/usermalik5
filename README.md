@@ -43,7 +43,7 @@ that cached list instantly and then refresh from the device in the background
 phone is unreachable. List rows are rendered lazily in small batches so the UI
 stays responsive with hundreds of apps loaded.
 
-## Agent / developer workflow
+## Development workflow
 
 Repository coding agents MUST run the preflight before every coding task:
 
@@ -89,6 +89,8 @@ latest data with zero manual intervention.
 | `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
 | `scripts/agent_preflight.py` | Mandatory coding-agent preflight; verifies repository instructions are present before work begins |
+| `scripts/release.py` | Repeatable source/test/PyArmor/PyInstaller release build; never commits or pushes |
+| `requirements-dev.txt` | Lightweight development test dependency (`pytest`) |
 
 Build-time resources (ADB/fastboot tools, scrcpy zip, drivers, icon cache)
 live in the local working folder and are excluded from the repo via
@@ -120,7 +122,7 @@ only supported release build** — obfuscation applies to all modules and all
 release exes:
 
 ```bash
-pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
+pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 
@@ -204,3 +206,22 @@ redistribute the new exe — code only changes when a new exe is built.
 records: removal levels (`Recommended` / `Advanced` / `Expert` / `Unsafe`),
 UAD warnings, GeloTech notes, and the `debloated` / exclusion flags. If the
 file is missing it falls back to `gelotech_database_v2.json`.
+
+
+## Fast development/release commands
+
+Source smoke check:
+
+```bash
+python scripts/agent_preflight.py
+python -m compileall -q .
+python -m pytest -q
+```
+
+Release build:
+
+```bash
+python scripts/release.py
+```
+
+The release helper performs repository preflight, Python compile checks, tests, PyArmor generation, and the supported obfuscated PyInstaller build. It does not commit, tag, or push anything automatically.

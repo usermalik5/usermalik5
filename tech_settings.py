@@ -92,7 +92,11 @@ class SettingsMixin(AdminPanelMixin):
     def _build_uad_lookup(self):
         if hasattr(self, '_uad_cache') and self._uad_cache is not None:
             return self._uad_cache
-        self._uad_cache = load_package_database(get_live_database_path())
+        service = getattr(self, "database_service", None)
+        if service is not None:
+            self._uad_cache = service.load()
+        else:
+            self._uad_cache = load_package_database(get_live_database_path())
         return self._uad_cache
 
     def _filter_by_uad(self, results):
@@ -336,11 +340,11 @@ class SettingsMixin(AdminPanelMixin):
             self._set_tab_visible(name, allowed)
             if allowed:
                 visible.append(name)
-        if visible:
-            try:
-                self._show_page(visible[0])
-            except Exception:
-                pass
+        # Dashboard is the universal post-login landing page.
+        try:
+            self._show_page("Dashboard")
+        except Exception:
+            pass
 
     def _login_gate(self):
         self.withdraw()
@@ -541,7 +545,6 @@ class SettingsMixin(AdminPanelMixin):
                     self._uad_cache = None
                 if hasattr(self, "_debloat_cache"):
                     self._debloat_cache = None
-                self._seed_database_defaults()
                 self.current_user = name
                 self.is_admin = (name == "admin")
                 if self.is_admin:
@@ -555,6 +558,7 @@ class SettingsMixin(AdminPanelMixin):
                         # except the admin-only features (VirusTotal).
                         self.user_perms = set(DEFAULT_USER_PERMS)
                 self._server_users = users
+                self._initialize_runtime_after_login()
                 win.destroy()
                 self._apply_permissions()
                 self._drop_settings_copy()
