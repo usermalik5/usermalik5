@@ -1,4 +1,4 @@
-﻿# GeloTechTool — Process Tree Visual Guide
+# GeloTechTool — Process Tree Visual Guide
 
 Internal reference only. Shows how the app works step by step and how the
 code is organised. Updated on major code changes.
@@ -39,9 +39,11 @@ GeloTechTool (techtool.py)
 | `tech_phone_mirror_restore_patch.py` | mirror restore compatibility patch | Retries Dashboard log remapping on Tk's UI thread after native mirror shutdown |
 | `tech_hardening.py` | `apply_hardening()` | runtime safety/reliability patches |
 | `tech_dashboard_redesign.py` | helpers | 3uTools-style dashboard layout integration |
-| `sitecustomize.py` | compatibility hooks | Selects embedded mirror/restore behavior, suppresses URL hover tooltips, and forces Dashboard navigation after login |
-| `runtime_hook_gelotech.py` | PyInstaller runtime hook | Explicitly loads the same compatibility hooks in packaged release builds; frozen apps do not rely on CPython auto-loading `sitecustomize.py` |
+| `sitecustomize.py` | compatibility hooks | Mirror compatibility and URL-tooltip behavior only; never owns login/navigation |
+| `runtime_hook_gelotech.py` | PyInstaller runtime hook | Explicitly loads `sitecustomize.py` for packaged compatibility behavior |
 | `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
+
+**Bloatware subsystem ownership:** `tech_bloatware.py` owns `_sec_action_recommendation()` and the complete-device UAD-level scan. Do not duplicate `_sec_action_recommendation()` in another module. Release validation (`scripts/release.py`) requires exactly one definition.
 
 ---
 
@@ -51,34 +53,31 @@ GeloTechTool (techtool.py)
 python techtool.py
   │
   ├─ GeloTechTool.__init__()
-  │    ├─ 1. Window: title, icon, size/minsize, scaling
-  │    ├─ 2. Layout: fixed sidebar | weighted page container
-  │    ├─ 3. _extract_scrcpy()        → unzip scrcpy-win64-v3.3.4.zip to temp, locate adb.exe/scrcpy.exe
-  │    ├─ 4. _migrate_settings()      → first run: import old settings/exclusion files into AppData JSON
-  │    ├─ 5. _seed_database_defaults()→ pre-check packages flagged in DB into exclusion/debloated lists
-  │    ├─ 6. Build sidebar and page navigation
-  │    ├─ 7. Build Dashboard (phone mockup + App Cleaner inside), Monitor, DNS, VirusTotal pages
-  │    ├─ 8. _build_log_panel()  → Dashboard phone log console + other console views
-  │    └─ 9. _build_hint_banner() → red attention strip (auto-hide 6s)
+  │    ├─ create window/layout + sidebar/navigation shell
+  │    ├─ create lightweight page factories
+  │    └─ build login gate (withdraw main window) → wait for authentication
   │
-  ├─ _login_gate()  → login window (withdraw main window)
-  │    ├─ DEFAULT VIEW = LOGIN (email + password)
-  │    ├─ verify credentials (PBKDF2) against live accounts from server
+  ├─ _login_gate()  → login window (DEFAULT VIEW = LOGIN: email + password)
   │    └─ login success:
+  │         ├─ verify credentials (PBKDF2) against live accounts from server
   │         ├─ purge stale per-login database copy
   │         ├─ fetch users + DB → verify credentials and DB hash
-  │         ├─ write verified DB to temp session cache → repoint the package DatabaseService to the session DB → clear stale lookups → re-seed
+  │         ├─ write verified DB to temp session cache
+  │         ├─ repoint the package DatabaseService to the verified session DB
+  │         ├─ clear stale lookups
+  │         ├─ re-seed
+  │         ├─ initialize runtime resources (scrcpy extraction, settings migration, DB defaults)
+  │         ├─ initialize Dashboard (phone mockup + App Cleaner, Monitor, DNS, VirusTotal pages)
   │         ├─ apply permissions
-  │         ├─ show Dashboard (page stack, permissions applied)
-  │         └─ show main window
+  │         ├─ show Dashboard through the normal navigation controller
+  │         └─ start background ADB monitoring
   │
   └─ on_close() → stop mirror, purge session database copy, destroy window
 ```
 
 **Post-login default:** Dashboard is the intended first visible page after a
 successful login. The page-stack method is `_show_page("Dashboard")`; the
-compatibility hook explicitly selects it after permissions are applied so the
-sidebar selection and `_current_page` stay synchronized.
+normal navigation controller selects Dashboard after successful authentication.
 
 ---
 
@@ -166,9 +165,9 @@ CODE update (needs new exe):
 ```
 
 The release spec includes `runtime_hook_gelotech.py`, which explicitly loads
-the compatibility hooks inside the frozen application. This keeps the
-Dashboard-default, URL-tooltip, and mirror-restore behavior from depending on
-CPython's normal `sitecustomize` auto-import behavior.
+`sitecustomize.py` for packaged compatibility behavior (mirror/restore and
+URL-tooltip). This avoids relying on CPython's normal `sitecustomize`
+auto-import behavior in frozen applications.
 
 ---
 
@@ -182,21 +181,27 @@ AppData settings dir (get_settings_dir())  → persistent, writable runtime stat
   apk_backups\*.apk
   sec_whitelist.txt
 
-Temp session cache (get_session_database_path(), temp\GeloTechTool\):
-  gelotech_database_v3.json  → pulled + verified per login, then wiped
+Temp session cache (get_session_database_path(), %TEMP%\GeloTechTool\):
+  gelotech_database_v3.json
+  → downloaded and verified at login
+  → used by DatabaseService
+  → removed at session cleanup
 
 Bundled / repo build resources:
-  banking_apps.json
   scrcpy-win64-v3.3.4.zip
   ApkIconHelper.apk
   gelotech_icon.ico
+  banking_apps.json
 
-Repo root / update source:
-  version.json
-  version.json.sig
+Repo root / GitHub:
   gelotech_database_v3.json
   secret.json
+  version.json
+  version.json.sig
   banking_apps.json
+
+EXE bundle:
+  NO package database
 ```
 
 ---

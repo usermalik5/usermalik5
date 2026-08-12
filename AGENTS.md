@@ -49,3 +49,11 @@ python scripts/release.py
 ```
 
 The release helper validates the source tree, runs tests, regenerates PyArmor output, and builds the supported obfuscated EXE. It does not commit, tag, push, or publish releases.
+
+## Documentation authority
+
+- `AGENTS.md` defines mandatory agent behavior.
+- `README.md` defines current application behavior and supported workflows.
+- `PROCESS_GUIDE.md` is the long-form architecture/process reference.
+
+When these documents conflict with the actual source code, stop and report the conflict. Do not guess or silently reintroduce behavior described only by stale documentation.

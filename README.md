@@ -16,8 +16,7 @@ Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
 reset). The toolbar keeps a single **Scan Bloatware** button (its menu
 covers uninstalling by UAD recommendation level — Recommended / Advanced /
-Expert / Unsafe — plus Remove Popup Ads, Uninstall checked, and Clear App
-Data), Restore/Backup, All, Disabled, and Filter. A permanent legend in the sidebar explains the app
+Expert / Unsafe), plus **Restore/Backup**, **Load Apps**, and **Advanced Filter**. A permanent legend in the sidebar explains the app
 removal levels (Recommended = safe to remove, Advanced = mostly safe,
 Expert = may break features, Unsafe = dangerous) and the list row colors
 (green = removable, orange = clean excluded, red = uninstall excluded,
@@ -119,10 +118,17 @@ actions); only the VirusTotal tab is reserved for the admin account.
 
 ## Building the exe
 
-Obfuscated build (requires PyArmor — re-runs `pyarmor gen` into
-`build/pyarmor_out` before running `GeloTechTool_obf.spec`). **This is the
-only supported release build** — obfuscation applies to all modules and all
-release exes:
+The supported release procedure is the release helper. It runs repository
+preflight, Python compile checks, tests, PyArmor generation, and the
+obfuscated PyInstaller build with verification gates:
+
+```bash
+python scripts/release.py
+```
+
+Manual build / debugging only — the release helper runs the same PyArmor +
+PyInstaller sequence below; run these by hand only when debugging the build
+itself (obfuscation applies to all modules and all release exes):
 
 ```bash
 pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_bloatware.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
