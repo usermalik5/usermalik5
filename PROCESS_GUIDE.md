@@ -1,4 +1,4 @@
-# GeloTechTool — Process Tree Visual Guide
+﻿# GeloTechTool — Process Tree Visual Guide
 
 Internal reference only. Shows how the app works step by step and how the
 code is organised. Updated on major code changes.
@@ -10,7 +10,7 @@ code is organised. Updated on major code changes.
 ```
 GeloTechTool (techtool.py)
   └─ GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin,
-                  SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin,
+                  SecOpsMixin, BloatwareFilterMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin,
                   DashboardMixin, VtOpsMixin, MiscMixin)
   └─ apply_hardening(GeloTechTool)  ← tech_hardening.py (import-time patches)
 ```
@@ -18,7 +18,7 @@ GeloTechTool (techtool.py)
 | File | Class / Role | Owns |
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, page stack/navigation, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks, dark/light theme toggle (sidebar) + `_theme_walk` color apply |
-| `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup (left) + App Cleaner UI (right, built via `build_security_tab(parent=...)`), phone log-console placement, screen-mirror button under the phone |
+| `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup (left) + App Cleaner UI (right, built via `build_security_tab(parent=...)`), phone log-console placement, plus Refresh and screen-mirror buttons under the phone |
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions, `_check_updates`, first-run migration + seeding |
 | `tech_reg.py` | helpers | self-service account flow + server fetching: `_fetch_verified_sources` (signed manifest + live accounts + DB sha256), `_request_password`, `hash_password`/`verify_password`, `_purge_session_database` |
@@ -27,6 +27,7 @@ GeloTechTool (techtool.py)
 | `tech_secscan.py` | `SecScanMixin` | background threat scans |
 | `tech_secops.py` | `SecOpsMixin` | cleaner list and rendering |
 | `tech_secops3.py` | `SecOps3Mixin` | right-click row menu, per-app actions, batch actions, scan/bloatware controls |
+| tech_bloatware.py | Bloatware filter/scan module: Scan Bloatware UAD-level filtering and row marking that backs the Dashboard App Cleaner UI |
 | `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch actions, APK Info, Restore/Backup dialog |
 | `tech_secops4.py` | `SecOps4Mixin` | icon generation, Restore/Backup dialog, device info strip |
 | `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps page |
@@ -66,7 +67,7 @@ python techtool.py
   │    └─ login success:
   │         ├─ purge stale per-login database copy
   │         ├─ fetch users + DB → verify credentials and DB hash
-  │         ├─ write verified DB to temp session cache → clear stale lookups → re-seed
+  │         ├─ write verified DB to temp session cache → repoint the package DatabaseService to the session DB → clear stale lookups → re-seed
   │         ├─ apply permissions
   │         ├─ show Dashboard (page stack, permissions applied)
   │         └─ show main window
@@ -155,10 +156,10 @@ CODE update (needs new exe):
   → update README.md + PROCESS_GUIDE.md for major changes
   → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
     tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py
-    tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py
-    tech_misc.py tech_hardening.py tech_dashboard_redesign.py
+    tech_secops3.py tech_secops2.py tech_secops4.py tech_bloatware.py tech_dash.py tech_vtop.py
+    tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py
     tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py
-    tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py
+    tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py
     tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
   → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
   → dist\GeloTechTool.exe

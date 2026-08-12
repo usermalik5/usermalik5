@@ -14,7 +14,7 @@ package-list context menu (right-click) offers per-app actions plus batch
 actions for all checked apps (disable / uninstall / APK backup / exclude).
 Destructive batch actions ask you to type YES to confirm, and clicking a
 color in the list legend filters the list to that group (click again to
-reset). The toolbar keeps a single **Remove Bloatware** button (its menu
+reset). The toolbar keeps a single **Scan Bloatware** button (its menu
 covers uninstalling by UAD recommendation level — Recommended / Advanced /
 Expert / Unsafe — plus Remove Popup Ads, Uninstall checked, and Clear App
 Data), Restore/Backup, All, Disabled, and Filter. A permanent legend in the sidebar explains the app
@@ -25,9 +25,11 @@ purple = both excluded) — rows in the app list follow the same color scheme,
 and removal-level badges use the same colors. The sidebar header shows
 `© 2026 GeloTech` with clickable links to Gsmcodeph.com and
 facebook.com/gelotechxyz, and the title/tool name always shows the current
-version (e.g. v1.0.9). The Dashboard tab shows a real device mockup (phone
-image with the live log console rendered inside its screen) next to a device
-info card with live ADB stats (model, Android version, storage, battery, MACs).
+version (e.g. v1.0.9). The Dashboard tab shows a device mockup (phone image with the live log console
+rendered inside its screen) on the left, with the App Cleaner UI on the right (a
+scrollable list of installed apps with uninstall/disable/clear-data/exclude
+actions, plus a small live device strip with model, Android version, storage,
+and battery). **Refresh** and **Screen Mirror** sit under the phone.
 
 After a successful login, the application always returns to the **Dashboard**
 page regardless of the page that was previously selected. The Dashboard
@@ -123,7 +125,7 @@ only supported release build** — obfuscation applies to all modules and all
 release exes:
 
 ```bash
-pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
+pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_bloatware.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 
