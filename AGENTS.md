@@ -282,3 +282,39 @@ After every failed implementation attempt, identify what NEW evidence was obtain
 The goal is to solve the root cause, not accumulate patches.
 
 For external GUI integrations, always verify the external application independently before debugging the integration layer.
+
+---
+
+## codebase-mcp Integration
+
+**Purpose**: codebase-mcp is a knowledge graph tool that indexes your codebase to enable structural queries, call-chain tracing, and architecture analysis.
+
+**Status**: Already indexed - `GeloTech-Tool` project has 7,357 nodes and 9,862 edges.
+
+### Usage Commands (run in your CLI):
+
+```powershell
+# Search for code
+codebase-memory-mcp_search_code(pattern="dashboard", project="GeloTech-Tool")
+
+# Trace call chains
+codebase-memory-mcp_trace_path(function_name="_open_dashboard", project="GeloTech-Tool")
+
+# Get architecture overview
+codebase-memory-mcp_get_architecture(project="GeloTech-Tool")
+```
+
+### When to Re-index:
+
+Run `codebase-memory-mcp_index_repository` after:
+- Adding new major modules/functions
+- Restructuring significant code sections
+- Before major releases to ensure graph accuracy
+
+**Note**: codebase-mcp does NOT run automatically - it's a query tool you invoke manually. The index persists between sessions but should be refreshed after significant code changes.
+
+### Security & Notes:
+
+- 57 files excluded by design (gitignore: images, dlls, exe, logs)
+- Parse-partial files may have missing constructs in flagged line ranges
+- Use `codebase-memory-mcp_index_status` to check index health

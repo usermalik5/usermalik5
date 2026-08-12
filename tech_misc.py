@@ -521,8 +521,11 @@ class MiscMixin:
     def _update_log_count(self):
         for c in getattr(self, "_log_consoles", ()):
             try:
+                lbl = c.get("count_label")
+                if lbl is None:
+                    continue
                 count = int(c["text"].index("end-1c").split(".")[0])
-                c["count_label"].configure(text=f"Lines: {count}")
+                lbl.configure(text=f"Lines: {count}")
             except Exception:
                 pass
 
@@ -530,7 +533,9 @@ class MiscMixin:
         for c in getattr(self, "_log_consoles", ()):
             try:
                 c["text"].delete("1.0", "end")
-                c["count_label"].configure(text="Lines: 0")
+                lbl = c.get("count_label")
+                if lbl is not None:
+                    lbl.configure(text="Lines: 0")
             except Exception:
                 pass
         self._log_history = []

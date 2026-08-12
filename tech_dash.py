@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Dashboard page (3uTools-style): real iPhone 17 PNG mockup whose transparent
 # SCREEN shows the live log console. "Screen Mirror" runs the REAL scrcpy
 # stream in a two-window setup (see tech_phone_mirror): the native scrcpy

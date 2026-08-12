@@ -16,6 +16,10 @@ import webbrowser
 from PIL import Image, ImageDraw, ImageFont
 from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION, THEME, THEMES, COLOR_SWAP, CANONICAL_DARK
 
+# Force-load the compatibility hooks (mirror manager, dashboard-after-login)
+# in source mode. The packaged EXE loads sitecustomize.py as a runtime hook.
+import sitecustomize  # noqa: F401
+
 # Application Global Styling Configurations
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -361,23 +365,10 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         main_log.tag_config("DEFAULT", foreground="#00ff41")
 
         # Filter chips row
-        filter_frame = ctk.CTkFrame(console, fg_color="transparent")
-        filter_frame.grid(row=2, column=0, sticky="ew", padx=4, pady=(0, 2))
-        filters = ["ALL", "ADB", "SECURITY", "VT", "DNS"]
-        colors = {"ALL": "#0f3d1e", "ADB": "#0f5a2a", "SECURITY": "#0a7a33", "VT": "#3d1e0f", "DNS": "#0f5a5a"}
-
         # Stats bar at bottom (phone home indicator strip)
-        stats_bar = ctk.CTkFrame(console, fg_color="#03160d", corner_radius=6, height=20)
-        stats_bar.grid(row=3, column=0, sticky="ew", padx=4, pady=(0, 4))
-        stats_bar.grid_propagate(False)
-        count_label = ctk.CTkLabel(stats_bar, text="Lines: 0", font=ctk.CTkFont(size=8), text_color="#00cc55")
-        count_label.pack(side="left", padx=8, pady=2)
-        filter_label = ctk.CTkLabel(stats_bar, text="Filter: ALL", font=ctk.CTkFont(size=8), text_color="#00cc55")
-        filter_label.pack(side="left", padx=6, pady=2)
-
         entry = {
             "frame": console, "text": main_log,
-            "count_label": count_label, "filter_label": filter_label,
+            "count_label": None, "filter_label": None,
             "filter": "ALL",
         }
         if not hasattr(self, "_log_consoles"):
@@ -386,18 +377,11 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             # original attribute names used by the rest of the app.
             self._log_console = console
             self.main_log = main_log
-            self.log_line_count_label = count_label
-            self.log_filter_label = filter_label
+            self.log_line_count_label = None
+            self.log_filter_label = None
             self._log_filter_active = "ALL"
             self._log_clear_btn = clear_btn
         self._log_consoles.append(entry)
-
-        for f in filters:
-            btn = ctk.CTkButton(filter_frame, text=f, width=38, height=20,
-                                fg_color=colors[f], hover_color="#14582b",
-                                font=ctk.CTkFont(size=8, weight="bold"),
-                                command=lambda ff=f, e=entry: self._set_log_filter(ff, e))
-            btn.pack(side="left", padx=1, fill="x", expand=True)
 
     def _set_log_filter(self, f, entry=None):
         if entry is None:
@@ -406,7 +390,8 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             if entry is None:
                 return
         entry["filter"] = f
-        entry["filter_label"].configure(text=f"Filter: {f}")
+        if entry.get("filter_label") is not None:
+            entry["filter_label"].configure(text=f"Filter: {f}")
         # Re-display all log entries with new filter
         if hasattr(self, '_log_history') and self._log_history:
             entry["text"].delete("1.0", "end")
