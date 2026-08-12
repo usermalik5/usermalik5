@@ -540,6 +540,13 @@ class SettingsMixin(AdminPanelMixin):
                     login_btn.configure(state="normal")
                     error_label.configure(text=f"\u26a0 Could not write database cache: {type(e).__name__}: {e}", text_color="#ff6b6b")
                     return
+                # Point the package-database service at the freshly downloaded,
+                # verified session database (not the stale startup/live path) so
+                # the bloatware UAD lookup uses the exact verified DB. Done before
+                # anything calls _build_uad_lookup().
+                if hasattr(self, "database_service"):
+                    self.database_service.set_path(get_live_database_path())
+                    self.database_service.clear()
                 # Fresh per-login database: drop stale lookups, re-seed lists.
                 if hasattr(self, "_uad_cache"):
                     self._uad_cache = None

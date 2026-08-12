@@ -39,6 +39,15 @@ class DatabaseService:
             self._cache = None
             self._mtime_ns = None
 
+    def set_path(self, path):
+        """Point the service at a new database location and drop any cached
+        data. Used after login when the verified per-session database replaces
+        the startup/live path."""
+        with self._lock:
+            self.path = path
+            self._cache = None
+            self._mtime_ns = None
+
     def get(self, package_id, default=None):
         return self.load().get(package_id, default)
 

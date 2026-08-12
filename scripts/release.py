@@ -58,6 +58,21 @@ def _verify_exe_contains(exe, module):
     print(f"[verify] EXE contains '{module}': OK")
 
 
+def _verify_source_imports():
+    import re
+
+    tool = ROOT / "techtool.py"
+    text = tool.read_text(encoding="utf-8")
+    if "from tech_bloatware import" not in text and "import tech_bloatware" not in text:
+        raise SystemExit("techtool.py does not import tech_bloatware; the fix module is not wired in.")
+    defs = 0
+    for py in ROOT.glob("tech_*.py"):
+        defs += len(re.findall(r"^\s*def _sec_action_recommendation\b", py.read_text(encoding="utf-8"), re.M))
+    if defs != 1:
+        raise SystemExit(f"Expected exactly 1 _sec_action_recommendation definition, found {defs}.")
+    print("[verify] techtool.py imports tech_bloatware and exactly one _sec_action_recommendation exists: OK")
+
+
 def build(obfuscated=True):
     if not obfuscated:
         run(sys.executable, "-m", "PyInstaller", "GeloTechTool.spec", "--noconfirm", "--clean")
@@ -68,6 +83,7 @@ def build(obfuscated=True):
     pyarmor = shutil.which("pyarmor")
     if not pyarmor:
         raise SystemExit("PyArmor is required for the supported release build.")
+    _verify_source_imports()
     # Clean previous artifacts so the new module is proven generated from scratch.
     shutil.rmtree(ROOT / "build", ignore_errors=True)
     shutil.rmtree(ROOT / "dist", ignore_errors=True)
