@@ -6,6 +6,8 @@ post-login landing page. It deliberately contains no authentication logic;
 permissions remain the responsibility of the application session layer.
 """
 
+from tech_common import THEME
+
 
 class NavigationController:
     DEFAULT_PAGE = "Dashboard"
@@ -46,9 +48,9 @@ class NavigationController:
             active = page_name == name
             try:
                 button.configure(
-                    fg_color=self.app.THEME["accent"] if active else self.app.THEME["panel2"],
+                    fg_color=THEME["accent"] if active else THEME["panel2"],
                     text_color="#ffffff" if active else "#e8ecf2",
-                    hover_color=self.app.THEME["accent_h"] if active else "#1f6feb",
+                    hover_color=THEME["accent_h"] if active else "#1f6feb",
                 )
             except Exception:
                 pass
