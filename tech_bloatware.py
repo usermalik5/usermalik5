@@ -7,9 +7,8 @@ package set from the connected device, then filters that set by the requested
 UAD removal level.
 """
 
+import subprocess
 import threading
-
-from tech_common import load_banking_apps, subprocess
 
 
 class BloatwareFilterMixin:
@@ -112,7 +111,6 @@ class BloatwareFilterMixin:
 
     @staticmethod
     def _font(size=9):
-        # Kept as a tiny compatibility helper for the existing UI code.
         try:
             import customtkinter as ctk
             return ctk.CTkFont(size=size)
