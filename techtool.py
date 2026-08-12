@@ -16,6 +16,7 @@ import webbrowser
 from PIL import Image, ImageDraw, ImageFont
 from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION, THEME, THEMES, COLOR_SWAP, CANONICAL_DARK
 from tech_navigation import NavigationController
+from tech_bloatware import BloatwareFilterMixin
 from tech_task_manager import TaskManager
 from tech_database import DatabaseService
 
@@ -37,7 +38,7 @@ from tech_dash import DashboardMixin
 from tech_vtop import VtOpsMixin
 from tech_misc import MiscMixin
 
-class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin, DashboardMixin, VtOpsMixin, MiscMixin):
+class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, BloatwareFilterMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin, DashboardMixin, VtOpsMixin, MiscMixin):
     PERMISSIONS = {
         "device_info": "Device Info & Package Lists",
         "mirror": "Screen Mirror & Logcat",
