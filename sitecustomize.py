@@ -45,7 +45,7 @@ try:
     import tech_settings as _settings
 
     _original_apply_permissions = getattr(_settings.SettingsMixin,
-                                           "_apply_permissions", None)
+                                   "_apply_permissions", None)
     if _original_apply_permissions is not None and not getattr(
             _original_apply_permissions, "_gelotech_dashboard_hook", False):
 
@@ -53,9 +53,14 @@ try:
             result = _original_apply_permissions(self, *args, **kwargs)
 
             def _open_dashboard():
-                # _show_page is the application's actual page-stack navigation
-                # method. Prefer it so the selected sidebar state and
-                # _current_page stay synchronized.
+                # Primary: use the app's page stack to show Dashboard,
+                # which keeps _current_page and sidebar state in sync.
+                try:
+                    self._show_page("Dashboard")
+                    return
+                except Exception:
+                    pass
+                # Fallback: try known navigation methods.
                 for method_name in (
                     "_show_page", "show_page", "select_page", "switch_page",
                     "navigate_to", "set_page",
@@ -67,15 +72,15 @@ try:
                             return
                         except Exception:
                             pass
-
-                # Last-resort fallback: raise the existing Dashboard frame
-                # without rebuilding the page.
+                # Final fallback: raise the Dashboard frame if it exists.
                 try:
-                    page = self.page("Dashboard")
-                    if page is not None:
-                        page.tkraise()
-                    if hasattr(self, "_current_page"):
-                        self._current_page = "Dashboard"
+                    if hasattr(self, "pages"):
+                        for name, frame in self.pages.items():
+                            if name == "Dashboard":
+                                frame.tkraise()
+                                if hasattr(self, "_current_page"):
+                                    self._current_page = "Dashboard"
+                                break
                 except Exception:
                     pass
 
