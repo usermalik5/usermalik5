@@ -1,0 +1,77 @@
+name: Finalize architecture workflow
+
+on:
+  push:
+    branches: [agent/workflow-architecture]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply final source ordering and documentation updates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+
+          # Set session state before initializing pages so Dashboard has the
+          # authenticated user context during first construction.
+          p = root / 'tech_settings.py'
+          s = p.read_text(encoding='utf-8')
+          old = '''                self._seed_database_defaults()\n                self._initialize_runtime_after_login()\n                self.current_user = name\n                self.is_admin = (name == "admin")\n                if self.is_admin:\n                    self.user_perms = None\n                    self.user_tabs = None\n                else:\n                    self.user_perms = set((rec.get("permissions") or {}).keys())\n                    self.user_tabs = set(rec.get("tabs") or []) or None\n                    if not self.user_perms:\n                        # No explicit perms in secret.json: grant everything\n                        # except the admin-only features (VirusTotal).\n                        self.user_perms = set(DEFAULT_USER_PERMS)\n                self._server_users = users\n'''
+          new = '''                self.current_user = name\n                self.is_admin = (name == "admin")\n                if self.is_admin:\n                    self.user_perms = None\n                    self.user_tabs = None\n                else:\n                    self.user_perms = set((rec.get("permissions") or {}).keys())\n                    self.user_tabs = set(rec.get("tabs") or []) or None\n                    if not self.user_perms:\n                        # No explicit perms in secret.json: grant everything\n                        # except the admin-only features (VirusTotal).\n                        self.user_perms = set(DEFAULT_USER_PERMS)\n                self._server_users = users\n                self._initialize_runtime_after_login()\n'''
+          if old not in s:
+              raise SystemExit('expected login initialization order not found')
+          s = s.replace(old, new, 1)
+          s = s.replace('        self._navigation = NavigationController(self)\n', '        self._navigation_theme = THEME\n        self._navigation = NavigationController(self)\n', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Use the live theme reference in the navigation controller without
+          # importing the UI-heavy tech_common module during unit tests.
+          p = root / 'tech_navigation.py'
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('        theme = getattr(self.app, "THEME", DEFAULT_THEME)\n', '        theme = getattr(self.app, "_navigation_theme", DEFAULT_THEME)\n')
+          p.write_text(s, encoding='utf-8')
+
+          # Keep release documentation synchronized with the supported module set.
+          p = root / 'README.md'
+          s = p.read_text(encoding='utf-8')
+          old_modules = 'tech_phone_mirror_restore_patch.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py'
+          new_modules = 'tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py'
+          s = s.replace(old_modules, new_modules)
+          if 'requirements-dev.txt' not in s:
+              s = s.replace('| `scripts/agent_preflight.py` | Mandatory coding-agent preflight; verifies repository instructions are present before work begins |', '| `scripts/agent_preflight.py` | Mandatory coding-agent preflight; verifies repository instructions are present before work begins |\n| `scripts/release.py` | Repeatable source/test/PyArmor/PyInstaller release build; never commits or pushes |\n| `requirements-dev.txt` | Lightweight development test dependency (`pytest`) |')
+          p.write_text(s, encoding='utf-8')
+
+          # Keep the process guide as the long-form operational reference while
+          # making the fast path explicit.
+          p = root / 'PROCESS_GUIDE.md'
+          s = p.read_text(encoding='utf-8')
+          section = '''\n\n## Fast architecture workflow\n\nFor normal code work, use this short path instead of repeating subsystem-wide setup:\n\n1. Run `python scripts/agent_preflight.py` and read `AGENTS.md` plus the relevant README/docs sections.\n2. Inspect and reproduce the actual execution path.\n3. Make the smallest root-cause fix. Avoid speculative retries, timing hacks, and global compatibility patches.\n4. Run `python -m compileall -q .` and `python -m pytest -q`.\n5. For login/navigation changes, run `python techtool.py`; for mirror work, also read `docs/SCRCPY_GUIDE.md` and record whether testing used a real device.\n6. For a release build, run `python scripts/release.py`. Do not manually repeat the PyArmor/PyInstaller sequence unless debugging the build itself.\n7. Review the diff before commit/push.\n'''
+          if '## Fast architecture workflow' not in s:
+              s += section
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Validate source
+        run: |
+          python -m pip install --disable-pip-version-check -q pytest
+          python -m compileall -q .
+          python -m pytest -q
+
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finalize-architecture.yml
+          git add tech_settings.py tech_navigation.py README.md PROCESS_GUIDE.md
+          git commit -m "Finalize architecture workflow and release path"
+          git push origin agent/workflow-architecture
