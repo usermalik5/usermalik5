@@ -1,7 +1,63 @@
 # Project Instructions
 
+## MANDATORY AGENT PREFLIGHT — READ BEFORE EVERY CODING TASK
+
+**This section is mandatory. Do not rely on memory from a previous task.**
+
+Before modifying, creating, deleting, refactoring, or moving ANY project code:
+
+1. Run `python scripts/agent_preflight.py` from the repository root.
+2. Read `AGENTS.md` completely.
+3. Read the relevant sections of `README.md` completely.
+4. Inspect the current implementation and execution path before changing it.
+5. Determine the root cause before implementing a fix.
+6. After editing, run the required source-level verification and review the git diff.
+
+The preflight script only verifies that the instruction files exist. **A passing
+preflight is not proof that they were read. The agent is still required to read
+them.**
+
+### Instruction priority
+
+`AGENTS.md` is the authoritative repository instruction file. If instructions
+inside another repository document appear to conflict with `AGENTS.md`, stop,
+inspect the conflict, and report it instead of guessing.
+
+### Do not use stale assumptions
+
+At the start of every new task, re-read the instructions and inspect the current
+working tree. Do not assume that a previous agent's implementation, a previous
+conversation, or a previous build is still correct.
+
+### Root-cause requirement
+
+For bugs, do not immediately patch the symptom. Trace the real execution path,
+identify the caller/state/configuration responsible, and fix the underlying
+cause. If the same approach fails twice, stop and reconsider the architecture.
+
+### Source-vs-EXE requirement
+
+For changes that affect application behavior, verify the Python source directly
+(`python techtool.py`) before declaring success. If the change affects the
+packaged application, separately verify the appropriate PyInstaller build.
+Never treat an EXE-only test as proof that the source implementation is correct,
+and never treat a source-only test as proof that the packaged EXE is correct.
+
+### Navigation/login requirement
+
+For login, logout, permissions, tabs, or default-page changes, trace both:
+- the direct source execution path (`python techtool.py`), and
+- the packaged execution path when building an EXE.
+
+Do not rely on `sitecustomize.py`, runtime hooks, startup timing, or a delayed
+`_show_page()` call as a substitute for fixing the actual navigation state when
+the underlying application code can be corrected directly.
+
+## Documentation requirements
+
 - Whenever a major change is made to the source code, update `README.md` accordingly before committing.
 - When a major change is made to the source code, also update `PROCESS_GUIDE.md` (the process tree visual guide) when necessary — e.g. new modules, changed architecture, changed update/release flow, or new data locations.
+- When changing the agent workflow or repository development rules, update this file and document the workflow in `README.md`.
 
 ## Security & Release Rules (DO NOT VIOLATE)
 
@@ -148,7 +204,7 @@ Do not debug a later layer while an earlier layer is broken.
 
 Do not assume fixed values such as `x=280`, `y=12`, `width=368`, `height=800` when the phone is inside a DPI-scaled CustomTkinter UI.
 
-Derive geometry from the actual phone widget/window and account for CustomTkinter scaling, Windows DPI scaling, window resizing, screen resolution, and dashboard layout changes.
+Derive geometry from the actual phone widget/window and account for CustomTkinter scaling, Windows DPI scaling, window resizing, screen resolution, Dashboard layout changes.
 
 Log the calculated phone position/size, image scale, display cutout position/size, scrcpy HWND position/size, overlay HWND position/size, and DPI scale when debugging alignment.
 
