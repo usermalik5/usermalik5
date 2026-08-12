@@ -4,13 +4,14 @@
 import os
 import threading
 
-from tech_common import load_package_database
-
 
 class DatabaseService:
     def __init__(self, path, loader=None):
         self.path = path
-        self._loader = loader or load_package_database
+        if loader is None:
+            from tech_common import load_package_database
+            loader = load_package_database
+        self._loader = loader
         self._lock = threading.RLock()
         self._cache = None
         self._mtime_ns = None
