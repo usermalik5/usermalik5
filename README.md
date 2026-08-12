@@ -89,6 +89,8 @@ latest data with zero manual intervention.
 | `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
 | `gelotech_icon.ico` | App icon (also embedded in the built exe) |
 | `scripts/agent_preflight.py` | Mandatory coding-agent preflight; verifies repository instructions are present before work begins |
+| `scripts/release.py` | Repeatable source/test/PyArmor/PyInstaller release build; never commits or pushes |
+| `requirements-dev.txt` | Lightweight development test dependency (`pytest`) |
 
 Build-time resources (ADB/fastboot tools, scrcpy zip, drivers, icon cache)
 live in the local working folder and are excluded from the repo via
@@ -120,7 +122,7 @@ only supported release build** — obfuscation applies to all modules and all
 release exes:
 
 ```bash
-pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
+pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
 python -m PyInstaller GeloTechTool_obf.spec --noconfirm
 ```
 

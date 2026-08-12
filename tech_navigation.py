@@ -43,7 +43,7 @@ class NavigationController:
                 frame.grid_remove()
 
         self.app._current_page = name
-        theme = getattr(self.app, "THEME", DEFAULT_THEME)
+        theme = getattr(self.app, "_navigation_theme", DEFAULT_THEME)
         for page_name, button in getattr(self.app, "page_nav_btns", {}).items():
             active = page_name == name
             try:

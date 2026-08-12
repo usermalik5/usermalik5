@@ -545,8 +545,6 @@ class SettingsMixin(AdminPanelMixin):
                     self._uad_cache = None
                 if hasattr(self, "_debloat_cache"):
                     self._debloat_cache = None
-                self._seed_database_defaults()
-                self._initialize_runtime_after_login()
                 self.current_user = name
                 self.is_admin = (name == "admin")
                 if self.is_admin:
@@ -560,6 +558,7 @@ class SettingsMixin(AdminPanelMixin):
                         # except the admin-only features (VirusTotal).
                         self.user_perms = set(DEFAULT_USER_PERMS)
                 self._server_users = users
+                self._initialize_runtime_after_login()
                 win.destroy()
                 self._apply_permissions()
                 self._drop_settings_copy()
