@@ -43,7 +43,7 @@ that cached list instantly and then refresh from the device in the background
 phone is unreachable. List rows are rendered lazily in small batches so the UI
 stays responsive with hundreds of apps loaded.
 
-## Agent / developer workflow
+## Development workflow
 
 Repository coding agents MUST run the preflight before every coding task:
 
@@ -204,3 +204,22 @@ redistribute the new exe — code only changes when a new exe is built.
 records: removal levels (`Recommended` / `Advanced` / `Expert` / `Unsafe`),
 UAD warnings, GeloTech notes, and the `debloated` / exclusion flags. If the
 file is missing it falls back to `gelotech_database_v2.json`.
+
+
+## Fast development/release commands
+
+Source smoke check:
+
+```bash
+python scripts/agent_preflight.py
+python -m compileall -q .
+python -m pytest -q
+```
+
+Release build:
+
+```bash
+python scripts/release.py
+```
+
+The release helper performs repository preflight, Python compile checks, tests, PyArmor generation, and the supported obfuscated PyInstaller build. It does not commit, tag, or push anything automatically.

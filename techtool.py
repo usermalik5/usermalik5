@@ -15,10 +15,9 @@ import shutil
 import webbrowser
 from PIL import Image, ImageDraw, ImageFont
 from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION, THEME, THEMES, COLOR_SWAP, CANONICAL_DARK
-
-# Force-load the compatibility hooks (mirror manager, dashboard-after-login)
-# in source mode. The packaged EXE loads sitecustomize.py as a runtime hook.
-import sitecustomize  # noqa: F401
+from tech_navigation import NavigationController
+from tech_task_manager import TaskManager
+from tech_database import DatabaseService
 
 # Application Global Styling Configurations
 ctk.set_appearance_mode("Dark")
@@ -63,6 +62,8 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.current_user = None
         self.is_admin = True
         self.user_perms = None
+        self.task_manager = TaskManager(self.after)
+        self.database_service = DatabaseService(get_live_database_path())
         self._theme_mode = self._load_settings().get("theme", "dark")
 
         # Primary Window Geometry & Title setup
@@ -101,10 +102,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         # ----------------------------------------------------
         # SIDEBAR REGION (Left Layout Pane)
         # ----------------------------------------------------
-        self._extract_scrcpy()
-        os.environ["PATH"] = self.scrcpy_dir + os.pathsep + os.environ.get("PATH", "")
-        self._migrate_settings()
-        self._seed_database_defaults()
         self.sidebar_frame = ctk.CTkFrame(self, width=230, corner_radius=0, fg_color="#0d0f12")
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_columnconfigure(0, weight=1)
@@ -166,6 +163,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             row += 1
 
         self.page_nav_btns = {}
+        self._navigation = NavigationController(self)
 
         def _add_nav_btn(name, icon, text, perm):
             nonlocal row
@@ -218,12 +216,15 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.pages = {}
         self._current_page = None
 
-        self.build_dashboard_page()
-        self.build_virustotal_tab()
-        self.build_security_tab()
-        self.build_monitor_tab()
-        self.build_dns_tab()
-        self._show_page("Dashboard")
+        # Pages are created lazily after authentication. Dashboard is the first
+        # page created after login; other pages are built on first navigation.
+        self._page_factories = {
+            "Dashboard": self.build_dashboard_page,
+            "Adware Remover": self.build_security_tab,
+            "Monitor Running Apps": self.build_monitor_tab,
+            "Block Ads via DNS": self.build_dns_tab,
+            "VirusTotal": self.build_virustotal_tab,
+        }
 
         # ----------------------------------------------------
         # HINT BANNER + STATUS BAR
@@ -234,7 +235,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         self.log_message("System Initialized. Welcome to GeloTech Tool.")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self._apply_theme(self._theme_mode)
-        self.after(150, self.start_adb_device_monitor)
         self.after(200, self._login_gate)
 
     # ----------------------------------------------------
@@ -458,22 +458,22 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
         return self.pages[name]
 
     def _show_page(self, name):
-        for n, frame in self.pages.items():
-            if n == name:
-                frame.grid()
-            else:
-                frame.grid_remove()
-        self._current_page = name
-        for n, btn in self.page_nav_btns.items():
-            active = (n == name)
-            try:
-                btn.configure(fg_color=THEME["accent"] if active else THEME["panel2"],
-                              text_color="#ffffff" if active else "#e8ecf2",
-                              hover_color=THEME["accent_h"] if active else "#1f6feb")
-            except Exception:
-                pass
-        if name == "Dashboard":
-            self.after(60, self._dash_refresh_if_visible)
+        """Single application navigation entry point."""
+        return self._navigation.show(name)
+
+    def _initialize_runtime_after_login(self):
+        """Initialize device/runtime resources only after authentication."""
+        if getattr(self, "_runtime_initialized", False):
+            return
+        self._runtime_initialized = True
+        self._extract_scrcpy()
+        os.environ["PATH"] = self.scrcpy_dir + os.pathsep + os.environ.get("PATH", "")
+        self._migrate_settings()
+        if hasattr(self, "database_service"):
+            self.database_service.clear()
+        self._seed_database_defaults()
+        self._navigation.show_after_login()
+        self.after(150, self.start_adb_device_monitor)
 
     def _build_status_bar(self):
         self.status_bar = ctk.CTkFrame(self, fg_color=THEME["sidebar"], corner_radius=0, height=26)
@@ -515,7 +515,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
                     self.after(0, lambda: self.apply_adb_device_status(devices, unauthorized, error))
                     self.after(3000, self.scan_adb_devices)
 
-        threading.Thread(target=worker, daemon=True).start()
+        self.task_manager.submit(worker)
 
     def apply_adb_device_status(self, devices, unauthorized, error):
         self.adb_device_scan_running = False
@@ -632,6 +632,10 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
             except Exception:
                 pass
         self._purge_session_database()
+        try:
+            self.task_manager.shutdown(wait=False)
+        except Exception:
+            pass
         self.destroy()
 
     @staticmethod
@@ -757,7 +761,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, S
                 if len(remaining) != len(data["debloated"]):
                     self._save_debloated(remaining)
             self.log_message(f"[SECURITY] {operation.title()} completed for {succeeded}/{len(packages)} package(s).")
-        threading.Thread(target=worker, daemon=True).start()
+        self.task_manager.submit(worker)
 
     # ----------------------------------------------------
     # VIRUSTOTAL TAB UI
