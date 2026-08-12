@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULES = [
     "techtool.py", "tech_common.py", "tech_ui.py", "tech_settings.py", "tech_admin.py",
     "tech_reg.py", "tech_secscan.py", "tech_secops.py", "tech_secops3.py", "tech_secops2.py",
-    "tech_secops4.py", "tech_dash.py", "tech_vtop.py", "tech_misc.py", "tech_hardening.py",
+    "tech_secops4.py", "tech_bloatware.py", "tech_dash.py", "tech_vtop.py", "tech_misc.py", "tech_hardening.py",
     "tech_hardening_ops.py", "tech_dashboard_redesign.py", "tech_phone_mirror.py",
     "tech_phone_mirror_embedded.py", "tech_phone_mirror_host.py", "tech_phone_mirror_fix.py",
     "tech_phone_mirror_restore_patch.py", "tech_navigation.py", "tech_task_manager.py",

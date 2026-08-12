@@ -51,7 +51,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
         "restore": "Restore Uninstalled Apps",
     }
     TAB_PERMS = {
-        "Adware Remover": "cleaner",
         "Monitor Running Apps": "monitor",
         "Block Ads via DNS": "dns",
         "VirusTotal": "virustotal",
@@ -183,7 +182,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
 
         _add_header("PAGES")
         _add_nav_btn("Dashboard", "\U0001f4ca", "Dashboard", None)
-        _add_nav_btn("Adware Remover", "\U0001f9f9", "App Cleaner", "cleaner")
         _add_nav_btn("Monitor Running Apps", "\U0001f50d", "Monitor Apps", "monitor")
         _add_nav_btn("Block Ads via DNS", "\U0001f30f", "Block Ads DNS", "dns")
         _add_nav_btn("VirusTotal", "\U0001f9a0", "VirusTotal", "virustotal")
@@ -221,7 +219,6 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
         # page created after login; other pages are built on first navigation.
         self._page_factories = {
             "Dashboard": self.build_dashboard_page,
-            "Adware Remover": self.build_security_tab,
             "Monitor Running Apps": self.build_monitor_tab,
             "Block Ads via DNS": self.build_dns_tab,
             "VirusTotal": self.build_virustotal_tab,

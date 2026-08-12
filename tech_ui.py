@@ -88,8 +88,8 @@ class UiMixin:
     # ----------------------------------------------------
     # SECURITY SCAN TAB UI
     # ----------------------------------------------------
-    def build_security_tab(self):
-        tab = self.page("Adware Remover")
+    def build_security_tab(self, parent=None):
+        tab = parent if parent is not None else self.page("Adware Remover")
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(3, weight=1)
 

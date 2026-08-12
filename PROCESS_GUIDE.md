@@ -18,7 +18,7 @@ GeloTechTool (techtool.py)
 | File | Class / Role | Owns |
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, page stack/navigation, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks, dark/light theme toggle (sidebar) + `_theme_walk` color apply |
-| `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup, device quick info, live ADB stats, quick actions, live refresh, phone log-console placement, screen-mirror entry |
+| `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup (left) + App Cleaner UI (right, built via `build_security_tab(parent=...)`), phone log-console placement, screen-mirror button under the phone |
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions, `_check_updates`, first-run migration + seeding |
 | `tech_reg.py` | helpers | self-service account flow + server fetching: `_fetch_verified_sources` (signed manifest + live accounts + DB sha256), `_request_password`, `hash_password`/`verify_password`, `_purge_session_database` |
@@ -56,7 +56,7 @@ python techtool.py
   │    ├─ 4. _migrate_settings()      → first run: import old settings/exclusion files into AppData JSON
   │    ├─ 5. _seed_database_defaults()→ pre-check packages flagged in DB into exclusion/debloated lists
   │    ├─ 6. Build sidebar and page navigation
-  │    ├─ 7. Build Dashboard, Cleaner, Monitor, DNS, VirusTotal pages
+  │    ├─ 7. Build Dashboard (phone mockup + App Cleaner inside), Monitor, DNS, VirusTotal pages
   │    ├─ 8. _build_log_panel()  → Dashboard phone log console + other console views
   │    └─ 9. _build_hint_banner() → red attention strip (auto-hide 6s)
   │
@@ -68,7 +68,7 @@ python techtool.py
   │         ├─ fetch users + DB → verify credentials and DB hash
   │         ├─ write verified DB to temp session cache → clear stale lookups → re-seed
   │         ├─ apply permissions
-  │         ├─ compatibility hook schedules `_show_page("Dashboard")`
+  │         ├─ show Dashboard (page stack, permissions applied)
   │         └─ show main window
   │
   └─ on_close() → stop mirror, purge session database copy, destroy window
