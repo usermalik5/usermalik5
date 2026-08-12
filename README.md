@@ -67,7 +67,7 @@ can be fixed directly.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe (v1.4.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+**Latest release:** [GeloTechTool.exe (v1.5.0)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
