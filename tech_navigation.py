@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Centralized page navigation for GeloTech Tool.
+"""Centralized page navigation for GeloTech Tool."""
 
-The controller owns page creation, visibility, active-button state, and the
-post-login landing page. It deliberately contains no authentication logic;
-permissions remain the responsibility of the application session layer.
-"""
-
-from tech_common import THEME
+DEFAULT_THEME = {
+    "accent": "#1a8cff",
+    "panel2": "#16191e",
+    "accent_h": "#155bb5",
+}
 
 
 class NavigationController:
@@ -44,13 +43,14 @@ class NavigationController:
                 frame.grid_remove()
 
         self.app._current_page = name
+        theme = getattr(self.app, "THEME", DEFAULT_THEME)
         for page_name, button in getattr(self.app, "page_nav_btns", {}).items():
             active = page_name == name
             try:
                 button.configure(
-                    fg_color=THEME["accent"] if active else THEME["panel2"],
+                    fg_color=theme["accent"] if active else theme["panel2"],
                     text_color="#ffffff" if active else "#e8ecf2",
-                    hover_color=THEME["accent_h"] if active else "#1f6feb",
+                    hover_color=theme["accent_h"] if active else "#1f6feb",
                 )
             except Exception:
                 pass
