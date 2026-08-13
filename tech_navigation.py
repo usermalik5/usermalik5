@@ -63,20 +63,24 @@ class NavigationController:
             if usb is not None:
                 usb.configure(
                     text=(
-                        "📱 USB debugging: Enable Developer Options → USB debugging, "
-                        "connect the phone, then tap Allow. GeloTech automatically "
-                        "prepares app icons for new devices."
+                        "📱 USB debugging:\n"
+                        "Enable Developer Options → USB debugging, connect the phone, then tap Allow.\n"
+                        "GeloTech automatically prepares app icons for new devices."
                     ),
+                    justify="left",
+                    anchor="w",
                     wraplength=wraplength,
                 )
             if howto is not None:
                 howto.configure(
                     text=(
-                        "💡 How to use: Refresh loads user apps. Load Apps chooses "
-                        "All / User / System / Disabled. Advanced Filter uses the "
-                        "database. Scan Bloatware filters by UAD level. Right-click "
-                        "a row for app actions."
+                        "💡 How to use:\n"
+                        "Refresh loads user apps. Load Apps chooses All / User / System / Disabled.\n"
+                        "Advanced Filter uses the database. Scan Bloatware filters by UAD level.\n"
+                        "Right-click a row for app actions."
                     ),
+                    justify="left",
+                    anchor="w",
                     wraplength=wraplength,
                 )
         except Exception:
