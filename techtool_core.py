@@ -6,7 +6,7 @@ These remain mixin methods of GeloTechTool (resolved via the normal MRO).
 import customtkinter as ctk
 import os
 from tkinter import ttk
-from tech_common import (THEME, COLOR_SWAP, CANONICAL_DARK, get_bundle_dir)
+from tech_common import (THEME, THEMES, COLOR_SWAP, CANONICAL_DARK, get_bundle_dir)
 
 
 class TechToolCore:
