@@ -93,6 +93,31 @@ modules into smaller files (~35 KB each) so the obfuscated build clears the
 limit — NOT to fall back to `--standard`. Keep source modules at or below
 ~35 KB so PyArmor can obfuscate them.
 
+### PyArmor Trial size gate
+
+The repository currently uses the PyArmor Trial edition. Treat the approximate
+**35 KB per-source-file limit as a hard release constraint**.
+
+- **32 KB or more:** review the module for obvious extraction opportunities before adding more code.
+- **35 KB or more:** do not attempt a production release build. Split the module into cohesive focused modules first.
+- Keep the limit enforced by the release tooling rather than relying only on agent memory or documentation.
+- When a module exceeds the threshold, report the exact file and size, split responsibilities cleanly, update PyArmor module lists and PyInstaller hidden imports, then rebuild.
+- A PyArmor failure caused by the Trial size/license limit is a **release blocker**, not permission to use `--standard`.
+
+The expected failure mode is:
+
+```text
+source module exceeds configured PyArmor Trial threshold
+        -> release is stopped
+        -> exact oversized file + byte size are reported
+        -> module is split into focused files
+        -> PyArmor is rerun
+        -> obfuscated EXE is built and verified
+```
+
+A successful PyInstaller build without successful PyArmor obfuscation is **not**
+a production build.
+
 ## Documentation authority
 
 - `AGENTS.md` defines mandatory agent behavior.
