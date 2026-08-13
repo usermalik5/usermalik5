@@ -33,14 +33,7 @@ class NavigationController:
             pass
 
     def _refresh_cleaner_readability(self):
-        """Normalize App Cleaner table/instructions after lazy creation.
-
-        The Cleaner page is built after authentication, so the initial theme
-        pass cannot style these widgets. Keep the presentation here lightweight
-        and idempotent: headings make the four data fields unambiguous, the
-        instruction banners stay short enough to wrap cleanly, and columns use
-        the real Treeview width rather than forcing the window wider.
-        """
+        """Normalize App Cleaner table/instructions after page construction."""
         try:
             tree = getattr(self.app, "sec_tree", None)
             if tree is not None:
@@ -66,6 +59,7 @@ class NavigationController:
             usb = getattr(self.app, "_sec_banner_usb", None)
             howto = getattr(self.app, "_sec_banner_howto", None)
             header = getattr(self.app, "_sec_banner_header", None)
+            wraplength = max(220, (header.winfo_width() - 28) if header is not None else 900)
             if usb is not None:
                 usb.configure(
                     text=(
@@ -73,7 +67,7 @@ class NavigationController:
                         "connect the phone, then tap Allow. GeloTech automatically "
                         "prepares app icons for new devices."
                     ),
-                    wraplength=max(220, (header.winfo_width() - 28) if header is not None else 900),
+                    wraplength=wraplength,
                 )
             if howto is not None:
                 howto.configure(
@@ -83,7 +77,7 @@ class NavigationController:
                         "database. Scan Bloatware filters by UAD level. Right-click "
                         "a row for app actions."
                     ),
-                    wraplength=max(220, (header.winfo_width() - 28) if header is not None else 900),
+                    wraplength=wraplength,
                 )
         except Exception:
             pass
@@ -124,7 +118,7 @@ class NavigationController:
 
         if created:
             self._refresh_page_theme()
-            if name == "Adware Remover":
+            if name in ("Dashboard", "Adware Remover"):
                 self._refresh_cleaner_readability()
 
         if name == self.DEFAULT_PAGE:
