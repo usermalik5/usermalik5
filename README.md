@@ -126,6 +126,42 @@ obfuscated PyInstaller build with verification gates:
 python scripts/release.py
 ```
 
+### PyArmor Trial size constraint
+
+GeloTech uses the **PyArmor Trial** edition in the current build environment.
+Treat the approximate **35 KB per-source-file limit as a hard production-build
+constraint**.
+
+- **32 KB or more:** review the module before adding more code; extract a
+  cohesive responsibility when practical.
+- **35 KB or more:** stop the production build and split the module into
+  focused files before running PyArmor.
+- Keep the size rule enforced in release tooling; documentation alone is not
+  sufficient.
+- If PyArmor reports a size/license error, the correct fix is modularization,
+  not a non-obfuscated fallback.
+- Update `scripts/release.py`'s `MODULES` list and
+  `GeloTechTool_obf.spec` hidden imports whenever a module is split.
+
+Expected release behavior:
+
+```text
+oversized source module
+    ↓
+release blocked
+    ↓
+exact file + byte size reported
+    ↓
+split cohesive functionality
+    ↓
+PyArmor obfuscation succeeds
+    ↓
+PyInstaller obfuscated EXE
+```
+
+A PyInstaller build that succeeds without successful PyArmor obfuscation is a
+debug build only and must not be treated as a production artifact.
+
 Manual build / debugging only — the release helper runs the same PyArmor +
 PyInstaller sequence below; run these by hand only when debugging the build
 itself (obfuscation applies to all modules and all release exes):
@@ -153,8 +189,8 @@ embedded constants and can never be redirected by settings or by the repo's
 `secret.json`. Every login does three verified things in one go:
 
 1. Fetches `secret.json` (live accounts: email + PBKDF2 hash) from GitHub —
-   credentials are never written to the user's PC. Entering your email in
-   the first step self-registers / resets your password: the app generates a
+   credentials are never written to the user's PC. Entering your email in the
+   first step self-registers / resets your password: the app generates a
    password, writes the PBKDF2 hash to the repo's `secret.json` (via the
    embedded write token), and emails it to you.
 2. Pulls the latest `gelotech_database_v3.json`, verifies it, caches it for
@@ -187,8 +223,8 @@ To publish a data update:
    signature and hashes verify.
 
 To change a user's password, update the PBKDF2 hash in `secret.json`
-(format `iters$salt$digest`, 100000 iterations) and run
-`python bump_version.py sign`. Never use the legacy plain-SHA-256 format.
+(format `iters$salt$digest`, 100000 iterations) and run `python bump_version.py sign`.
+Never use the legacy plain-SHA-256 format.
 
 To ship a code change, edit the Python files, rebuild the exe (above), and
 redistribute the new exe — code only changes when a new exe is built.
@@ -219,7 +255,6 @@ redistribute the new exe — code only changes when a new exe is built.
 records: removal levels (`Recommended` / `Advanced` / `Expert` / `Unsafe`),
 UAD warnings, GeloTech notes, and the `debloated` / exclusion flags. If the
 file is missing it falls back to `gelotech_database_v2.json`.
-
 
 ## Fast development/release commands
 
