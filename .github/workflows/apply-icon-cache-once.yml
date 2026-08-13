@@ -19,6 +19,37 @@ jobs:
       - name: Apply source migration
         run: python scripts/apply_icon_cache_fix.py
 
+      - name: Correct automatic device hook
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('techtool.py')
+          s = p.read_text(encoding='utf-8')
+          start = s.index('    def _auto_prepare_new_device_icons(self, devices):')
+          end = s.index('    def _toggle_theme(self):', start)
+          method = '''    def _auto_prepare_new_device_icons(self, devices):
+              """Prepare icons for a newly observed device; persistent cache verification happens in the icon worker."""
+              try:
+                  if len(devices) != 1:
+                      if len(devices) > 1:
+                          self.log_message("[GeloTech] Multiple ADB devices connected; automatic icon sync waits for one device.")
+                      return
+                  serial = devices[0]
+                  if serial in self._icon_sync_seen_serials:
+                      return
+                  self._icon_sync_seen_serials.add(serial)
+                  self._sec_icon_cache = {}
+                  self._sec_tree_icon_cache = {}
+                  self._app_labels = None
+                  self.log_message(f"[GeloTech] Device ready: {serial}. Checking saved icon cache...")
+                  self.after(800, lambda: self.action_sec_show_icons(automatic=True))
+              except Exception as exc:
+                  self.log_message(f"[GeloTech] Automatic icon preparation skipped: {exc}")
+
+'''
+          p.write_text(s[:start] + method + s[end:], encoding='utf-8')
+          PY
+
       - name: Verify source
         run: |
           python -m compileall -q techtool.py tech_ui.py tech_secops4.py
@@ -39,6 +70,8 @@ jobs:
           missing = [marker for marker in required if marker not in combined]
           if missing:
               raise SystemExit(f'Missing expected source markers: {missing}')
+          assert 'Device ready:' in app
+          assert 'Installing APKIconHelper on device...' not in sec4
           print('Source verification passed.')
           PY
 
