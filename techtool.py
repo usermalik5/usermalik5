@@ -239,16 +239,58 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
     # HINT BANNER (bottom of window, grabs attention)
     # ----------------------------------------------------
     def _build_hint_banner(self):
-        self._hint_banner = ctk.CTkFrame(self, fg_color="#3a0d10", corner_radius=0, height=30)
+        self._hint_banner = ctk.CTkFrame(self, fg_color="#3a0d10", corner_radius=0)
         self._hint_banner.grid(row=1, column=0, columnspan=3, sticky="ew")
         self._hint_banner.grid_columnconfigure(0, weight=1)
-        self._hint_banner.grid_propagate(False)
         self._hint_label = ctk.CTkLabel(
             self._hint_banner, text="", anchor="w", justify="left",
             font=ctk.CTkFont(size=10, weight="bold"), text_color="#ff4d4d")
         self._hint_label.grid(row=0, column=0, sticky="ew", padx=14, pady=5)
+        self._hint_banner.bind("<Configure>", self._hint_banner_wraplength)
         self._hint_banner.grid_remove()
         self._hint_timer = None
+        if not getattr(self, "_root_configure_bound", False):
+            self._root_configure_bound = True
+            self.bind("<Configure>", self._on_root_configure)
+
+    def _hint_banner_wraplength(self, _event=None):
+        try:
+            banner = getattr(self, "_hint_banner", None)
+            label = getattr(self, "_hint_label", None)
+            if banner is None or label is None:
+                return
+            width = banner.winfo_width()
+            if width < 10:
+                return
+            label.configure(wraplength=max(80, width - 28))
+        except Exception:
+            pass
+
+    def _on_root_configure(self, _event=None):
+        """Debounced: react to window resize / maximize / monitor change by
+        re-anchoring the phone-screen console and re-laying out the package
+        list, instead of relying on one-time geometry."""
+        if getattr(self, "_root_configure_pending", False):
+            return
+        self._root_configure_pending = True
+        try:
+            self.after(180, self._on_root_configure_done)
+        except Exception:
+            self._root_configure_pending = False
+
+    def _on_root_configure_done(self):
+        self._root_configure_pending = False
+        try:
+            clip = getattr(self, "_dash_clip", None)
+            if clip is not None:
+                self._clip_dash_console(*clip)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_sec_relayout_columns"):
+                self._sec_relayout_columns()
+        except Exception:
+            pass
 
     def show_hint(self, text):
         try:
@@ -256,6 +298,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
                 return
             self._hint_label.configure(text="\u26a0  " + text)
             self._hint_banner.grid()
+            self.after(0, self._hint_banner_wraplength)
             if self._hint_timer:
                 self.after_cancel(self._hint_timer)
             self._hint_timer = self.after(6000, self._hide_hint)
@@ -582,11 +625,15 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
                     "uninstall_excl": ("#2a1212", "#ff8f8f"), "clean_excl": ("#2a2010", "#ffd08a"),
                     "normal": ("#0f2017", "#e6edf3"), "normal_alt": ("#0c1b13", "#e6edf3"),
                 }
-            for tag, (bg, fg) in tags.items():
-                try:
-                    self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
-                except Exception:
-                    pass
+                for tag, (bg, fg) in tags.items():
+                    try:
+                        self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            self._fix_button_text_colors(mode)
         except Exception:
             pass
 
@@ -613,6 +660,68 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
                         w.configure(**{attr: swap[v]})
                     except Exception:
                         pass
+
+    @staticmethod
+    def _color_luminance(hexc):
+        """Approximate sRGB relative luminance (0=black .. 1=white)."""
+        try:
+            h = hexc.lstrip("#")
+            if len(h) == 3:
+                h = "".join(c * 2 for c in h)
+            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+            def _f(c):
+                c /= 255.0
+                return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+            return 0.2126 * _f(r) + 0.7152 * _f(g) + 0.0722 * _f(b)
+        except Exception:
+            return 0.0
+
+    def _fix_button_text_colors(self, mode):
+        """CTk's *default* button text_color is the same light gray (#DCE4EE)
+        in BOTH appearance modes. After the theme walker swaps a button's
+        background to a light color for Light mode, that light text becomes
+        faint/invisible on the light background -- so active controls look
+        disabled. Force a contrast-aware text color on every CTkButton based
+        on its (already swapped) background. Dark-only surfaces (log console,
+        phone screen) keep light text because their background stays dark."""
+        try:
+            from customtkinter import CTkButton
+        except Exception:
+            return
+        light_text = THEME.get("text", "#e6edf3")
+        dark_text = "#1b2530" if mode == "light" else THEME.get("text", "#e6edf3")
+        if mode == "dark":
+            text_for = lambda fg: light_text
+        else:
+            text_for = lambda fg: dark_text if self._color_luminance(fg) > 0.45 else light_text
+        seen = set()
+        stack = list(self.winfo_children())
+        while stack:
+            w = stack.pop()
+            try:
+                stack.extend(w.winfo_children())
+            except Exception:
+                pass
+            if not isinstance(w, CTkButton):
+                continue
+            wid = getattr(w, "winfo_id", None)
+            if wid is not None:
+                wid = wid()
+                if wid in seen:
+                    continue
+                seen.add(wid)
+            try:
+                fg = w.cget("fg_color")
+            except Exception:
+                fg = None
+            if isinstance(fg, (tuple, list)):
+                fg = fg[0] if fg else None
+            try:
+                w.configure(text_color=text_for(fg) if fg else light_text)
+            except Exception:
+                pass
 
     def on_close(self):
         self.adb_monitor_enabled = False

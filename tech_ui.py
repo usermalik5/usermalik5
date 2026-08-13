@@ -98,13 +98,17 @@ class UiMixin:
         header.grid(row=0, column=0, padx=15, pady=(12, 6), sticky="ew")
         header.grid_columnconfigure(0, weight=1)
         header.grid_rowconfigure(1, weight=1)
+        self._sec_banner_header = header
+        header.bind("<Configure>", self._sec_banner_wraplength)
         self._build_log_panel(header, fixed_height=150)
 
-        ctk.CTkLabel(header, text="\U0001f4f1 USB debugging: Settings \u2192 About Phone \u2192 tap Build Number 7\u00d7 \u2192 Developer Options \u2192 USB debugging ON \u2192 connect cable \u2192 tap \u201cAllow\u201d (tick Always allow) \u2192 Refresh",
-                     font=ctk.CTkFont(size=10), text_color="#aeb8c2", anchor="w", justify="left", wraplength=1150).grid(row=2, column=0, columnspan=2, padx=14, pady=(0, 2), sticky="w")
+        self._sec_banner_usb = ctk.CTkLabel(header, text="\U0001f4f1 USB debugging: Settings \u2192 About Phone \u2192 tap Build Number 7\u00d7 \u2192 Developer Options \u2192 USB debugging ON \u2192 connect cable \u2192 tap \u201cAllow\u201d (tick Always allow) \u2192 Refresh",
+                     font=ctk.CTkFont(size=10), text_color="#aeb8c2", anchor="w", justify="left")
+        self._sec_banner_usb.grid(row=2, column=0, columnspan=2, padx=14, pady=(0, 2), sticky="w")
 
-        ctk.CTkLabel(header, text="\U0001f4a1 How to use: press Refresh to load user apps. Load Apps \u25be loads All / User / System / Disabled lists \u2014 Advanced Filter loads apps from the database. Scan Bloatware \u25be picks a UAD level (Recommended / Advanced / Expert / Unsafe), checks all matching apps and offers actions. Restore/Backup restores apps you removed. Right-click any row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
-                     font=ctk.CTkFont(size=10), text_color="#58a6ff", anchor="w", justify="left", wraplength=1150).grid(row=3, column=0, columnspan=2, padx=14, pady=(0, 8), sticky="w")
+        self._sec_banner_howto = ctk.CTkLabel(header, text="\U0001f4a1 How to use: press Refresh to load user apps. Load Apps \u25be loads All / User / System / Disabled lists \u2014 Advanced Filter loads apps from the database. Scan Bloatware \u25be picks a UAD level (Recommended / Advanced / Expert / Unsafe), checks all matching apps and offers actions. Restore/Backup restores apps you removed. Right-click any row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
+                     font=ctk.CTkFont(size=10), text_color="#58a6ff", anchor="w", justify="left")
+        self._sec_banner_howto.grid(row=3, column=0, columnspan=2, padx=14, pady=(0, 8), sticky="w")
 
         # Row 1 - Status bar: status | scan anim | threats counter | progress
         stats = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
@@ -203,9 +207,12 @@ class UiMixin:
         self.sec_vsb.grid(row=0, column=1, sticky="ns")
         self.sec_tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
         self.sec_tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
-        self.sec_tree.column("name", width=280, minwidth=160, stretch=True, anchor="w")
-        self.sec_tree.column("badges", width=150, minwidth=120, stretch=False, anchor="w")
-        self.sec_tree.column("desc", width=300, minwidth=140, stretch=True, anchor="w")
+        self.sec_tree.column("name", width=220, minwidth=120, stretch=True, anchor="w")
+        self.sec_tree.column("badges", width=150, minwidth=100, stretch=False, anchor="w")
+        self.sec_tree.column("desc", width=240, minwidth=120, stretch=True, anchor="w")
+        self._sec_relayout_pending = False
+        self.sec_tree.bind("<Configure>", self._sec_on_tree_configure)
+        self.after(60, self._sec_relayout_columns)
 
         self.sec_tree.tag_configure("threat", background="#2a1015", foreground="#ff6b6b")
         self.sec_tree.tag_configure("both_excl", background="#241a33", foreground="#d2a8ff")
@@ -244,6 +251,63 @@ class UiMixin:
         self._sec_anim_running = False
         self.after(300, self._sec_load_device_info)
         self.after(400, self.action_sec_refresh)
+
+    # ----------------------------------------------------
+    # RESPONSIVE HELPERS (App Cleaner / package list)
+    # ----------------------------------------------------
+    def _sec_on_tree_configure(self, _event=None):
+        """Debounced trigger so column recalculation happens once per resize."""
+        if getattr(self, "_sec_relayout_pending", False):
+            return
+        self._sec_relayout_pending = True
+        try:
+            self.after(120, self._sec_relayout_columns)
+        except Exception:
+            self._sec_relayout_pending = False
+
+    def _sec_relayout_columns(self):
+        """Size the package-list columns to the actual tree width so they
+        scale with the panel instead of overflowing / clipping at fixed px."""
+        self._sec_relayout_pending = False
+        try:
+            tree = self.sec_tree
+            w = tree.winfo_width()
+            if w < 10:
+                return
+            reserved = 42 + 32            # tree check-col + checkbox col
+            badges = 150
+            avail = w - reserved - badges - 6
+            if avail < 260:
+                avail = 260
+            name_w = max(120, int(avail * 0.45))
+            desc_w = max(120, avail - name_w)
+            tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
+            tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
+            tree.column("badges", width=badges, minwidth=100, stretch=False, anchor="w")
+            tree.column("name", width=name_w, minwidth=120, stretch=True, anchor="w")
+            tree.column("desc", width=desc_w, minwidth=120, stretch=True, anchor="w")
+        except Exception:
+            pass
+
+    def _sec_banner_wraplength(self, _event=None):
+        """Wrap the instruction banners to the panel width so they never run
+        off the edge of the (often narrow) App Cleaner column."""
+        try:
+            header = getattr(self, "_sec_banner_header", None)
+            if header is None:
+                return
+            width = header.winfo_width()
+            if width < 10:
+                return
+            wl = max(120, width - 28)
+            usb = getattr(self, "_sec_banner_usb", None)
+            howto = getattr(self, "_sec_banner_howto", None)
+            if usb is not None:
+                usb.configure(wraplength=wl)
+            if howto is not None:
+                howto.configure(wraplength=wl)
+        except Exception:
+            pass
 
     # ----------------------------------------------------
     # DNS TAB UI

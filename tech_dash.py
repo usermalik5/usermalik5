@@ -97,6 +97,7 @@ class DashboardMixin:
         top_inset = int(SCREEN_TOP_INSET_NATIVE * s)
         console_h = ch - top_inset
         self._dash_log_rect = (cx, cy + top_inset, cw, console_h)
+        self._dash_clip = (cw, console_h, int(PHONE_SCREEN_RADIUS * s))
         self._build_log_panel(self.dash_phone,
                               place_rect=self._dash_log_rect,
                               log_font_size=max(6, round(cw / 24)), minimal=True)
