@@ -89,6 +89,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
         self.adb_device_scan_running = False
         self.known_adb_devices = None
         self.adb_monitor_enabled = True
+        self._icon_sync_seen_serials = set()
         self._fonts = {
             "row_name": ctk.CTkFont(size=11, weight="bold"),
             "row_badge": ctk.CTkFont(size=9, weight="bold"),
@@ -580,6 +581,29 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin, SecOpsMixin, B
         if status != self.known_adb_devices:
             self.known_adb_devices = status
             self.log_message(f"[ADB] {status}")
+            if devices:
+                self._auto_prepare_new_device_icons(devices)
+            else:
+                self._icon_sync_seen_serials.clear()
+
+    def _auto_prepare_new_device_icons(self, devices):
+        """Automatically prepare icons when a new single authorized device is detected."""
+        try:
+            if len(devices) != 1:
+                if len(devices) > 1:
+                    self.log_message("[GeloTech] Multiple ADB devices connected; automatic icon sync waits until one device remains.")
+                return
+            serial = devices[0]
+            if serial in self._icon_sync_seen_serials:
+                return
+            self._icon_sync_seen_serials.add(serial)
+            self._sec_icon_cache = {}
+            self._sec_tree_icon_cache = {}
+            self._app_labels = None
+            self.log_message(f"[GeloTech] New device detected: {serial}. Preparing app icons automatically...")
+            self.after(200, self.action_sec_show_icons)
+        except Exception as exc:
+            self.log_message(f"[GeloTech] Automatic icon preparation skipped: {exc}")
 
     def _toggle_theme(self):
         mode = "light" if self._theme_mode != "light" else "dark"

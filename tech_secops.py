@@ -155,7 +155,7 @@ class SecOpsMixin:
     def _sec_create_row(self, entry, index):
         label = entry.get("label", entry["id"])
         pkg = entry["id"]
-        display = f"{label}  \u2014  {pkg}"
+        display = label
         desc = (entry.get("description") or "").strip().replace("\n", " ")
         if len(desc) > 110:
             desc = desc[:110].rsplit(" ", 1)[0] + "..."
@@ -178,7 +178,7 @@ class SecOpsMixin:
         var = self.sec_check_vars.get(pkg)
         glyph = "\u2611" if (var is not None and var.get()) else "\u2610"
         self.sec_tree.insert("", "end", iid=f"row{index}", image=icon,
-                             values=(glyph, display, "  ".join(badges), desc),
+                             values=(glyph, display, pkg, "  ".join(badges), desc),
                              tags=(self._sec_tree_row_tag(entry, index),))
 
     def _sec_tree_pkg(self, row):

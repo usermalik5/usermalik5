@@ -199,7 +199,7 @@ class UiMixin:
         style.configure("AppList.Vertical.TScrollbar", background="#21262d", troughcolor="#0d1117",
                         arrowcolor="#8b949e", bordercolor="#0d1117")
 
-        self.sec_tree = ttk.Treeview(self.sec_list_frame, columns=("chk", "name", "badges", "desc"),
+        self.sec_tree = ttk.Treeview(self.sec_list_frame, columns=("chk", "name", "package", "badges", "desc"),
                                      show="tree", selectmode="browse", style="AppList.Treeview")
         self.sec_tree.grid(row=0, column=0, sticky="nsew")
         self.sec_tree.configure(yscrollcommand=self._sec_tree_scroll_set)
@@ -207,9 +207,10 @@ class UiMixin:
         self.sec_vsb.grid(row=0, column=1, sticky="ns")
         self.sec_tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
         self.sec_tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
-        self.sec_tree.column("name", width=220, minwidth=120, stretch=True, anchor="w")
-        self.sec_tree.column("badges", width=150, minwidth=100, stretch=False, anchor="w")
-        self.sec_tree.column("desc", width=240, minwidth=120, stretch=True, anchor="w")
+        self.sec_tree.column("name", width=220, minwidth=150, stretch=True, anchor="w")
+        self.sec_tree.column("package", width=250, minwidth=180, stretch=True, anchor="w")
+        self.sec_tree.column("badges", width=150, minwidth=110, stretch=False, anchor="w")
+        self.sec_tree.column("desc", width=260, minwidth=160, stretch=True, anchor="w")
         self._sec_relayout_pending = False
         self.sec_tree.bind("<Configure>", self._sec_on_tree_configure)
         self.after(60, self._sec_relayout_columns)
@@ -274,18 +275,20 @@ class UiMixin:
             w = tree.winfo_width()
             if w < 10:
                 return
-            reserved = 42 + 32            # tree check-col + checkbox col
+            reserved = 42 + 32            # tree icon + checkbox columns
             badges = 150
-            avail = w - reserved - badges - 6
-            if avail < 260:
-                avail = 260
-            name_w = max(120, int(avail * 0.45))
-            desc_w = max(120, avail - name_w)
+            avail = w - reserved - badges - 8
+            if avail < 420:
+                avail = 420
+            name_w = max(150, int(avail * 0.28))
+            package_w = max(180, int(avail * 0.30))
+            desc_w = max(160, avail - name_w - package_w)
             tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
             tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
-            tree.column("badges", width=badges, minwidth=100, stretch=False, anchor="w")
-            tree.column("name", width=name_w, minwidth=120, stretch=True, anchor="w")
-            tree.column("desc", width=desc_w, minwidth=120, stretch=True, anchor="w")
+            tree.column("name", width=name_w, minwidth=150, stretch=True, anchor="w")
+            tree.column("package", width=package_w, minwidth=180, stretch=True, anchor="w")
+            tree.column("badges", width=badges, minwidth=110, stretch=False, anchor="w")
+            tree.column("desc", width=desc_w, minwidth=160, stretch=True, anchor="w")
         except Exception:
             pass
 
