@@ -153,16 +153,55 @@ DATA update (no new exe needed):
 CODE update (needs new exe):
   edit *.py
   → update README.md + PROCESS_GUIDE.md for major changes
-  → pyarmor gen -O build/pyarmor_out techtool.py tech_common.py tech_ui.py
-    tech_settings.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py
-    tech_secops3.py tech_secops2.py tech_secops4.py tech_bloatware.py tech_dash.py tech_vtop.py
-    tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py
-    tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py
-    tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py
-    tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
-  → python -m PyInstaller GeloTechTool_obf.spec --noconfirm
+  → check PyArmor Trial module sizes before release
+       → 32 KB+: review/extract cohesive responsibilities
+       → 35 KB+: stop and split the module before obfuscation
+  → python scripts/release.py
+       → preflight + compile + tests
+       → PyArmor obfuscation of every required module
+       → verify obfuscated outputs exist
+       → PyInstaller GeloTechTool_obf.spec
+       → verify the packaged EXE contains required obfuscated modules
   → dist\GeloTechTool.exe
 ```
+
+### PyArmor Trial release constraint
+
+The current development environment uses the **PyArmor Trial** edition with an
+approximate **35 KB per-source-file limit**. This is a hard production-build
+constraint.
+
+- Treat **32 KB** as a warning threshold: review the module before adding more
+  code and extract a cohesive responsibility when practical.
+- Treat **35 KB** as a hard stop: split the module before attempting a
+  production obfuscated build.
+- `scripts/release.py` is the authoritative build entry point. It should fail
+  early with the exact oversized filename and byte size rather than relying on
+  PyArmor to fail later with a generic license/size error.
+- A PyArmor Trial limit failure is a release blocker. Never use the standard
+  non-obfuscated build as a workaround unless the user explicitly requests a
+  debug build.
+- After splitting a module, update the PyArmor `MODULES` list and the
+  `GeloTechTool_obf.spec` hidden imports, then rerun the full release checks.
+
+The supported production path is therefore:
+
+```text
+source modules
+   ↓
+size gate (≈35 KB hard limit)
+   ↓
+PyArmor obfuscation
+   ↓
+obfuscated module verification
+   ↓
+PyInstaller obfuscated spec
+   ↓
+EXE verification
+```
+
+A PyInstaller EXE built without successful PyArmor obfuscation is a debug
+artifact, not a production release.
 
 The release spec includes `runtime_hook_gelotech.py`, which explicitly loads
 `sitecustomize.py` for packaged compatibility behavior (mirror/restore and
