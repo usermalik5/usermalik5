@@ -23,16 +23,83 @@ class NavigationController:
         can = getattr(self.app, "_can", None)
         return True if can is None else bool(can(perm))
 
+    def _refresh_page_theme(self):
+        """Apply shared contrast to widgets created by a lazy page factory."""
+        try:
+            fix = getattr(self.app, "_fix_button_text_colors", None)
+            if callable(fix):
+                fix(getattr(self.app, "_theme_mode", "dark"))
+        except Exception:
+            pass
+
+    def _refresh_cleaner_readability(self):
+        """Normalize App Cleaner table/instructions after lazy creation.
+
+        The Cleaner page is built after authentication, so the initial theme
+        pass cannot style these widgets. Keep the presentation here lightweight
+        and idempotent: headings make the four data fields unambiguous, the
+        instruction banners stay short enough to wrap cleanly, and columns use
+        the real Treeview width rather than forcing the window wider.
+        """
+        try:
+            tree = getattr(self.app, "sec_tree", None)
+            if tree is not None:
+                try:
+                    tree.configure(show="tree headings")
+                except Exception:
+                    pass
+                for col, heading in (
+                    ("name", "APP NAME"),
+                    ("package", "PACKAGE ID"),
+                    ("badges", "UAD LEVEL"),
+                    ("desc", "DESCRIPTION"),
+                ):
+                    try:
+                        tree.heading(col, text=heading, anchor="w")
+                    except Exception:
+                        pass
+                try:
+                    self.app._sec_relayout_columns()
+                except Exception:
+                    pass
+
+            usb = getattr(self.app, "_sec_banner_usb", None)
+            howto = getattr(self.app, "_sec_banner_howto", None)
+            header = getattr(self.app, "_sec_banner_header", None)
+            if usb is not None:
+                usb.configure(
+                    text=(
+                        "📱 USB debugging: Enable Developer Options → USB debugging, "
+                        "connect the phone, then tap Allow. GeloTech automatically "
+                        "prepares app icons for new devices."
+                    ),
+                    wraplength=max(220, (header.winfo_width() - 28) if header is not None else 900),
+                )
+            if howto is not None:
+                howto.configure(
+                    text=(
+                        "💡 How to use: Refresh loads user apps. Load Apps chooses "
+                        "All / User / System / Disabled. Advanced Filter uses the "
+                        "database. Scan Bloatware filters by UAD level. Right-click "
+                        "a row for app actions."
+                    ),
+                    wraplength=max(220, (header.winfo_width() - 28) if header is not None else 900),
+                )
+        except Exception:
+            pass
+
     def show(self, name):
         """Show a page, creating it lazily when a factory is registered."""
         if not self._allowed(name):
             return False
 
         pages = getattr(self.app, "pages", {})
+        created = False
         if name not in pages:
             factory = getattr(self.app, "_page_factories", {}).get(name)
             if factory is not None:
                 factory()
+                created = True
         if name not in pages:
             return False
 
@@ -54,6 +121,11 @@ class NavigationController:
                 )
             except Exception:
                 pass
+
+        if created:
+            self._refresh_page_theme()
+            if name == "Adware Remover":
+                self._refresh_cleaner_readability()
 
         if name == self.DEFAULT_PAGE:
             try:
