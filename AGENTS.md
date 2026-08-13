@@ -76,6 +76,23 @@ python scripts/release.py
 
 The release helper validates the source tree, runs tests, regenerates PyArmor output, and builds the supported obfuscated EXE. It does not commit, tag, push, or publish releases.
 
+### Obfuscated build is mandatory for production
+
+The **obfuscated** PyInstaller build (`GeloTechTool_obf.spec`, produced by
+`python scripts/release.py` with no `--standard` flag) is the ONLY supported
+production build. It is required because:
+
+- This is production-level software; the released EXE must be PyArmor-obfuscated.
+- The non-obfuscated `--standard` build exists ONLY for local debugging and
+  must never be committed, tagged, pushed, or distributed.
+
+Rule: **never run, rely on, or publish the `--standard` (non-obfuscated) build
+unless the user explicitly asks for a debug build.** If PyArmor reports
+`out of license` or a size/limit error, the fix is to split oversized source
+modules into smaller files (~35 KB each) so the obfuscated build clears the
+limit — NOT to fall back to `--standard`. Keep source modules at or below
+~35 KB so PyArmor can obfuscate them.
+
 ## Documentation authority
 
 - `AGENTS.md` defines mandatory agent behavior.
