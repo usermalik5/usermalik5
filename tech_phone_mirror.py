@@ -389,13 +389,17 @@ class ScrcpyWindowManager(object):
         log = log or (lambda *a, **k: None)
         # scrcpy 3.x removed the --adb CLI option: the adb executable path is
         # passed via the ADB environment variable (see `scrcpy --help`).
+        # scrcpy 3.x defaults to --keyboard=uhid, which requires the device's
+        # "Physical keyboard" setting to be enabled; force SDK injection so
+        # keyboard input works out of the box like scrcpy 2.x.
         cmd = [exe,
                f"--window-title={MIRROR_WINDOW_TITLE}",
                f"--window-x={int(x)}", f"--window-y={int(y)}",
                f"--window-width={int(w)}", f"--window-height={int(h)}",
                "--window-borderless",
                "--always-on-top",
-               "--no-audio", "--max-size=1280", "--no-power-on"]
+               "--no-audio", "--max-size=1280", "--no-power-on",
+               "--keyboard=sdk"]
         env = dict(os.environ)
         if adb:
             env["ADB"] = adb
