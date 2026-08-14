@@ -86,7 +86,7 @@ class SettingsLoginMixin:
 
         def show_phrase_row(visible):
             if visible:
-                phrase_row.pack(fill="x", padx=18, pady=(12, 0))
+                phrase_row.pack(fill="x", padx=18, pady=(12, 0), before=login_btn)
             else:
                 phrase_row.pack_forget()
             phrase_entry.delete(0, "end")
@@ -248,7 +248,8 @@ class SettingsLoginMixin:
                 return
             phrase = phrase_entry.get() if name == "admin" else None
             if name == "admin" and not phrase:
-                error_label.configure(text="\u26a0 Please enter the admin secret phrase.", text_color="#ff6b6b")
+                on_identity_changed()
+                error_label.configure(text="\u26a0 Please enter the admin secret phrase in the field above the Sign in button.", text_color="#ff6b6b")
                 return
             login_btn.configure(state="disabled", text="Signing in...")
             self.after(0, lambda: self._purge_session_database())
@@ -264,6 +265,8 @@ class SettingsLoginMixin:
         password_entry.bind("<Return>", do_login)
         login_email_entry.bind("<Return>", do_login)
         login_email_entry.bind("<KeyRelease>", on_identity_changed)
+        login_email_entry.bind("<<Paste>>", on_identity_changed)
+        login_email_entry.bind("<FocusIn>", on_identity_changed)
         forgot_btn.configure(command=lambda: show_email_step("reset", login_email_entry.get().strip()))
         create_btn.configure(command=lambda: show_email_step("create"))
 
