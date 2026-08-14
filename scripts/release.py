@@ -34,6 +34,7 @@ def preflight():
     run(sys.executable, str(ROOT / "scripts" / "agent_preflight.py"))
     run(sys.executable, "-m", "compileall", "-q", ".")
     run(sys.executable, "-m", "pytest", "-q")
+    _verify_security_doc()
 
 
 def _verify_pyarmor_module(name):
@@ -70,6 +71,25 @@ def _verify_source_imports():
     if defs != 1:
         raise SystemExit(f"Expected exactly 1 _sec_action_recommendation definition, found {defs}.")
     print("[verify] techtool.py imports tech_bloatware and exactly one _sec_action_recommendation exists: OK")
+
+
+def _verify_security_doc():
+    """SECURITY.md must describe the current auth model (the Cloudflare auth
+    proxy Worker) or it silently drifts back to the obsolete embedded-token
+    wording. Block the release if the markers are missing or stale wording
+    reappears."""
+    path = ROOT / "SECURITY.md"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    required = ["auth proxy Worker", "wrangler secret put", "AUTH_WORKER_URL"]
+    missing = [m for m in required if m not in text]
+    stale = ["embedded GitHub update credentials", "embedded SMTP sender credential"]
+    found_stale = [s for s in stale if s in text]
+    if missing or found_stale:
+        raise SystemExit(
+            "SECURITY.md does not match the current security model (auth proxy Worker, "
+            "Cloudflare secrets). Update its 'Current Security Model' section before releasing."
+        )
+    print("[verify] SECURITY.md matches the current auth proxy security model: OK")
 
 
 def build(obfuscated=True):

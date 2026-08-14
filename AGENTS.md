@@ -163,6 +163,12 @@ Every time a new release is built, tagged, or published (and on every
    also have access to `usermalik5/usermalik5` with **Contents: Read and
    write** (covers Releases). If the public-repo upload fails with HTTP 403,
    ask the user to add that repository access to the token before retrying.
+7. Verify `SECURITY.md` still describes the current security model — the
+   release script blocks the build if it drifts (it requires the
+   `auth proxy Worker` / `wrangler secret put` / `AUTH_WORKER_URL` markers
+   and rejects the obsolete embedded write-token/SMTP wording). If the
+   auth/security model changed since the last release, update its "Current
+   Security Model" section in the same release.
 
 A release where `README.md` still shows an older `(vX.Y.Z)` label is
 incomplete — treat the stale label as a release defect and fix it in the same

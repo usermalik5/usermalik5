@@ -161,6 +161,8 @@ AUTH PROXY deploy (Worker in worker/, one-time):
 CODE update (needs new exe):
   edit *.py
   → update README.md + PROCESS_GUIDE.md for major changes
+  → verify SECURITY.md wording matches the current security model
+       (release.py enforces this in preflight — cannot be skipped)
   → check PyArmor Trial module sizes before release
        → 32 KB+: review/extract cohesive responsibilities
        → 35 KB+: stop and split the module before obfuscation
