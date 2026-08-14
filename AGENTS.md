@@ -27,6 +27,27 @@
 
 Security work is intentionally out of scope unless the task explicitly requests it. Do not change the existing authentication architecture as part of unrelated refactoring.
 
+### Auth proxy Worker (do not regress)
+
+Account operations are NOT done from the app with GitHub write credentials:
+
+- The app calls the Cloudflare Worker at `AUTH_WORKER_URL` (`tech_common.py`)
+  via `tech_reg.py`: `_login_user` (`POST /login`), `_request_password`
+  (`POST /register`), `_set_user_blocked` (`POST /admin/block`), and the
+  users list (`GET /accounts`). The Worker verifies PBKDF2 hashes and the
+  blocked flag server-side and emails generated passwords (SMTP is server-side).
+- The repo write token, SMTP credentials and admin phrase must stay OUT of
+  the app code (they exist only as Cloudflare Worker secrets; stale copies
+  still embedded in `tech_common.py` are legacy and must not be used by app
+  code). Do not reintroduce `_mutate_secret`/`_send_password_email`/write-token
+  usage in the app.
+- The signed database flow (version.json + Ed25519 + sha256-pinned
+  `gelotech_database_v3.json`, fetched with the embedded read-only token) is
+  untouched by the Worker and must keep working.
+- Worker code lives in `worker/` (tests: `node --test src/*.test.js`). After
+  changing Worker routes or the response contract, update the app client in
+  `tech_reg.py` and `tests/test_auth_proxy_client.py` in the same change.
+
 ## Testing
 
 Minimum source check:

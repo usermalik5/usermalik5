@@ -75,6 +75,12 @@ SMTP_FROM = "angeloespinosa985@gmail.com"
 # screen. Type it into the email field to unlock the admin option.
 ADMIN_SECRET_PHRASE = "REDACTED"
 
+# Auth proxy Worker: all login/registration/admin-block requests go through
+# this Cloudflare Worker, which holds the repo write token, the SMTP sender
+# and the admin phrase as server-side secrets (set with `wrangler secret
+# put` in worker/; deploy with `npx wrangler deploy`).
+AUTH_WORKER_URL = "https://gelotech-auth-proxy.angeloespinosa985.workers.dev"
+
 # Ed25519 public key (base64, raw 32-byte key) used to verify the signed
 # update manifest (version.json + version.json.sig) fetched from the update
 # server. The matching private key lives ONLY on the maintainer's machine
@@ -94,7 +100,7 @@ DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
 # Bump this on every iteration; shown in the window title and the sidebar
 # tool name, and must match the release tag (v<APP_VERSION>).
-APP_VERSION = "1.7.2"
+APP_VERSION = "1.7.3"
 
 # 3uTools-style theme palettes (shared by all UI modules)
 THEMES = {

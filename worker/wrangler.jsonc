@@ -1,0 +1,18 @@
+{
+  "name": "gelotech-auth-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2025-08-01",
+  "vars": {
+    "REPO_OWNER": "usermalik5",
+    "REPO_NAME": "GeloTech-Tool",
+    "REPO_BRANCH": "main",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "angeloespinosa985@gmail.com",
+    "SMTP_FROM": "angeloespinosa985@gmail.com",
+    "ENABLE_RATE_LIMIT": "true"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -13,7 +13,8 @@ from tech_common import (
     get_bundle_dir, get_session_database_path, get_live_database_path,
     APP_VERSION, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS,
 )
-from tech_reg import (_is_valid_email, _request_password, _fetch_verified_sources)
+from tech_reg import (_is_valid_email, _request_password, _fetch_verified_sources,
+                      _login_user)
 
 
 class SettingsLoginMixin:
@@ -160,41 +161,26 @@ class SettingsLoginMixin:
         # --------------------------------------------------------
         # STEP B action: verify credentials + download database
         # --------------------------------------------------------
-        def finish_login(users, db_bytes):
-            if users is None:
+        def finish_login(ok, reason, user, users, db_bytes):
+            if not ok:
                 login_btn.configure(state="normal")
-                error_label.configure(text="\u26a0 Could not reach/verify the update server.\nCheck your internet connection and try again.", text_color="#ff6b6b")
+                if admin_mode["on"]:
+                    admin_mode["on"] = False
+                    login_email_entry.configure(state="normal")
+                    login_email_entry.delete(0, "end")
+                message = {
+                    "blocked": "This account has been blocked by the maintainer.",
+                    "invalid-credentials": "Invalid email/username or password.",
+                    "rate-limited": "Too many login attempts. Please wait a minute and try again.",
+                }.get(reason, reason or "Login failed.")
+                error_label.configure(text="\u26a0 " + message, text_color="#ff6b6b")
+                return
+            if db_bytes is None:
+                login_btn.configure(state="normal")
+                error_label.configure(text="\u26a0 Account verified, but the package database\ncould not be downloaded/verified from the update server.", text_color="#ff6b6b")
                 return
             try:
                 name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
-                if not admin_mode["on"] and not _is_valid_email(name):
-                    error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
-                    login_btn.configure(state="normal")
-                    return
-                pw = password_entry.get()
-                rec = users.get(name)
-                if rec and rec.get("blocked"):
-                    if admin_mode["on"]:
-                        admin_mode["on"] = False
-                        login_email_entry.configure(state="normal")
-                        login_email_entry.delete(0, "end")
-                    error_label.configure(text="\u26a0 This account has been blocked by the maintainer.", text_color="#ff6b6b")
-                    login_btn.configure(state="normal")
-                    return
-                if not rec or not self._verify_pw(pw, rec.get("hash")):
-                    if admin_mode["on"]:
-                        # Wrong admin password: release the locked field so the
-                        # user can retry as a normal account or re-enter phrase.
-                        admin_mode["on"] = False
-                        login_email_entry.configure(state="normal")
-                        login_email_entry.delete(0, "end")
-                    error_label.configure(text="\u26a0 Invalid email/username or password.", text_color="#ff6b6b")
-                    login_btn.configure(state="normal")
-                    return
-                if db_bytes is None:
-                    login_btn.configure(state="normal")
-                    error_label.configure(text="\u26a0 Accounts verified, but the package database\ncould not be downloaded/verified from the update server.", text_color="#ff6b6b")
-                    return
                 try:
                     with open(get_session_database_path(), "wb") as f:
                         f.write(db_bytes)
@@ -220,8 +206,8 @@ class SettingsLoginMixin:
                     self.user_perms = None
                     self.user_tabs = None
                 else:
-                    self.user_perms = set((rec.get("permissions") or {}).keys())
-                    self.user_tabs = set(rec.get("tabs") or []) or None
+                    self.user_perms = set((user.get("permissions") or {}).keys())
+                    self.user_tabs = set(user.get("tabs") or []) or None
                     if not self.user_perms:
                         # No explicit perms in secret.json: grant everything
                         # except the admin-only features (VirusTotal).
@@ -245,12 +231,18 @@ class SettingsLoginMixin:
             if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
                 admin_mode["on"] = True
                 error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+            name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
+            if not admin_mode["on"] and not _is_valid_email(name):
+                error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
+                return
+            pw = password_entry.get()
             login_btn.configure(state="disabled", text="\u23f3  CHECKING SERVER...")
             self.after(0, lambda: self._purge_session_database())
 
             def fetch():
+                ok, reason, user = _login_user(name, pw)
                 users, db_bytes = _fetch_verified_sources()
-                self.after(0, lambda: finish_login(users, db_bytes))
+                self.after(0, lambda: finish_login(ok, reason, user, users, db_bytes))
 
             threading.Thread(target=fetch, daemon=True).start()
 

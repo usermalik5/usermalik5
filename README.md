@@ -69,7 +69,7 @@ can be fixed directly.
 ## Download
 
 **Latest release:** [GeloTechTool.exe
-(v1.7.2)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+(v1.7.3)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against this repo on every launch (needs internet), and the package
@@ -188,11 +188,14 @@ so users need no configuration — the update source is **pinned** to those
 embedded constants and can never be redirected by settings or by the repo's
 `secret.json`. Every login does three verified things in one go:
 
-1. Fetches `secret.json` (live accounts: email + PBKDF2 hash) from GitHub —
-   credentials are never written to the user's PC. Entering your email in the
-   first step self-registers / resets your password: the app generates a
-   password, writes the PBKDF2 hash to the repo's `secret.json` (via the
-   embedded write token), and emails it to you.
+1. Verifies your login against the auth proxy **Cloudflare Worker**
+   (`AUTH_WORKER_URL` in `tech_common.py`) — the Worker holds the repo write
+   token, the SMTP sender and the admin phrase as server-side secrets,
+   checks your PBKDF2 hash + blocked flag, and returns your permissions.
+   Entering your email in the first step self-registers / resets your
+   password: the Worker generates a password, hashes it (PBKDF2, 100000
+   iterations), writes it into the repo's `secret.json`, and emails it to
+   you — credentials are never written to the user's PC.
 2. Pulls the latest `gelotech_database_v3.json`, verifies it, caches it for
    the session in the temp folder, and deletes it on app close / logout / the
    next login — so users always get the newest database with no manual
@@ -209,7 +212,7 @@ Every update is cryptographically verified before it is applied:
    `version.json`, otherwise that file is rejected. The signed hashes cover
    the exact bytes GitHub serves (`.gitattributes` enforces LF line endings).
    `secret.json` is exempt: it is the live accounts file maintained by the
-   app itself.
+   app itself (via the auth proxy Worker).
 
 To publish a data update:
 
@@ -231,20 +234,21 @@ redistribute the new exe — code only changes when a new exe is built.
 
 ## Security notes
 
-- Accounts are email-based, self-managed: the app generates PBKDF2 hashed
-  passwords, persists them to the repo's `secret.json`, and emails them via a
-  dedicated SMTP sender. Credentials are never stored on users' PCs. The
+- Accounts are email-based, self-managed: the auth proxy Worker (Cloudflare,
+  `worker/`) generates PBKDF2 hashed passwords, persists them to the repo's
+  `secret.json`, and emails them via a dedicated SMTP sender — the write
+  token, SMTP credentials and admin phrase live ONLY as Cloudflare Worker
+  secrets, never in the exe. Credentials are never stored on users' PCs. The
   Admin Panel shows the server-verified account list and can **Block /
   Unblock** any account — blocked accounts can't log in and can't request a
   new password (the `blocked` flag lives on the account in `secret.json`).
 - Updates are signed (Ed25519): the manifest signature and per-file SHA-256
   hashes are verified before anything is applied, and the update source is
   pinned to the embedded constants in `tech_common.py`.
-- The embedded GitHub tokens give this app access to this repo only: a
-  read-only token for fetching and a write token (Contents read+write, this
-  repo only) used solely to persist self-registered accounts. The SMTP sender
-  is a dedicated low-privilege account. Rotate all three regularly — anything
-  embedded in the exe can be extracted.
+- The only embedded token is a read-only one for fetching the signed
+  database/manifest; account writes and password emails go through the
+  Worker. Rotate the Worker secrets (and the read token) regularly —
+  anything embedded in the exe can be extracted.
 - The package database is only ever pulled fresh from the server per login
   (no bundled copy in the exe), so stale data is impossible.
 
