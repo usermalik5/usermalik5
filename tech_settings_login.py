@@ -16,18 +16,20 @@ from tech_common import (
 from tech_reg import (_is_valid_email, _request_password, _fetch_verified_sources,
                       _login_user)
 
+_FONT = "Segoe UI"
+
 
 class SettingsLoginMixin:
     def _show_login(self):
         win = ctk.CTkToplevel(self)
-        win.title(f"GeloTech Tool v{APP_VERSION} - Login")
+        win.title(f"GeloTech Tool v{APP_VERSION} - Sign in")
         win.resizable(False, False)
         win.configure(fg_color="#0d1117")
         win.transient(self)
         win.grab_set()
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
-        win.geometry(f"440x600+{(sw - 440) // 2}+{max(0, (sh - 600) // 3)}")
+        win.geometry(f"440x650+{(sw - 440) // 2}+{max(0, (sh - 650) // 3)}")
         self._login_win = win
         win.protocol("WM_DELETE_WINDOW", lambda: (self._purge_session_database(), win.destroy(), self.quit()))
 
@@ -36,58 +38,47 @@ class SettingsLoginMixin:
             ico_path = os.path.join(get_bundle_dir(), "gelotech_icon.ico")
             if os.path.isfile(ico_path):
                 icon = ctk.CTkImage(light_image=Image.open(ico_path).convert("RGBA"),
-                                    dark_image=Image.open(ico_path).convert("RGBA"), size=(72, 72))
+                                    dark_image=Image.open(ico_path).convert("RGBA"), size=(64, 64))
         except Exception:
             pass
         if icon:
-            ctk.CTkLabel(win, text="", image=icon).pack(pady=(28, 4))
-        ctk.CTkLabel(win, text="GELOTECH", font=ctk.CTkFont(size=22, weight="bold"), text_color="#1a8cff").pack()
-        ctk.CTkLabel(win, text=f"TECH TOOL v{APP_VERSION}", font=ctk.CTkFont(size=11), text_color="#a6a6a6").pack(pady=(0, 14))
+            ctk.CTkLabel(win, text="", image=icon).pack(pady=(30, 4))
+
+        heading_label = ctk.CTkLabel(win, text="Welcome back", font=ctk.CTkFont(family=_FONT, size=24, weight="bold"),
+                                     text_color="#e6edf3")
+        heading_label.pack()
+        subtitle_label = ctk.CTkLabel(win, text="Sign in to continue to GeloTech Tool",
+                                      font=ctk.CTkFont(family=_FONT, size=12), text_color="#8b949e")
+        subtitle_label.pack(pady=(2, 14))
 
         admin_mode = {"on": False}
 
-        error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(size=10), text_color="#ff6b6b", wraplength=380)
-        error_label.pack(pady=(6, 0))
+        error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(family=_FONT, size=10),
+                                   text_color="#ff6b6b", wraplength=380)
+        error_label.pack(pady=(0, 8))
+
+        def set_header(title, subtitle, color="#e6edf3"):
+            heading_label.configure(text=title, text_color=color)
+            subtitle_label.configure(text=subtitle)
 
         # --------------------------------------------------------
-        # STEP A - enter email to receive a generated password
+        # SIGN IN
         # --------------------------------------------------------
-        step_email = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=10)
-        step_email.pack(padx=32, fill="x")
-        ctk.CTkLabel(step_email, text="ENTER YOUR EMAIL ADDRESS", font=ctk.CTkFont(size=9, weight="bold"),
-                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(14, 2))
-        email_entry = ctk.CTkEntry(step_email, placeholder_text="you@example.com", fg_color="#0d1117",
-                                   border_color="#30363d", height=34, font=ctk.CTkFont(size=12))
-        email_entry.pack(fill="x", padx=16)
-        ctk.CTkLabel(step_email, text="New here or forgot your password? Enter your email and we will\n"
-                                      "send you a generated password. Check your inbox AND spam folder.",
-                     font=ctk.CTkFont(size=9), text_color="#8b949e", justify="left").pack(anchor="w", padx=16, pady=(8, 12))
-        send_btn = ctk.CTkButton(step_email, text="\u2709  SEND PASSWORD TO MY EMAIL", width=220, height=38,
-                                 fg_color="#1a8cff", hover_color="#155bb5", font=ctk.CTkFont(size=12, weight="bold"))
-        send_btn.pack(pady=(0, 14))
-
-        # --------------------------------------------------------
-        # STEP B - log in with email + password
-        # --------------------------------------------------------
-        step_login = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=10)
+        step_login = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=14)
         login_email_entry = ctk.CTkEntry(step_login, placeholder_text="you@example.com", fg_color="#0d1117",
-                                         border_color="#30363d", height=34, font=ctk.CTkFont(size=12))
-        password_entry = ctk.CTkEntry(step_login, fg_color="#0d1117", border_color="#30363d", height=34,
-                                      font=ctk.CTkFont(size=12), show="\u2022")
-        login_btn = ctk.CTkButton(step_login, text="\U0001f511  LOGIN", width=220, height=40, fg_color="#1a8cff",
-                                  hover_color="#155bb5", font=ctk.CTkFont(size=13, weight="bold"))
-        forgot_btn = ctk.CTkButton(step_login, text="Forgot password? Get a new one by email", width=220, height=28,
-                                   fg_color="transparent", hover_color="#1c2026", font=ctk.CTkFont(size=10),
-                                   text_color="#58a6ff")
-
-        def show_email_step(prefill=""):
-            step_login.pack_forget()
-            step_email.pack(padx=32, fill="x")
-            admin_mode["on"] = False
-            if prefill:
-                email_entry.delete(0, "end")
-                email_entry.insert(0, prefill)
-            email_entry.focus_set()
+                                         border_color="#30363d", height=38, font=ctk.CTkFont(family=_FONT, size=12),
+                                         corner_radius=8)
+        password_entry = ctk.CTkEntry(step_login, fg_color="#0d1117", border_color="#30363d", height=38,
+                                      font=ctk.CTkFont(family=_FONT, size=12), show="\u2022", corner_radius=8)
+        login_btn = ctk.CTkButton(step_login, text="Sign in", width=220, height=42, fg_color="#1a8cff",
+                                  hover_color="#155bb5", corner_radius=8,
+                                  font=ctk.CTkFont(family=_FONT, size=13, weight="bold"))
+        forgot_btn = ctk.CTkButton(step_login, text="Forgot your password?", width=220, height=26,
+                                   fg_color="transparent", hover_color="#1c2026",
+                                   font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
+        create_btn = ctk.CTkButton(step_login, text="New here?  Create an account", width=220, height=26,
+                                   fg_color="transparent", hover_color="#1c2026",
+                                   font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
 
         def show_login_step(admin=False, email=""):
             step_email.pack_forget()
@@ -98,14 +89,45 @@ class SettingsLoginMixin:
                 admin_mode["on"] = True
                 login_email_entry.insert(0, "admin")
                 login_email_entry.configure(state="disabled")
-                error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+                set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
+                error_label.configure(text="", text_color="#d4af37")
             else:
-                login_email_entry.configure(state="normal")
+                set_header("Welcome back", "Sign in to continue to GeloTech Tool")
                 if email:
                     login_email_entry.insert(0, email)
             password_entry.delete(0, "end")
             password_entry.focus_set()
 
+        # --------------------------------------------------------
+        # CREATE ACCOUNT / FORGOT PASSWORD
+        # --------------------------------------------------------
+        step_email = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=14)
+        email_entry = ctk.CTkEntry(step_email, placeholder_text="you@example.com", fg_color="#0d1117",
+                                   border_color="#30363d", height=38, font=ctk.CTkFont(family=_FONT, size=12),
+                                   corner_radius=8)
+        send_btn = ctk.CTkButton(step_email, text="Send my password", width=220, height=42,
+                                 fg_color="#1a8cff", hover_color="#155bb5", corner_radius=8,
+                                 font=ctk.CTkFont(family=_FONT, size=13, weight="bold"))
+        back_btn = ctk.CTkButton(step_email, text="\u2190  Back to sign in", width=220, height=26,
+                                 fg_color="transparent", hover_color="#1c2026",
+                                 font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
+
+        def show_email_step(mode="create", prefill=""):
+            step_login.pack_forget()
+            step_email.pack(padx=32, fill="x")
+            admin_mode["on"] = False
+            if mode == "reset":
+                set_header("Forgot your password?", "Enter your email and we'll send you a new password.")
+            else:
+                set_header("Create an account", "Enter your email and we'll send you a password to sign in.")
+            if prefill:
+                email_entry.delete(0, "end")
+                email_entry.insert(0, prefill)
+            email_entry.focus_set()
+
+        # --------------------------------------------------------
+        # admin unlock via secret phrase
+        # --------------------------------------------------------
         def check_secret(event=None):
             # Typing the secret phrase into the email field unlocks admin login.
             if (event and event.keysym in ("Return", "Tab")) or not event:
@@ -113,7 +135,7 @@ class SettingsLoginMixin:
                     show_login_step(admin=True)
 
         def check_secret_login(event=None):
-            # Same secret-phrase unlock on the LOGIN page's email field:
+            # Same secret-phrase unlock on the SIGN IN page's email field:
             # lock the username to "admin" so the password check works.
             if (event and event.keysym in ("Return", "Tab")) or not event:
                 if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
@@ -121,11 +143,12 @@ class SettingsLoginMixin:
                     login_email_entry.delete(0, "end")
                     login_email_entry.insert(0, "admin")
                     login_email_entry.configure(state="disabled")
-                    error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+                    set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
+                    error_label.configure(text="", text_color="#d4af37")
                     password_entry.focus_set()
 
         # --------------------------------------------------------
-        # STEP A action: generate + email a password
+        # CREATE / RESET action: generate + email a password
         # --------------------------------------------------------
         def send_password(event=None):
             email = email_entry.get().strip()
@@ -136,7 +159,7 @@ class SettingsLoginMixin:
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
                 return
             error_label.configure(text="")
-            send_btn.configure(state="disabled", text="\u23f3  SENDING PASSWORD...")
+            send_btn.configure(state="disabled", text="Sending...")
             email_entry.configure(state="disabled")
 
             def worker():
@@ -144,7 +167,7 @@ class SettingsLoginMixin:
                 self.after(0, lambda: finish_send(ok, msg))
 
             def finish_send(ok, msg):
-                send_btn.configure(state="normal", text="\u2709  SEND PASSWORD TO MY EMAIL")
+                send_btn.configure(state="normal", text="Send my password")
                 email_entry.configure(state="normal")
                 if ok:
                     error_label.configure(text="\u2713 " + msg, text_color="#2ecc71")
@@ -157,9 +180,10 @@ class SettingsLoginMixin:
         email_entry.bind("<KeyRelease>", check_secret)
         email_entry.bind("<Return>", lambda e: check_secret(e) or send_password(e))
         send_btn.configure(command=send_password)
+        back_btn.configure(command=lambda: show_login_step())
 
         # --------------------------------------------------------
-        # STEP B action: verify credentials + download database
+        # SIGN IN action: verify credentials + download database
         # --------------------------------------------------------
         def finish_login(ok, reason, user, users, db_bytes):
             if not ok:
@@ -168,6 +192,7 @@ class SettingsLoginMixin:
                     admin_mode["on"] = False
                     login_email_entry.configure(state="normal")
                     login_email_entry.delete(0, "end")
+                    set_header("Welcome back", "Sign in to continue to GeloTech Tool")
                 message = {
                     "blocked": "This account has been blocked by the maintainer.",
                     "invalid-credentials": "Invalid email/username or password.",
@@ -231,7 +256,7 @@ class SettingsLoginMixin:
             error_label.configure(text="")
             if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
                 admin_mode["on"] = True
-                error_label.configure(text="\U0001f511  MAINTAINER ACCESS", text_color="#d4af37")
+                set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
             name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
             if not admin_mode["on"] and not _is_valid_email(name):
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
@@ -240,7 +265,7 @@ class SettingsLoginMixin:
             if not pw:
                 error_label.configure(text="\u26a0 Please enter your password.", text_color="#ff6b6b")
                 return
-            login_btn.configure(state="disabled", text="\u23f3  CHECKING SERVER...")
+            login_btn.configure(state="disabled", text="Signing in...")
             self.after(0, lambda: self._purge_session_database())
 
             def fetch():
@@ -254,22 +279,31 @@ class SettingsLoginMixin:
         password_entry.bind("<Return>", do_login)
         login_email_entry.bind("<Return>", do_login)
         login_email_entry.bind("<KeyRelease>", check_secret_login)
-        forgot_btn.configure(command=lambda: show_email_step(login_email_entry.get().strip()))
+        forgot_btn.configure(command=lambda: show_email_step("reset", login_email_entry.get().strip()))
+        create_btn.configure(command=lambda: show_email_step("create"))
 
-        ctk.CTkLabel(step_login, text="EMAIL ADDRESS", font=ctk.CTkFont(size=9, weight="bold"),
-                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(14, 2))
-        login_email_entry.pack(fill="x", padx=16)
-        ctk.CTkLabel(step_login, text="PASSWORD", font=ctk.CTkFont(size=9, weight="bold"),
-                     text_color="#7a8699").pack(anchor="w", padx=16, pady=(12, 2))
-        password_entry.pack(fill="x", padx=16, pady=(0, 14))
-        login_btn.pack(pady=(0, 4))
-        forgot_btn.pack(pady=(0, 10))
+        # ---------------- SIGN IN card layout ----------------
+        ctk.CTkLabel(step_login, text="Email address", font=ctk.CTkFont(family=_FONT, size=11, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=18, pady=(18, 4))
+        login_email_entry.pack(fill="x", padx=18)
+        ctk.CTkLabel(step_login, text="Password", font=ctk.CTkFont(family=_FONT, size=11, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=18, pady=(12, 4))
+        password_entry.pack(fill="x", padx=18)
+        login_btn.pack(pady=(18, 2))
+        forgot_btn.pack(pady=(4, 0))
+        create_btn.pack(pady=(0, 16))
 
-        ctk.CTkLabel(win, text="Accounts are verified against the update server on every login.",
-                     font=ctk.CTkFont(size=9), text_color="#484f58").pack(pady=(8, 0))
+        # ---------------- CREATE / RESET card layout ----------------
+        ctk.CTkLabel(step_email, text="Email address", font=ctk.CTkFont(family=_FONT, size=11, weight="bold"),
+                     text_color="#7a8699").pack(anchor="w", padx=18, pady=(18, 4))
+        email_entry.pack(fill="x", padx=18)
+        send_btn.pack(pady=(18, 2))
+        back_btn.pack(pady=(0, 16))
+
+        ctk.CTkLabel(win, text="Your account is verified securely on every sign-in.",
+                     font=ctk.CTkFont(family=_FONT, size=9), text_color="#484f58").pack(pady=(10, 0))
 
         show_login_step()
 
         if getattr(self, "_theme_mode", "dark") != "dark":
             self._theme_walk(win)
-
