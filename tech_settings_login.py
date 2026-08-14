@@ -171,6 +171,7 @@ class SettingsLoginMixin:
                 message = {
                     "blocked": "This account has been blocked by the maintainer.",
                     "invalid-credentials": "Invalid email/username or password.",
+                    "invalid-request": "Please enter both your email/username and password.",
                     "rate-limited": "Too many login attempts. Please wait a minute and try again.",
                 }.get(reason, reason or "Login failed.")
                 error_label.configure(text="\u26a0 " + message, text_color="#ff6b6b")
@@ -236,6 +237,9 @@ class SettingsLoginMixin:
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
                 return
             pw = password_entry.get()
+            if not pw:
+                error_label.configure(text="\u26a0 Please enter your password.", text_color="#ff6b6b")
+                return
             login_btn.configure(state="disabled", text="\u23f3  CHECKING SERVER...")
             self.after(0, lambda: self._purge_session_database())
 
