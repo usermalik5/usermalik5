@@ -135,7 +135,7 @@ class SettingsMixin(AdminPanelMixin):
         exclusions.json, NEVER secret.json — that name is reserved for the
         live accounts file on GitHub and must never be treated as local
         settings (or written next to the exe). Credentials never live on
-        disk: users are fetched from the signed update server on every login."""
+        disk: users are fetched from the auth proxy Worker on every login."""
         app = get_app_dir()
         sfile = os.path.join(get_settings_dir(), SETTINGS_FILE)
         old_sfile = os.path.join(app, "secret.json")

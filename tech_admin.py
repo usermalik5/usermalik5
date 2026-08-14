@@ -6,7 +6,7 @@ import threading
 class AdminPanelMixin:
 
     # ----------------------------------------------------
-    # ADMIN PANEL (read-only account overview)
+    # ACCOUNT MANAGEMENT (read-only account overview)
     # ----------------------------------------------------
     def _open_admin_panel(self):
         if not getattr(self, "is_admin", False):

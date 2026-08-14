@@ -22,7 +22,7 @@ GeloTechTool (techtool.py)
 | `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `AUTH_WORKER_URL`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions, `_check_updates`, first-run migration + seeding |
 | `tech_reg.py` | helpers | auth proxy client + server fetching: `_login_user`, `_request_password`, `_set_user_blocked` (via Worker `AUTH_WORKER_URL`), `_fetch_verified_sources` (signed manifest + accounts via Worker + DB sha256), `hash_password`/`verify_password`, `_purge_session_database` |
-| `tech_admin.py` | `AdminPanelMixin` | Admin Panel dialog: server-verified account list with BLOCK/UNBLOCK per account |
+| `tech_admin.py` | `AdminPanelMixin` | Account management dialog (admin only): account list with Block/Unblock per account (via auth proxy Worker) |
 | `tech_ui.py` | `UiMixin` | tab/page UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans |
 | `tech_secops.py` | `SecOpsMixin` | cleaner list and rendering |
@@ -116,7 +116,7 @@ is used.
 ```
 UI events (clicks / right-click / keypress)
   │
-  ├─ Sidebar: mirror, reboots, ADB fix, admin panel, logout
+  ├─   Sidebar: mirror, reboots, ADB fix, accounts, logout
   ├─ Dashboard: device info, quick actions, screen mirror
   ├─ Cleaner page: Refresh → load packages → render/filter/check apps
   ├─ Monitor page: live process/package tables

@@ -69,12 +69,12 @@ can be fixed directly.
 ## Download
 
 **Latest release:** [GeloTechTool.exe
-(v1.7.5)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
+(v1.7.6)](https://github.com/usermalik5/GeloTech-Tool/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
-verified against this repo on every launch (needs internet), and the package
-database is pulled fresh from here on every login — users always get the
-latest data with zero manual intervention.
+verified against the auth server on every launch (needs internet), and the
+package database is pulled fresh from the update repo on every sign-in —
+users always get the latest data with zero manual intervention.
 
 ## What's in this folder
 
@@ -105,16 +105,16 @@ pip install customtkinter pillow requests pyinstaller
 python techtool.py
 ```
 
-Login is email-based. The login page opens on the **LOGIN** form: enter your
-email and the password you were sent, then log in — passwords stay valid
-until you request a new one. New users (or anyone who lost their password)
-click "Forgot password? Get a new one by email", and the app emails them a
-generated password (also check the spam folder); requesting a new password
-replaces the old one. The maintainer unlocks the admin login by typing the
-secret phrase into the email field (maintainer-only, not shown to users).
-After successful authentication, Dashboard is selected automatically.
-Non-admin users get all tabs and tools (Cleaner, Monitor, DNS, all sidebar
-actions); only the VirusTotal tab is reserved for the admin account.
+Login is email-based. **Sign in** with the email and password you were sent —
+passwords stay valid until you request a new one. New here? Choose **Create
+an account** (or **Forgot your password?** if you lost it), enter your email,
+and we'll send you a password (also check the spam folder); requesting a new
+password replaces the old one. A **Back to sign in** link always returns you
+to the login form. The maintainer unlocks admin login by typing the secret
+phrase into the email field (maintainer-only, not shown to users). After
+successful sign-in, Dashboard is selected automatically. Non-admin users get
+all tabs and tools (Cleaner, Monitor, DNS, all sidebar actions); only the
+VirusTotal tab is reserved for the admin account.
 
 ## Building the exe
 
@@ -239,8 +239,8 @@ redistribute the new exe — code only changes when a new exe is built.
   `secret.json`, and emails them via a dedicated SMTP sender — the write
   token, SMTP credentials and admin phrase live ONLY as Cloudflare Worker
   secrets, never in the exe. Credentials are never stored on users' PCs. The
-  Admin Panel shows the server-verified account list and can **Block /
-  Unblock** any account — blocked accounts can't log in and can't request a
+  **Accounts** panel (admin) shows the account list and can **Block /
+  Unblock** any account — blocked accounts can't sign in and can't request a
   new password (the `blocked` flag lives on the account in `secret.json`).
 - Updates are signed (Ed25519): the manifest signature and per-file SHA-256
   hashes are verified before anything is applied, and the update source is

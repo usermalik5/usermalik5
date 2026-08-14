@@ -128,7 +128,8 @@ def _fetch_verified_sources():
 
 def _fetch_verified_users():
     """Return just the users list from the auth proxy Worker (used by the
-    read-only admin panel), or None on failure. Never writes to disk."""
+    read-only account list in the admin dialog), or None on failure. Never
+    writes to disk."""
     users, _ = _fetch_verified_sources()
     return users
 

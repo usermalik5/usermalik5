@@ -205,7 +205,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
         _add_btn("\U0001f527", "Fix / DL ADB Drivers", self.action_fix_drivers, color="#9b59b6", perm="connection")
 
         _add_header("SESSION")
-        self._admin_panel_btn = _add_btn("\U0001f511", "Admin Panel", self._open_admin_panel, color="#d4af37")
+        self._admin_panel_btn = _add_btn("\U0001f511", "Accounts", self._open_admin_panel, color="#d4af37")
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
 
         # ----------------------------------------------------
