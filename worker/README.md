@@ -24,11 +24,12 @@ Sessions are signed with HMAC-SHA256 using the `SESSION_SECRET` Worker
 secret, carry `{sub, role, iat, exp, jti}` and expire after 12 hours. The
 client keeps the token in memory only.
 
-**Admin login is two-factor server-side**: the admin account's password
+**Admin login is two-step server-side**: the admin account's password
 (PBKDF2) AND the admin secret phrase, which exists ONLY as the
-`ADMIN_SECRET_PHRASE` Worker secret — never embedded in the client.
-Missing or wrong phrase yields the same generic `invalid-credentials` and
-no session; if the secret is not configured, admin login fails closed.
+`ADMIN_SECRET_PHRASE` Worker secret — never embedded in the client. Both are
+knowledge-based credentials (not a hardware/app second factor). Missing or
+wrong phrase yields the same generic `invalid-credentials` and no session;
+if the secret is not configured, admin login fails closed.
 
 **Session revocation**: every privileged call (`/accounts`,
 `/admin/block`, `/admin/password`) revalidates the session against the

@@ -57,8 +57,8 @@ directly rather than opening a public issue.
   tokens (`{sub, role, iat, exp, jti}`, 12 h TTL) verified on every
   privileged call. The client holds the token in memory only and discards
   it on logout/exit. Because every privileged call re-reads the live
-  account registry, blocking an account invalidates all of its sessions
-  immediately (revocation is enforced, not just TTL-dependent).
+   account registry, blocking an account is denied on its next authorized
+   call rather than relying on a 12-hour TTL;
 - Client-side reads are limited to public update files; integrity is
   enforced with the embedded Ed25519 public key (`UPDATE_SIGN_PUBLIC_KEY`),
   which is not a secret.
@@ -69,9 +69,11 @@ directly rather than opening a public issue.
   live server-side account source and must not be used as a local settings
   file.
 - The Worker only ever reads/writes `secret.json` (path allowlisted in
-  code, no user-supplied path) and rate-limits login and registration per
-  IP (in-memory sliding window; see the Worker README for the
-  Cloudflare-native binding for hard guarantees).
+  code, no user-supplied path) and rate-limits all routes by IP: login and
+  registration (in-memory sliding window, tighter limits), account listing
+  and admin operations (`/accounts`, `/admin/block`, `/admin/password`,
+  `/files/<name>`) — see the Worker README for the Cloudflare-native
+  `AUTH_RATE` binding for global/platform-level guarantees.
 - Release builds are PyArmor-obfuscated, but obfuscation is not a substitute
   for secret rotation or server-side authorization.
 
@@ -84,19 +86,26 @@ the public Ed25519 verification key and the Worker URL, both safe to ship.
 The privileged operations (account writes, password delivery, admin
 authorization) moved server-side to the auth proxy Worker in v1.7.3; admin
 authorization moved from a shared embedded phrase to server-issued signed
-sessions in v2.0.0. In v2.2.0 the admin secret phrase came back — but only
-as a server-side second factor (`ADMIN_SECRET_PHRASE` Worker secret), the
-default `admin` password should be changed via the Accounts panel
-("Change password"), sessions are revocable, and password changes are a
-server-side operation (`POST /admin/password`). To rotate the Worker
-secrets, update them with `wrangler secret put` in `worker/` and redeploy —
-no app release is needed.
+sessions in v2.0.0. In v2.2.0 the admin secret phrase was reintroduced as a
+**server-side admin credential** — this did NOT restore the old client-side
+secret: `ADMIN_SECRET_PHRASE` exists only as a Cloudflare Worker secret and is
+never embedded in or shipped with the desktop application. Admin login is a
+two-step knowledge check (admin password + `ADMIN_SECRET_PHRASE`); both are
+credentials, not a hardware/app second factor. If the secret is missing, admin
+login fails closed. Sessions are revocable in practice: every privileged call
+revalidates the session and the account against the live registry, so a
+blocked account is denied on its next authorized call rather than relying on a
+12-hour TTL; the default `admin` password should be changed via the Accounts
+panel ("Change password"), and password changes are a server-side operation
+(`POST /admin/password`). To rotate the Worker secrets, update them with
+`wrangler secret put` in `worker/` and redeploy — no app release is needed.
 
 The Worker's rate limiter is an in-memory per-isolate sliding window; the
-Cloudflare-native `ratelimit` binding (`AUTH_RATE`) is implemented in
-`handlers.js` and used automatically once the namespace exists — create it
-in the Cloudflare dashboard and paste the id into `wrangler.jsonc` (steps
-in `worker/README.md`) for a global, platform-level guarantee.
+Cloudflare-native `AUTH_RATE` binding is implemented in `handlers.js` and used
+automatically once the namespace exists — create it in the Cloudflare
+dashboard and paste the id into `wrangler.jsonc` (steps in
+`worker/README.md`) for a global, platform-level guarantee. Until it is
+configured, only the per-isolate in-memory limiter is active.
 
 ## Rotation Checklist (manual, after any exposure)
 
@@ -108,6 +117,7 @@ in `worker/README.md`) for a global, platform-level guarantee.
    passwords), create a new one, then
    `npx wrangler secret put SMTP_PASSWORD`.
 3. Sessions: replace `SESSION_SECRET` with a fresh random value
-   (`npx wrangler secret put SESSION_SECRET`); this invalidates all active
-   sessions.
-4. Redeploy the Worker (`npx wrangler deploy`). No app release required.
+   (`npx wrangler secret put SESSION_SECRET`); this invalidates all active sessions.
+4. Admin secret phrase: replace `ADMIN_SECRET_PHRASE` with a fresh value generated only once and stored in a password manager (it cannot be read back — rotate by overwriting); you must share the new value with maintainers who sign in as admin:
+   `cd worker && <phrase> | npx wrangler secret put ADMIN_SECRET_PHRASE`. Until the new value is deployed, admin logins fail closed.
+5. Redeploy the Worker (`npx wrangler deploy`). No app release required.

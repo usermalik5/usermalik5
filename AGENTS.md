@@ -48,9 +48,11 @@ and the app contains NO credentials at all:
   with `POST /login` (`phrase` field), but it exists server-side only as
   the `ADMIN_SECRET_PHRASE` Worker secret - never embedded in the client.
   Every privileged call (`/accounts`, `/admin/block`, `/admin/password`)
-  revalidates the session against the live account registry, so blocked
-  accounts lose access immediately. The client keeps the session token in
-  memory only (`_auth_session`) and clears it on logout/app close.
+  revalidates the session against the live account registry, so a blocked
+  account is denied on its next authorized call — sessions are revocable
+  not by an immediate cryptographic destroy but by per-request authorization
+  revalidation. The client keeps the session token in memory only (`_auth_session`)
+  and clears it on logout/app close.
 - Maintainer password changes go through the Worker
   (`POST /admin/password`, `tech_reg._admin_set_password`) - the client
   never hashes or stores passwords; there is NO client-side PBKDF2 code

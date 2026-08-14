@@ -85,7 +85,7 @@ users always get the latest data with zero manual intervention.
 | `GeloTechTool_obf.spec` | PyInstaller spec for the PyArmor-obfuscated build (needs `build/pyarmor_out` from `pyarmor gen`) |
 | `gelotech_database_v3.json` | **The package database** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags). Lives ONLY on GitHub — every login pulls it fresh, verifies it, caches it for the session, and deletes it on app close |
 | `banking_apps.json` | Banking apps exclusion list — banking apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
-| `secret.json` | **The live accounts file** — email + PBKDF2 hash per user. The app writes new/self-registered accounts here via the write token; fetched + used in-memory at login, never stored on users' PCs |
+| `secret.json` | **The live server-side account registry** — email + PBKDF2 hash per user. The Cloudflare Worker writes it (account creation/reset via the Worker's server-side GitHub credential) and serves a sanitized copy to admin sessions. The desktop app fetches it in memory at login and never writes or stores this file locally. |
 | `version.json` | Update manifest: bump `database` / `banking` to publish a new release; carries the signed SHA-256 hashes of the data files (database + banking only) |
 | `version.json.sig` | Ed25519 signature (base64) over `version.json` — the app rejects unsigned/tampered manifests |
 | `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
@@ -217,8 +217,8 @@ Every update is cryptographically verified before it is applied:
 2. Each downloaded data file must match the signed SHA-256 hash listed inside
    `version.json`, otherwise that file is rejected. The signed hashes cover
    the exact bytes GitHub serves (`.gitattributes` enforces LF line endings).
-   `secret.json` is exempt: it is the live accounts file maintained by the
-   app itself (via the auth proxy Worker).
+    `secret.json` is exempt: it is the live server-side account registry
+    maintained by the auth proxy Worker, not a client-distributed file.
 
 To publish a data update:
 

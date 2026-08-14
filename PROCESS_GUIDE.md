@@ -154,7 +154,7 @@ DATA update (no new exe needed):
 
 AUTH PROXY deploy (Worker in worker/, one-time):
   cd worker
-  → npx wrangler secret put GITHUB_TOKEN / SMTP_PASSWORD / SESSION_SECRET
+  → npx wrangler secret put GITHUB_TOKEN / SMTP_PASSWORD / SESSION_SECRET / ADMIN_SECRET_PHRASE
   → npx wrangler deploy
   → copy printed URL into AUTH_WORKER_URL in tech_common.py
   → rebuild + release the exe
