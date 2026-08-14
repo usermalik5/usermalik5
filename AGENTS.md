@@ -118,6 +118,24 @@ source module exceeds configured PyArmor Trial threshold
 A successful PyInstaller build without successful PyArmor obfuscation is **not**
 a production build.
 
+### Release bookkeeping (every release)
+
+Every time a new release is built, tagged, or published (and on every
+`APP_VERSION` bump), the agent MUST also:
+
+1. Bump `APP_VERSION` in `tech_common.py` to the new version and keep it
+   matching the release tag (`v<APP_VERSION>`).
+2. Update the **"Latest release"** version text in `README.md` (Download
+   section) to the new version, so the visible `(vX.Y.Z)` label matches the
+   released tag. The `releases/latest` URL already redirects automatically,
+   but the label is static and must be edited by hand.
+3. Mention the version change in the release notes.
+4. Rebuild the obfuscated EXE (`python scripts/release.py`) before tagging.
+
+A release where `README.md` still shows an older `(vX.Y.Z)` label is
+incomplete — treat the stale label as a release defect and fix it in the same
+commit as the version bump.
+
 ## Documentation authority
 
 - `AGENTS.md` defines mandatory agent behavior.

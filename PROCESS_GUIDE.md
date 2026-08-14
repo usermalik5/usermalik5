@@ -203,6 +203,19 @@ EXE verification
 A PyInstaller EXE built without successful PyArmor obfuscation is a debug
 artifact, not a production release.
 
+### Release bookkeeping
+
+Every release must also update the repo's user-facing release metadata in the
+same commit as the `APP_VERSION` bump:
+
+- `tech_common.py` `APP_VERSION` must match the release tag (`v<APP_VERSION>`).
+- README.md "Latest release" label `(vX.Y.Z)` in the Download section must be
+  bumped to the new version (the `releases/latest` URL redirects
+  automatically, but the static label does not).
+- The release notes must state the new version.
+
+A stale `(vX.Y.Z)` label in README.md after a release is a release defect.
+
 The release spec includes `runtime_hook_gelotech.py`, which explicitly loads
 `sitecustomize.py` for packaged compatibility behavior (mirror/restore and
 URL-tooltip). This avoids relying on CPython's normal `sitecustomize`
