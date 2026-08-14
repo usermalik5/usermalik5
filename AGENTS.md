@@ -131,6 +131,17 @@ Every time a new release is built, tagged, or published (and on every
    but the label is static and must be edited by hand.
 3. Mention the version change in the release notes.
 4. Rebuild the obfuscated EXE (`python scripts/release.py`) before tagging.
+5. Publish the EXE to the **public download repo** `usermalik5/usermalik5`
+   (the GeloTech-Tool repo is private, so its releases are not accessible to
+   users). Create a matching release there and attach the EXE:
+   `gh release create v<APP_VERSION> dist\GeloTechTool.exe --repo usermalik5/usermalik5 --title "GeloTechTool v<APP_VERSION>" --notes-file <notes>`
+   and make sure `https://github.com/usermalik5/usermalik5/releases/latest`
+   redirects to it. The profile README's "Latest Release" link already points
+   there; verify it after each release.
+6. `gh` uses a fine-grained PAT scoped to `usermalik5/GeloTech-Tool` — it must
+   also have access to `usermalik5/usermalik5` with **Contents: Read and
+   write** (covers Releases). If the public-repo upload fails with HTTP 403,
+   ask the user to add that repository access to the token before retrying.
 
 A release where `README.md` still shows an older `(vX.Y.Z)` label is
 incomplete — treat the stale label as a release defect and fix it in the same
