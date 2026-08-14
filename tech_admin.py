@@ -36,6 +36,15 @@ class AdminPanelMixin:
                               font=ctk.CTkFont(size=10), text_color="#8b949e")
         status.pack(anchor="w", padx=14)
 
+        search_row = ctk.CTkFrame(dialog, fg_color="#0d1117")
+        search_row.pack(fill="x", padx=14, pady=(8, 0))
+        search_entry = ctk.CTkEntry(search_row, placeholder_text="Search accounts\u2026 (email / username)",
+                                    fg_color="#0d1117", border_color="#30363d", height=32,
+                                    font=ctk.CTkFont(size=11), corner_radius=8)
+        search_entry.pack(side="left", fill="x", expand=True)
+        count_label = ctk.CTkLabel(search_row, text="", font=ctk.CTkFont(size=10), text_color="#8b949e")
+        count_label.pack(side="right", padx=(10, 0))
+
         list_frame = ctk.CTkScrollableFrame(dialog, fg_color="#16191e", corner_radius=8)
         list_frame.pack(fill="both", expand=True, padx=14, pady=8)
 
@@ -129,14 +138,23 @@ class AdminPanelMixin:
 
             threading.Thread(target=worker, daemon=True).start()
 
-        def render(users):
+        def render(users, query=""):
             for w in list_frame.winfo_children():
                 w.destroy()
+            names = sorted(users) if users else []
+            q = query.strip().lower()
+            if q:
+                names = [n for n in names if q in n.lower()]
             if not users:
-                ctk.CTkLabel(list_frame, text="No accounts yet.",
+                count_label.configure(text="0 accounts")
+            else:
+                count_label.configure(text="%d / %d accounts" % (len(names), len(users)))
+            if not names:
+                ctk.CTkLabel(list_frame, text=("No accounts match your search."
+                                               if q and users else "No accounts yet."),
                              font=ctk.CTkFont(size=11), text_color="#8b949e").pack(pady=20)
                 return
-            for name in sorted(users):
+            for name in names:
                 rec = users[name] or {}
                 is_admin = (name == "admin")
                 blocked = bool(rec.get("blocked"))
@@ -182,12 +200,16 @@ class AdminPanelMixin:
                                   font=ctk.CTkFont(size=10, weight="bold"),
                                   command=lambda n=name, b=not blocked: toggle_blocked(n, b)).pack(side="right", padx=(6, 0))
 
+        all_users = {}
+
         def load():
             status.configure(text="Loading accounts from the auth server\u2026")
             for w in list_frame.winfo_children():
                 w.destroy()
             session = getattr(self, "_auth_session", None)
             threading.Thread(target=lambda: finish(*_fetch_verified_users(session)), daemon=True).start()
+
+        search_entry.bind("<KeyRelease>", lambda e: render(all_users, search_entry.get()))
 
         def finish(users, err):
             if err:
@@ -198,8 +220,10 @@ class AdminPanelMixin:
                                       "Check your connection and press Refresh.",
                                  text_color="#ff6b6b")
                 return
+            all_users.clear()
+            all_users.update(users)
             status.configure(text="\u2713 Accounts loaded from the auth server.",
                              text_color="#2ecc71")
-            render(users)
+            render(users, search_entry.get())
 
         load()
