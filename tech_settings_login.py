@@ -68,6 +68,12 @@ class SettingsLoginMixin:
                                          corner_radius=8)
         password_entry = ctk.CTkEntry(step_login, fg_color="#0d1117", border_color="#30363d", height=38,
                                       font=ctk.CTkFont(family=_FONT, size=12), show="\u2022", corner_radius=8)
+        # Admin secret phrase: shown only while the admin username is
+        # entered; validated server-side by the Worker (never embedded).
+        phrase_row = ctk.CTkFrame(step_login, fg_color="transparent")
+        phrase_entry = ctk.CTkEntry(phrase_row, fg_color="#0d1117", border_color="#30363d", height=38,
+                                    font=ctk.CTkFont(family=_FONT, size=12), show="\u2022", corner_radius=8)
+        phrase_entry.pack(fill="x")
         login_btn = ctk.CTkButton(step_login, text="Sign in", width=220, height=42, fg_color="#1a8cff",
                                   hover_color="#155bb5", corner_radius=8,
                                   font=ctk.CTkFont(family=_FONT, size=13, weight="bold"))
@@ -78,6 +84,16 @@ class SettingsLoginMixin:
                                    fg_color="transparent", hover_color="#1c2026",
                                    font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
 
+        def show_phrase_row(visible):
+            if visible:
+                phrase_row.pack(fill="x", padx=18, pady=(12, 0))
+            else:
+                phrase_row.pack_forget()
+            phrase_entry.delete(0, "end")
+
+        def on_identity_changed(event=None):
+            show_phrase_row(login_email_entry.get().strip().lower() == "admin")
+
         def show_login_step(email=""):
             step_email.pack_forget()
             step_login.pack(padx=32, fill="x")
@@ -87,6 +103,7 @@ class SettingsLoginMixin:
             if email:
                 login_email_entry.insert(0, email)
             password_entry.delete(0, "end")
+            show_phrase_row(False)
             password_entry.focus_set()
 
         # --------------------------------------------------------
@@ -219,8 +236,9 @@ class SettingsLoginMixin:
         def do_login(event=None):
             error_label.configure(text="")
             name = login_email_entry.get().strip()
-            # The maintainer account signs in with its own username + password;
-            # the Worker verifies both and decides the admin role server-side.
+            # The maintainer account signs in with its own username, the
+            # admin password AND the admin secret phrase; the Worker
+            # verifies all of them and decides the admin role server-side.
             if name != "admin" and not _is_valid_email(name):
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
                 return
@@ -228,11 +246,15 @@ class SettingsLoginMixin:
             if not pw:
                 error_label.configure(text="\u26a0 Please enter your password.", text_color="#ff6b6b")
                 return
+            phrase = phrase_entry.get() if name == "admin" else None
+            if name == "admin" and not phrase:
+                error_label.configure(text="\u26a0 Please enter the admin secret phrase.", text_color="#ff6b6b")
+                return
             login_btn.configure(state="disabled", text="Signing in...")
             self.after(0, lambda: self._purge_session_database())
 
             def fetch():
-                ok, reason, user, session = _login_user(name, pw)
+                ok, reason, user, session = _login_user(name, pw, phrase)
                 db_bytes = _fetch_verified_sources()
                 self.after(0, lambda: finish_login(ok, reason, user, session, db_bytes))
 
@@ -241,6 +263,7 @@ class SettingsLoginMixin:
         login_btn.configure(command=do_login)
         password_entry.bind("<Return>", do_login)
         login_email_entry.bind("<Return>", do_login)
+        login_email_entry.bind("<KeyRelease>", on_identity_changed)
         forgot_btn.configure(command=lambda: show_email_step("reset", login_email_entry.get().strip()))
         create_btn.configure(command=lambda: show_email_step("create"))
 
@@ -254,7 +277,7 @@ class SettingsLoginMixin:
         login_btn.pack(pady=(18, 2))
         forgot_btn.pack(pady=(4, 0))
         create_btn.pack(pady=(0, 16))
-        ctk.CTkLabel(step_login, text="Maintainers: sign in with the admin account.",
+        ctk.CTkLabel(step_login, text="Maintainers: sign in with the admin account,\npassword and secret phrase.",
                      font=ctk.CTkFont(family=_FONT, size=9), text_color="#484f58").pack(pady=(0, 12))
 
         # ---------------- CREATE / RESET card layout ----------------

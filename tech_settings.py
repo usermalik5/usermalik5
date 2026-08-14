@@ -14,7 +14,7 @@ from tech_admin import AdminPanelMixin
 
 from tech_reg import (_worker_fetch, _verify_manifest_sig, _fetch_verified_sources,
                       _fetch_verified_users, _purge_session_database, _is_valid_email,
-                      _request_password, hash_password, verify_password)
+                      _request_password)
 
 # Local runtime settings file (exclusions + debloated history). Deliberately NOT
 # named secret.json: that name is reserved for the live accounts file on GitHub.
@@ -283,14 +283,6 @@ class SettingsMixin(AdminPanelMixin):
     # ----------------------------------------------------
     # LOGIN / USER ACCOUNTS / PERMISSIONS
     # ----------------------------------------------------
-    @staticmethod
-    def _hash_pw(pw):
-        return hash_password(pw)
-
-    @staticmethod
-    def _verify_pw(pw, stored):
-        return verify_password(pw, stored)
-
     @staticmethod
     def _purge_session_database():
         _purge_session_database()

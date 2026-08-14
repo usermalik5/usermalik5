@@ -16,6 +16,7 @@ const env = {
   SMTP_USER: "sender@test",
   SMTP_FROM: "sender@test",
   SESSION_SECRET: "test-session-secret-0123456789",
+  ADMIN_SECRET_PHRASE: "test-admin-phrase-123",
   ENABLE_RATE_LIMIT: "false",
 };
 
@@ -176,9 +177,10 @@ test("GET /accounts with expired session -> 401", async () => {
 test("GET /accounts with tampered session -> 401", async () => {
   const state = await makeState();
   const token = await adminSession();
-  const [body, sig] = token.split(".");
-  const flipped = sig.slice(0, -1) + (sig.endsWith("A") ? "B" : "A");
-  const r = await handleRequest(req("/accounts", { headers: { Authorization: `Bearer ${body}.${flipped}` } }), env, deps(state));
+  const [body] = token.split(".");
+  // 43 base64 chars = 32 bytes: correct length, all-zero HMAC -> must fail.
+  const fakeSig = "A".repeat(43);
+  const r = await handleRequest(req("/accounts", { headers: { Authorization: `Bearer ${body}.${fakeSig}` } }), env, deps(state));
   assert.equal(r.status, 401);
 });
 
@@ -254,13 +256,59 @@ test("POST /admin/block validation: missing email -> 400, non-boolean blocked ->
 
 test("login: valid admin password -> ok, role admin, session issued, no hash", async () => {
   const state = await makeState();
-  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw" } }), env, deps(state));
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw", phrase: "test-admin-phrase-123" } }), env, deps(state));
   assert.equal(r.status, 200);
   const body = await jsonBody(r);
   assert.equal(body.ok, true);
   assert.equal(body.user.role, "admin");
   assert.ok(body.session && body.session.includes("."));
   assert.ok(!JSON.stringify(body).includes("hash"));
+  assert.ok(!JSON.stringify(body).includes("phrase"), "phrase must never be echoed back");
+});
+
+test("login: admin WITHOUT secret phrase is BLOCKED -> invalid-credentials", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw" } }), env, deps(state));
+  assert.equal(r.status, 200);
+  const body = await jsonBody(r);
+  assert.equal(body.ok, false);
+  assert.equal(body.reason, "invalid-credentials");
+  assert.equal(body.session, undefined, "no session may be issued without the phrase");
+});
+
+test("login: admin with WRONG secret phrase -> invalid-credentials", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw", phrase: "not-the-phrase" } }), env, deps(state));
+  const body = await jsonBody(r);
+  assert.equal(body.ok, false);
+  assert.equal(body.reason, "invalid-credentials");
+  assert.equal(body.session, undefined);
+});
+
+test("login: admin fails CLOSED when ADMIN_SECRET_PHRASE secret is missing", async () => {
+  const state = await makeState();
+  const noPhrase = { ...env, ADMIN_SECRET_PHRASE: undefined };
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw", phrase: "anything" } }), noPhrase, deps(state));
+  const body = await jsonBody(r);
+  assert.equal(body.ok, false);
+  assert.equal(body.reason, "invalid-credentials");
+  assert.equal(body.session, undefined);
+});
+
+test("login: wrong admin password with correct phrase still rejected", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "nope", phrase: "test-admin-phrase-123" } }), env, deps(state));
+  const body = await jsonBody(r);
+  assert.equal(body.ok, false);
+  assert.equal(body.reason, "invalid-credentials");
+});
+
+test("login: normal user is unaffected by the phrase and ignores it", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "a@b.c", password: "userpw", phrase: "whatever" } }), env, deps(state));
+  const body = await jsonBody(r);
+  assert.equal(body.ok, true);
+  assert.equal(body.user.role, "user");
 });
 
 test("login: valid normal user -> ok, role user, session issued", async () => {
@@ -321,7 +369,7 @@ test("login: oversized body -> 413", async () => {
 test("login: missing SESSION_SECRET fails closed -> 503", async () => {
   const state = await makeState();
   const noSecret = { ...env, SESSION_SECRET: undefined };
-  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw" } }), noSecret, deps(state));
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "admin", password: "adminpw", phrase: "test-admin-phrase-123" } }), noSecret, deps(state));
   assert.equal(r.status, 503);
 });
 
@@ -440,4 +488,176 @@ test("no internal details or tokens leak in any error response", async () => {
   const text = await r.text();
   assert.ok(!text.includes(env.GITHUB_TOKEN), "GITHUB_TOKEN must never leak");
   assert.ok(!text.includes("github"), "no GitHub API details in client responses");
+});
+
+// ---------------------------------------------------------------- session revocation
+
+test("GET /accounts: blocking the admin account invalidates its live session -> 403", async () => {
+  const state = await makeState();
+  state.secretJson.users.admin.blocked = true;
+  const r = await handleRequest(req("/accounts", { headers: { Authorization: `Bearer ${await adminSession()}` } }), env, deps(state));
+  assert.equal(r.status, 403);
+  const body = await jsonBody(r);
+  assert.equal(body.users, undefined, "no registry data may be returned to a revoked session");
+});
+
+test("GET /accounts: deleting the admin account invalidates its live session -> 401", async () => {
+  const state = await makeState();
+  delete state.secretJson.users.admin;
+  const r = await handleRequest(req("/accounts", { headers: { Authorization: `Bearer ${await adminSession()}` } }), env, deps(state));
+  assert.equal(r.status, 401);
+});
+
+test("GET /accounts: registry read failure fails closed -> 502", async () => {
+  const state = await makeState();
+  const d = deps(state);
+  d.fetchImpl = async () => ({ ok: false, status: 500, json: async () => ({ message: "boom" }) });
+  const r = await handleRequest(req("/accounts", { headers: { Authorization: `Bearer ${await adminSession()}` } }), env, d);
+  assert.equal(r.status, 502);
+  assert.ok(!(await r.text()).includes(env.GITHUB_TOKEN));
+});
+
+test("POST /admin/block: blocked admin session -> 403 and NO write happens", async () => {
+  const state = await makeState();
+  state.secretJson.users.admin.blocked = true;
+  const r = await handleRequest(
+    req("/admin/block", { method: "POST", body: { email: "a@b.c", blocked: true }, headers: { Authorization: `Bearer ${await adminSession()}` } }),
+    env, deps(state));
+  assert.equal(r.status, 403);
+  assert.equal(state.puts.length, 0, "a revoked session must never mutate secret.json");
+});
+
+test("POST /admin/block: unblocked admin still works with live revalidation", async () => {
+  const state = await makeState();
+  const r = await handleRequest(
+    req("/admin/block", { method: "POST", body: { email: "blocked@x.c", blocked: false }, headers: { Authorization: `Bearer ${await adminSession()}` } }),
+    env, deps(state));
+  assert.equal(r.status, 200);
+  assert.equal(state.puts.length, 1);
+});
+
+// ---------------------------------------------------------------- Cloudflare rate limiting binding
+
+function bindingEnv(result, onCall) {
+  const calls = [];
+  const AUTH_RATE = {
+    calls,
+    limit: async ({ key }) => {
+      calls.push(key);
+      if (onCall) onCall(key);
+      return result;
+    },
+  };
+  return { ...env, AUTH_RATE };
+}
+
+test("login: Cloudflare ratelimit binding denies -> 429, Map not consulted", async () => {
+  const state = await makeState();
+  const rlEnv = bindingEnv({ success: false, limit: 3, period: 60, remaining: 0 });
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "a@b.c", password: "userpw" } }), rlEnv, deps(state));
+  assert.equal(r.status, 429);
+  assert.equal((await jsonBody(r)).reason, "rate-limited");
+  assert.equal(rlEnv.AUTH_RATE.calls.length, 1);
+});
+
+test("login: binding keys are sanitized to [a-zA-Z0-9_-]", async () => {
+  const state = await makeState();
+  const rlEnv = bindingEnv({ success: true, limit: 10, period: 60, remaining: 9 });
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "a@b.c", password: "wrong" } }), rlEnv, deps(state));
+  assert.equal(r.status, 200);
+  const key = rlEnv.AUTH_RATE.calls[0];
+  assert.ok(/^[a-zA-Z0-9_-]+$/.test(key), `key must be binding-safe: ${key}`);
+  assert.ok(key.includes("login"));
+});
+
+test("register: binding applies per-email key", async () => {
+  const state = await makeState();
+  const rlEnv = bindingEnv({ success: true, limit: 10, period: 60, remaining: 9 });
+  const r = await handleRequest(req("/register", { method: "POST", body: { email: "new@b.c" } }), rlEnv, deps(state));
+  assert.equal(r.status, 200);
+  const keys = rlEnv.AUTH_RATE.calls.join(",");
+  assert.ok(keys.includes("register-email-new-b-c") || keys.includes("register-email-new@b.c"));
+});
+
+test("files: binding denial -> 429", async () => {
+  const state = await makeState();
+  const rlEnv = bindingEnv({ success: false, limit: 3, period: 60, remaining: 0 });
+  const r = await handleRequest(req("/files/version.json"), rlEnv, deps(state));
+  assert.equal(r.status, 429);
+});
+
+test("binding limiter outage does not break the app", async () => {
+  const state = await makeState();
+  const rlEnv = { ...env, AUTH_RATE: { limit: async () => { throw new Error("platform error"); } } };
+  const r = await handleRequest(req("/login", { method: "POST", body: { email: "a@b.c", password: "wrong" } }), rlEnv, deps(state));
+  assert.equal(r.status, 200); // request proceeds on limiter failure
+});
+
+// ---------------------------------------------------------------- /admin/password
+
+test("POST /admin/password without session -> 401", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/admin/password", { method: "POST", body: { email: "admin", password: "NewPass123" } }), env, deps(state));
+  assert.equal(r.status, 401);
+});
+
+test("POST /admin/password with normal-user session -> 403", async () => {
+  const state = await makeState();
+  const r = await handleRequest(
+    req("/admin/password", { method: "POST", body: { email: "admin", password: "NewPass123" }, headers: { Authorization: `Bearer ${await userSession()}` } }),
+    env, deps(state));
+  assert.equal(r.status, 403);
+});
+
+test("POST /admin/password: blocked admin session -> 403, no write", async () => {
+  const state = await makeState();
+  state.secretJson.users.admin.blocked = true;
+  const r = await handleRequest(
+    req("/admin/password", { method: "POST", body: { email: "admin", password: "NewPass123" }, headers: { Authorization: `Bearer ${await adminSession()}` } }),
+    env, deps(state));
+  assert.equal(r.status, 403);
+  assert.equal(state.puts.length, 0);
+});
+
+test("POST /admin/password with admin session -> 200, PBKDF2 hash stored, no plaintext anywhere", async () => {
+  const state = await makeState();
+  const d = deps(state);
+  const r = await handleRequest(
+    req("/admin/password", { method: "POST", body: { email: "admin", password: "BrandNewAdminPw9" }, headers: { Authorization: `Bearer ${await adminSession()}` } }),
+    env, d);
+  assert.equal(r.status, 200);
+  assert.equal(state.puts.length, 1);
+  const written = JSON.parse(Buffer.from(state.puts[0].content, "base64").toString());
+  assert.ok(/^\d+\$[0-9a-f]{32}\$[0-9a-f]{64}$/.test(written.users.admin.hash), "new hash must be PBKDF2 format");
+  assert.notEqual(written.users.admin.hash, state.secretJson.users.admin.hash, "hash must actually change");
+  const traffic = JSON.stringify(d.calls.map((c) => ({ url: c.url, body: c.opts.body })));
+  assert.ok(!traffic.includes("BrandNewAdminPw9"), "plaintext password must never reach GitHub");
+  assert.ok(!JSON.stringify(state.puts[0]).includes("BrandNewAdminPw9"), "no plaintext in commit");
+  assert.equal(state.puts[0].message, "Password update for admin (maintainer)");
+});
+
+test("POST /admin/password validation: short password -> 400, missing email -> 400", async () => {
+  const state = await makeState();
+  const auth = { Authorization: `Bearer ${await adminSession()}` };
+  const r1 = await handleRequest(req("/admin/password", { method: "POST", body: { email: "admin", password: "short" }, headers: auth }), env, deps(state));
+  assert.equal(r1.status, 400);
+  const r2 = await handleRequest(req("/admin/password", { method: "POST", body: { password: "LongEnoughPw1" }, headers: auth }), env, deps(state));
+  assert.equal(r2.status, 400);
+});
+
+test("POST /admin/password for unknown account -> registry unchanged", async () => {
+  const state = await makeState();
+  const r = await handleRequest(
+    req("/admin/password", { method: "POST", body: { email: "ghost@x.c", password: "LongEnoughPw1" }, headers: { Authorization: `Bearer ${await adminSession()}` } }),
+    env, deps(state));
+  assert.equal(r.status, 200);
+  assert.equal(state.puts.length, 1);
+  const written = JSON.parse(Buffer.from(state.puts[0].content, "base64").toString());
+  assert.equal(written.users["ghost@x.c"], undefined, "unknown accounts must not be created");
+});
+
+test("POST /admin/password -> 405 on GET", async () => {
+  const state = await makeState();
+  const r = await handleRequest(req("/admin/password"), env, deps(state));
+  assert.equal(r.status, 405);
 });

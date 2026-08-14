@@ -42,10 +42,19 @@ and the app contains NO credentials at all:
   flag server-side, emails generated passwords (SMTP is server-side), and
   signs login sessions (HMAC-SHA256, `SESSION_SECRET`, 12 h TTL).
 - Admin authorization is a server-issued signed session sent as
-  `Authorization: Bearer` — there is NO admin secret phrase, and role
-  comes only from the Worker's login response (`user.role == "admin"`).
-  The client keeps the session token in memory only (`_auth_session`) and
-  clears it on logout/app close.
+  `Authorization: Bearer` - role comes only from the Worker's login
+  response (`user.role == "admin"`). Admin login requires the password AND
+  the admin secret phrase: the phrase is entered by the maintainer and sent
+  with `POST /login` (`phrase` field), but it exists server-side only as
+  the `ADMIN_SECRET_PHRASE` Worker secret - never embedded in the client.
+  Every privileged call (`/accounts`, `/admin/block`, `/admin/password`)
+  revalidates the session against the live account registry, so blocked
+  accounts lose access immediately. The client keeps the session token in
+  memory only (`_auth_session`) and clears it on logout/app close.
+- Maintainer password changes go through the Worker
+  (`POST /admin/password`, `tech_reg._admin_set_password`) - the client
+  never hashes or stores passwords; there is NO client-side PBKDF2 code
+  (removed in v2.2.0).
 - The repo write token, SMTP credentials and session-signing key must stay
   OUT of the app code (they exist only as Cloudflare Worker secrets; stale
   copies still embedded in `tech_common.py` are legacy and must not be used

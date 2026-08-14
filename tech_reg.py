@@ -10,10 +10,13 @@ every operation goes through the auth proxy Worker (AUTH_WORKER_URL),
 which holds the repo read/write token, the SMTP sender and the
 session-signing key as server-side secrets.
 
-Account operations (login, password request, block/unblock) go through
-the Worker. Admin operations require a short-lived signed session token
-(Authorization: Bearer <session>) issued by the Worker on successful
-login of the admin account; the client stores it ONLY in memory.
+Account operations (login, password request, block/unblock, password
+changes) go through the Worker. Admin operations require a short-lived
+signed session token (Authorization: Bearer <session>) issued by the
+Worker on successful login of the admin account; the client stores it ONLY
+in memory. Admin login is two-factor server-side: the admin password AND
+the admin secret phrase, which exists only as a Worker secret and is never
+embedded anywhere in the client.
 
 The package-database manifest flow (version.json + Ed25519 signature +
 sha256-pinned gelotech_database_v3.json) also goes through the Worker's
@@ -134,28 +137,6 @@ def _purge_session_database():
         pass
 
 
-def hash_password(pw):
-    """PBKDF2-SHA256 hash: '<iters>$<salt_hex>$<digest_hex>'."""
-    salt = os.urandom(16).hex()
-    iters = 100_000
-    digest = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), bytes.fromhex(salt), iters).hex()
-    return f"{iters}${salt}${digest}"
-
-
-def verify_password(pw, stored):
-    """Constant-time-ish PBKDF2 check; also accepts legacy SHA-256 hashes."""
-    if not stored:
-        return False
-    if stored.count("$") == 2:
-        iters, salt, digest = stored.split("$")
-        try:
-            calc = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), bytes.fromhex(salt), int(iters)).hex()
-        except Exception:
-            return False
-        return calc == digest
-    return hashlib.sha256(pw.encode("utf-8")).hexdigest() == stored
-
-
 # ----------------------------------------------------
 # EMAIL-BASED ACCOUNTS (auth proxy Worker)
 # ----------------------------------------------------
@@ -163,15 +144,21 @@ def _is_valid_email(email):
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""))
 
 
-def _login_user(name, pw):
+def _login_user(name, pw, phrase=None):
     """Verify credentials against the auth proxy Worker, which checks the
     PBKDF2 hash and the blocked flag server-side. Returns
     (ok: bool, reason: str, user: dict|None, session: str|None).
     user carries the server-issued role/permissions/tabs (no hash is ever
     sent back); session is a short-lived signed token the Worker issues on
-    success and that the client keeps ONLY in memory."""
+    success and that the client keeps ONLY in memory.
+    The admin account additionally requires the admin secret phrase, which
+    the Worker validates server-side (it lives only as a Worker secret, so
+    the client merely forwards what the maintainer types)."""
+    payload = {"email": name, "password": pw}
+    if phrase:
+        payload["phrase"] = phrase
     try:
-        resp = _worker_call("login", {"email": name, "password": pw})
+        resp = _worker_call("login", payload)
     except Exception as e:
         return False, f"Could not reach the auth server: {type(e).__name__}: {e}", None, None
     if not resp.get("ok"):
@@ -208,4 +195,22 @@ def _set_user_blocked(email, blocked, session):
         return f"Could not reach the auth server: {type(e).__name__}: {e}"
     if not resp.get("ok"):
         return resp.get("error") or "Block/unblock failed."
+    return None
+
+
+def _admin_set_password(email, new_password, session):
+    """Set a new password for an account (maintainer action, admin session
+    required). The Worker hashes it server-side; the client only sends the
+    value over HTTPS and never persists it. Returns None on success or an
+    error string."""
+    try:
+        resp = _worker_call("admin/password", {"email": email, "password": new_password}, session=session)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code in (401, 403):
+            return "Admin session expired or not authorized. Sign out and sign back in."
+        return f"Could not reach the auth server: {type(e).__name__}: {e}"
+    except Exception as e:
+        return f"Could not reach the auth server: {type(e).__name__}: {e}"
+    if not resp.get("ok"):
+        return resp.get("error") or "Password change failed."
     return None

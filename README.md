@@ -111,10 +111,15 @@ an account** (or **Forgot your password?** if you lost it), enter your email,
 and we'll send you a password (also check the spam folder); requesting a new
 password replaces the old one. A **Back to sign in** link always returns you
 to the login form. The maintainer signs in with the reserved **admin**
-username (maintainer-only, not shown to users). After
-successful sign-in, Dashboard is selected automatically. Non-admin users get
-all tabs and tools (Cleaner, Monitor, DNS, all sidebar actions); only the
-VirusTotal tab is reserved for the admin account.
+username (maintainer-only, not shown to users); typing `admin` reveals the
+admin secret phrase field — admin login requires the password AND the secret
+phrase (verified server-side by the auth Worker, never stored in the app).
+After successful sign-in, Dashboard is selected automatically. Non-admin
+users get all tabs and tools (Cleaner, Monitor, DNS, all sidebar actions);
+only the VirusTotal tab is reserved for the admin account. The Accounts
+panel (admin) also offers **Change password** per account — use it to
+replace the initial default admin password (`admin123`) right after your
+first sign-in.
 
 ## Building the exe
 
@@ -226,9 +231,13 @@ To publish a data update:
 3. Users' apps fetch it automatically on their next login — and only if the
    signature and hashes verify.
 
-To change a user's password, update the PBKDF2 hash in `secret.json`
-(format `iters$salt$digest`, 100000 iterations) and run `python bump_version.py sign`.
-Never use the legacy plain-SHA-256 format.
+To change a user's password, use the auth Worker: sign in as admin, open
+**Settings -> Account management**, and pick **Change password** on the
+account row (server-side PBKDF2 hashing, `POST /admin/password`). Manual
+edits of `secret.json` (format `iters$salt$digest`, 100000 iterations,
+never the legacy plain-SHA-256 format) followed by
+`python bump_version.py sign` still work but should be reserved for
+emergencies.
 
 To ship a code change, edit the Python files, rebuild the exe (above), and
 redistribute the new exe — code only changes when a new exe is built.

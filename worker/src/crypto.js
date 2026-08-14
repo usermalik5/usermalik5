@@ -78,3 +78,11 @@ export function constantTimeEqual(a, b) {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+// Constant-time comparison of two secrets (e.g. the admin phrase): both are
+// hashed first so nothing about their length or content is exposed.
+export async function safeEqual(a, b) {
+  const ha = await sha256Hex(String(a ?? ""));
+  const hb = await sha256Hex(String(b ?? ""));
+  return constantTimeEqual(ha, hb);
+}

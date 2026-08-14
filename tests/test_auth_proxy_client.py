@@ -294,6 +294,65 @@ def test_fetch_verified_sources_rejects_no_accounts_call(monkeypatch):
     assert tech_reg._fetch_verified_sources() == db_bytes
 
 
+def test_login_user_sends_phrase_for_admin(monkeypatch):
+    captured = {}
+
+    def fake_call(path, payload=None, session=None):
+        captured["payload"] = payload
+        return {"ok": True, "user": {"role": "admin"}, "session": "s"}
+
+    monkeypatch.setattr(tech_reg, "_worker_call", fake_call)
+    ok, reason, user, session = tech_reg._login_user("admin", "pw", "phrase-xyz")
+    assert ok is True and reason == ""
+    assert user["role"] == "admin"
+    assert session == "s"
+    assert captured["payload"] == {"email": "admin", "password": "pw", "phrase": "phrase-xyz"}
+
+
+def test_login_user_omits_phrase_for_users(monkeypatch):
+    captured = {}
+
+    def fake_call(path, payload=None, session=None):
+        captured["payload"] = payload
+        return {"ok": True, "user": {"role": "user"}, "session": "s"}
+
+    monkeypatch.setattr(tech_reg, "_worker_call", fake_call)
+    ok, reason, user, session = tech_reg._login_user("a@b.c", "pw")
+    assert ok is True
+    assert captured["payload"] == {"email": "a@b.c", "password": "pw"}
+
+
+def test_admin_set_password_sends_session(monkeypatch):
+    captured = {}
+
+    def fake_call(path, payload=None, session=None):
+        captured.update(path=path, payload=payload, session=session)
+        return {"ok": True}
+
+    monkeypatch.setattr(tech_reg, "_worker_call", fake_call)
+    err = tech_reg._admin_set_password("admin", "NewPw12345", "sess-tok")
+    assert err is None
+    assert captured["path"] == "admin/password"
+    assert captured["payload"] == {"email": "admin", "password": "NewPw12345"}
+    assert captured["session"] == "sess-tok"
+
+
+def test_admin_set_password_401_maps_to_session_message(monkeypatch):
+    err = requests.HTTPError("401")
+    err.response = type("R", (), {"status_code": 401})()
+    monkeypatch.setattr(tech_reg, "_worker_call", lambda *a, **k: (_ for _ in ()).throw(err))
+    result = tech_reg._admin_set_password("admin", "NewPw12345", "stale")
+    assert "session" in result.lower()
+
+
+def test_admin_set_password_error(monkeypatch):
+    def fake_call(path, payload=None, session=None):
+        return {"ok": False, "error": "Password must be 8-256 characters."}
+
+    monkeypatch.setattr(tech_reg, "_worker_call", fake_call)
+    assert tech_reg._admin_set_password("admin", "short", "s") == "Password must be 8-256 characters."
+
+
 def test_worker_call_unconfigured():
     original = tech_reg.AUTH_WORKER_URL
     try:
