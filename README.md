@@ -110,8 +110,8 @@ passwords stay valid until you request a new one. New here? Choose **Create
 an account** (or **Forgot your password?** if you lost it), enter your email,
 and we'll send you a password (also check the spam folder); requesting a new
 password replaces the old one. A **Back to sign in** link always returns you
-to the login form. The maintainer unlocks admin login by typing the secret
-phrase into the email field (maintainer-only, not shown to users). After
+to the login form. The maintainer signs in with the reserved **admin**
+username (maintainer-only, not shown to users). After
 successful sign-in, Dashboard is selected automatically. Non-admin users get
 all tabs and tools (Cleaner, Monitor, DNS, all sidebar actions); only the
 VirusTotal tab is reserved for the admin account.
@@ -183,15 +183,16 @@ python -m PyInstaller GeloTechTool.spec --noconfirm
 
 ## Updating the app on other PCs
 
-The update URL and GitHub token are embedded in the app (`tech_common.py`),
+The update URL and the Worker URL are embedded in the app (`tech_common.py`),
 so users need no configuration — the update source is **pinned** to those
 embedded constants and can never be redirected by settings or by the repo's
 `secret.json`. Every login does three verified things in one go:
 
 1. Verifies your login against the auth proxy **Cloudflare Worker**
    (`AUTH_WORKER_URL` in `tech_common.py`) — the Worker holds the repo write
-   token, the SMTP sender and the admin phrase as server-side secrets,
-   checks your PBKDF2 hash + blocked flag, and returns your permissions.
+   token, the SMTP sender and the session-signing key as server-side
+   secrets, checks your PBKDF2 hash + blocked flag, and returns your
+   permissions.
    Entering your email in the first step self-registers / resets your
    password: the Worker generates a password, hashes it (PBKDF2, 100000
    iterations), writes it into the repo's `secret.json`, and emails it to
@@ -237,18 +238,19 @@ redistribute the new exe — code only changes when a new exe is built.
 - Accounts are email-based, self-managed: the auth proxy Worker (Cloudflare,
   `worker/`) generates PBKDF2 hashed passwords, persists them to the repo's
   `secret.json`, and emails them via a dedicated SMTP sender — the write
-  token, SMTP credentials and admin phrase live ONLY as Cloudflare Worker
-  secrets, never in the exe. Credentials are never stored on users' PCs. The
+  token, SMTP credentials and session-signing key live ONLY as Cloudflare
+  Worker secrets, never in the exe. Credentials are never stored on users'
+  PCs. The
   **Accounts** panel (admin) shows the account list and can **Block /
   Unblock** any account — blocked accounts can't sign in and can't request a
   new password (the `blocked` flag lives on the account in `secret.json`).
 - Updates are signed (Ed25519): the manifest signature and per-file SHA-256
   hashes are verified before anything is applied, and the update source is
   pinned to the embedded constants in `tech_common.py`.
-- The only embedded token is a read-only one for fetching the signed
-  database/manifest; account writes and password emails go through the
-  Worker. Rotate the Worker secrets (and the read token) regularly —
-  anything embedded in the exe can be extracted.
+- The exe embeds no tokens: update files are fetched through the Worker's
+  public `/files` allowlist and verified with the embedded Ed25519 public
+  key; account writes and password emails go through the Worker. Rotate the
+  Worker secrets regularly — anything embedded in the exe can be extracted.
 - The package database is only ever pulled fresh from the server per login
   (no bundled copy in the exe), so stale data is impossible.
 

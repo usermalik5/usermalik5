@@ -11,7 +11,7 @@ import threading
 from PIL import Image
 from tech_common import (
     get_bundle_dir, get_session_database_path, get_live_database_path,
-    APP_VERSION, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS,
+    APP_VERSION, DEFAULT_USER_PERMS,
 )
 from tech_reg import (_is_valid_email, _request_password, _fetch_verified_sources,
                       _login_user)
@@ -51,8 +51,6 @@ class SettingsLoginMixin:
                                       font=ctk.CTkFont(family=_FONT, size=12), text_color="#8b949e")
         subtitle_label.pack(pady=(2, 14))
 
-        admin_mode = {"on": False}
-
         error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(family=_FONT, size=10),
                                    text_color="#ff6b6b", wraplength=380)
         error_label.pack(pady=(0, 8))
@@ -80,21 +78,14 @@ class SettingsLoginMixin:
                                    fg_color="transparent", hover_color="#1c2026",
                                    font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
 
-        def show_login_step(admin=False, email=""):
+        def show_login_step(email=""):
             step_email.pack_forget()
             step_login.pack(padx=32, fill="x")
             login_email_entry.configure(state="normal")
             login_email_entry.delete(0, "end")
-            if admin:
-                admin_mode["on"] = True
-                login_email_entry.insert(0, "admin")
-                login_email_entry.configure(state="disabled")
-                set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
-                error_label.configure(text="", text_color="#d4af37")
-            else:
-                set_header("Welcome back", "Sign in to continue to GeloTech Tool")
-                if email:
-                    login_email_entry.insert(0, email)
+            set_header("Welcome back", "Sign in to continue to GeloTech Tool")
+            if email:
+                login_email_entry.insert(0, email)
             password_entry.delete(0, "end")
             password_entry.focus_set()
 
@@ -115,7 +106,6 @@ class SettingsLoginMixin:
         def show_email_step(mode="create", prefill=""):
             step_login.pack_forget()
             step_email.pack(padx=32, fill="x")
-            admin_mode["on"] = False
             if mode == "reset":
                 set_header("Forgot your password?", "Enter your email and we'll send you a new password.")
             else:
@@ -126,35 +116,10 @@ class SettingsLoginMixin:
             email_entry.focus_set()
 
         # --------------------------------------------------------
-        # admin unlock via secret phrase
-        # --------------------------------------------------------
-        def check_secret(event=None):
-            # Typing the secret phrase into the email field unlocks admin login.
-            if (event and event.keysym in ("Return", "Tab")) or not event:
-                if email_entry.get().strip() == ADMIN_SECRET_PHRASE:
-                    show_login_step(admin=True)
-
-        def check_secret_login(event=None):
-            # Same secret-phrase unlock on the SIGN IN page's email field:
-            # lock the username to "admin" so the password check works.
-            if (event and event.keysym in ("Return", "Tab")) or not event:
-                if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
-                    admin_mode["on"] = True
-                    login_email_entry.delete(0, "end")
-                    login_email_entry.insert(0, "admin")
-                    login_email_entry.configure(state="disabled")
-                    set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
-                    error_label.configure(text="", text_color="#d4af37")
-                    password_entry.focus_set()
-
-        # --------------------------------------------------------
         # CREATE / RESET action: generate + email a password
         # --------------------------------------------------------
         def send_password(event=None):
             email = email_entry.get().strip()
-            if email == ADMIN_SECRET_PHRASE:
-                show_login_step(admin=True)
-                return
             if not _is_valid_email(email):
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
                 return
@@ -171,33 +136,28 @@ class SettingsLoginMixin:
                 email_entry.configure(state="normal")
                 if ok:
                     error_label.configure(text="\u2713 " + msg, text_color="#2ecc71")
-                    self.after(1200, lambda: show_login_step(admin=False, email=email))
+                    self.after(1200, lambda: show_login_step(email=email))
                 else:
                     error_label.configure(text="\u26a0 " + msg, text_color="#ff6b6b")
 
             threading.Thread(target=worker, daemon=True).start()
 
-        email_entry.bind("<KeyRelease>", check_secret)
-        email_entry.bind("<Return>", lambda e: check_secret(e) or send_password(e))
+        email_entry.bind("<Return>", send_password)
         send_btn.configure(command=send_password)
         back_btn.configure(command=lambda: show_login_step())
 
         # --------------------------------------------------------
         # SIGN IN action: verify credentials + download database
         # --------------------------------------------------------
-        def finish_login(ok, reason, user, users, db_bytes):
+        def finish_login(ok, reason, user, session, db_bytes):
             if not ok:
                 login_btn.configure(state="normal")
-                if admin_mode["on"]:
-                    admin_mode["on"] = False
-                    login_email_entry.configure(state="normal")
-                    login_email_entry.delete(0, "end")
-                    set_header("Welcome back", "Sign in to continue to GeloTech Tool")
                 message = {
                     "blocked": "This account has been blocked by the maintainer.",
                     "invalid-credentials": "Invalid email/username or password.",
                     "invalid-request": "Please enter both your email/username and password.",
                     "rate-limited": "Too many login attempts. Please wait a minute and try again.",
+                    "server-error": "The auth server hit an error. Please try again in a moment.",
                 }.get(reason, reason or "Login failed.")
                 error_label.configure(text="\u26a0 " + message, text_color="#ff6b6b")
                 return
@@ -206,7 +166,7 @@ class SettingsLoginMixin:
                 error_label.configure(text="\u26a0 Account verified, but the package database\ncould not be downloaded/verified from the update server.", text_color="#ff6b6b")
                 return
             try:
-                name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
+                name = login_email_entry.get().strip()
                 try:
                     with open(get_session_database_path(), "wb") as f:
                         f.write(db_bytes)
@@ -227,7 +187,12 @@ class SettingsLoginMixin:
                 if hasattr(self, "_debloat_cache"):
                     self._debloat_cache = None
                 self.current_user = name
-                self.is_admin = (name == "admin")
+                # The Worker decides the role: the client only displays what the
+                # server-issued session grants (and the Worker enforces every
+                # privileged operation regardless of the UI).
+                self.is_admin = (user.get("role") == "admin")
+                # Session token from the Worker: memory only, never persisted.
+                self._auth_session = session
                 if self.is_admin:
                     self.user_perms = None
                     self.user_tabs = None
@@ -238,7 +203,6 @@ class SettingsLoginMixin:
                         # No explicit perms in secret.json: grant everything
                         # except the admin-only features (VirusTotal).
                         self.user_perms = set(DEFAULT_USER_PERMS)
-                self._server_users = users
                 self._initialize_runtime_after_login()
                 win.destroy()
                 self._apply_permissions()
@@ -254,11 +218,10 @@ class SettingsLoginMixin:
 
         def do_login(event=None):
             error_label.configure(text="")
-            if login_email_entry.get().strip() == ADMIN_SECRET_PHRASE:
-                admin_mode["on"] = True
-                set_header("Maintainer access", "Signed in as the tool administrator", color="#d4af37")
-            name = "admin" if admin_mode["on"] else login_email_entry.get().strip()
-            if not admin_mode["on"] and not _is_valid_email(name):
+            name = login_email_entry.get().strip()
+            # The maintainer account signs in with its own username + password;
+            # the Worker verifies both and decides the admin role server-side.
+            if name != "admin" and not _is_valid_email(name):
                 error_label.configure(text="\u26a0 Please enter a valid email address.", text_color="#ff6b6b")
                 return
             pw = password_entry.get()
@@ -269,16 +232,15 @@ class SettingsLoginMixin:
             self.after(0, lambda: self._purge_session_database())
 
             def fetch():
-                ok, reason, user = _login_user(name, pw)
-                users, db_bytes = _fetch_verified_sources()
-                self.after(0, lambda: finish_login(ok, reason, user, users, db_bytes))
+                ok, reason, user, session = _login_user(name, pw)
+                db_bytes = _fetch_verified_sources()
+                self.after(0, lambda: finish_login(ok, reason, user, session, db_bytes))
 
             threading.Thread(target=fetch, daemon=True).start()
 
         login_btn.configure(command=do_login)
         password_entry.bind("<Return>", do_login)
         login_email_entry.bind("<Return>", do_login)
-        login_email_entry.bind("<KeyRelease>", check_secret_login)
         forgot_btn.configure(command=lambda: show_email_step("reset", login_email_entry.get().strip()))
         create_btn.configure(command=lambda: show_email_step("create"))
 
@@ -292,6 +254,8 @@ class SettingsLoginMixin:
         login_btn.pack(pady=(18, 2))
         forgot_btn.pack(pady=(4, 0))
         create_btn.pack(pady=(0, 16))
+        ctk.CTkLabel(step_login, text="Maintainers: sign in with the admin account.",
+                     font=ctk.CTkFont(family=_FONT, size=9), text_color="#484f58").pack(pady=(0, 12))
 
         # ---------------- CREATE / RESET card layout ----------------
         ctk.CTkLabel(step_email, text="Email address", font=ctk.CTkFont(family=_FONT, size=11, weight="bold"),

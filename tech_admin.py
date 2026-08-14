@@ -53,9 +53,10 @@ class AdminPanelMixin:
                              else ("\u23f3 Unblocking %s\u2026" % name), text_color="#8b949e")
             for w in list_frame.winfo_children():
                 w.destroy()
+            session = getattr(self, "_auth_session", None)
 
             def worker():
-                err = _set_user_blocked(name, blocked)
+                err = _set_user_blocked(name, blocked, session)
                 self.after(0, lambda: finish_toggle(err, name, blocked))
 
             def finish_toggle(err, name, blocked):
@@ -121,9 +122,13 @@ class AdminPanelMixin:
             status.configure(text="Loading accounts from the auth server\u2026")
             for w in list_frame.winfo_children():
                 w.destroy()
-            threading.Thread(target=lambda: finish(_fetch_verified_users()), daemon=True).start()
+            session = getattr(self, "_auth_session", None)
+            threading.Thread(target=lambda: finish(*_fetch_verified_users(session)), daemon=True).start()
 
-        def finish(users):
+        def finish(users, err):
+            if err:
+                status.configure(text="\u26a0 " + err, text_color="#ff6b6b")
+                return
             if users is None:
                 status.configure(text="\u26a0 Could not reach the auth server.\n"
                                       "Check your connection and press Refresh.",

@@ -14,10 +14,10 @@ The signature lives in version.json.sig (base64), signed over the exact bytes
 of version.json, and the data file hashes are inside version.json.
 
 NOTE: the "settings" version counter and secret.json were removed from the
-manifest: secret.json is now the LIVE accounts file, written directly by the
-app itself (self-registration / password reset via the embedded write token),
-so it cannot be pinned by the signed manifest. The signed manifest covers the
-package database and the banking list only.
+manifest: secret.json is now the LIVE accounts file, written only by the
+auth proxy Worker (self-registration / password reset via the Worker's
+server-side GitHub token), so it cannot be pinned by the signed manifest.
+The signed manifest covers the package database and the banking list only.
 
 The private key is loaded from the GELOTECH_SIGN_KEY environment variable,
 or defaults to %USERPROFILE%\\.gelotech_signing\\update_ed25519.pem (never

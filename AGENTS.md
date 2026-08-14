@@ -29,21 +29,32 @@ Security work is intentionally out of scope unless the task explicitly requests 
 
 ### Auth proxy Worker (do not regress)
 
-Account operations are NOT done from the app with GitHub write credentials:
+Account operations are NOT done from the app with GitHub write credentials,
+and the app contains NO credentials at all:
 
 - The app calls the Cloudflare Worker at `AUTH_WORKER_URL` (`tech_common.py`)
   via `tech_reg.py`: `_login_user` (`POST /login`), `_request_password`
-  (`POST /register`), `_set_user_blocked` (`POST /admin/block`), and the
-  users list (`GET /accounts`). The Worker verifies PBKDF2 hashes and the
-  blocked flag server-side and emails generated passwords (SMTP is server-side).
-- The repo write token, SMTP credentials and admin phrase must stay OUT of
-  the app code (they exist only as Cloudflare Worker secrets; stale copies
-  still embedded in `tech_common.py` are legacy and must not be used by app
-  code). Do not reintroduce `_mutate_secret`/`_send_password_email`/write-token
-  usage in the app.
+  (`POST /register`), `_set_user_blocked` (`POST /admin/block`), the users
+  list `_fetch_verified_users` (`GET /accounts`, admin session required),
+  and the update files `_worker_fetch` (`GET /files/<name>`, public
+  allowlist: version.json, version.json.sig, gelotech_database_v3.json,
+  banking_apps.json). The Worker verifies PBKDF2 hashes and the blocked
+  flag server-side, emails generated passwords (SMTP is server-side), and
+  signs login sessions (HMAC-SHA256, `SESSION_SECRET`, 12 h TTL).
+- Admin authorization is a server-issued signed session sent as
+  `Authorization: Bearer` — there is NO admin secret phrase, and role
+  comes only from the Worker's login response (`user.role == "admin"`).
+  The client keeps the session token in memory only (`_auth_session`) and
+  clears it on logout/app close.
+- The repo write token, SMTP credentials and session-signing key must stay
+  OUT of the app code (they exist only as Cloudflare Worker secrets; stale
+  copies still embedded in `tech_common.py` are legacy and must not be used
+  by app code). Do not reintroduce `_mutate_secret`/`_send_password_email`/
+  write-token/read-token usage in the app.
 - The signed database flow (version.json + Ed25519 + sha256-pinned
-  `gelotech_database_v3.json`, fetched with the embedded read-only token) is
-  untouched by the Worker and must keep working.
+  `gelotech_database_v3.json`) is served by the Worker's `/files` allowlist
+  and must keep working; the app still verifies the signature and hashes
+  itself and never trusts the Worker for integrity.
 - Worker code lives in `worker/` (tests: `node --test src/*.test.js`). After
   changing Worker routes or the response contract, update the app client in
   `tech_reg.py` and `tests/test_auth_proxy_client.py` in the same change.

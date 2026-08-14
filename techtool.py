@@ -462,6 +462,11 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
             except Exception:
                 pass
         self._purge_session_database()
+        # Discard the in-memory auth session token (never persisted anyway).
+        self._auth_session = None
+        self.is_admin = False
+        self.user_perms = None
+        self.user_tabs = None
         try:
             self.task_manager.shutdown(wait=False)
         except Exception:

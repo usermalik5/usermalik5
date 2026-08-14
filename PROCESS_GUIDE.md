@@ -19,9 +19,9 @@ GeloTechTool (techtool.py)
 |---|---|---|
 | `techtool.py` | `GeloTechTool` | entry point, window, sidebar, page stack/navigation, log console, hint banner, ADB device monitor, scrcpy extraction, debloat safety checks, dark/light theme toggle (sidebar) + `_theme_walk` color apply |
 | `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup (left) + App Cleaner UI (right, built via `build_security_tab(parent=...)`), phone log-console placement, plus Refresh and screen-mirror buttons under the phone |
-| `tech_common.py` | helpers | `EMBEDDED_UPDATE_URL`/`TOKEN`, `AUTH_WORKER_URL`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
+| `tech_common.py` | helpers | `AUTH_WORKER_URL`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
 | `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password), PBKDF2 password verify, permissions, `_check_updates`, first-run migration + seeding |
-| `tech_reg.py` | helpers | auth proxy client + server fetching: `_login_user`, `_request_password`, `_set_user_blocked` (via Worker `AUTH_WORKER_URL`), `_fetch_verified_sources` (signed manifest + accounts via Worker + DB sha256), `hash_password`/`verify_password`, `_purge_session_database` |
+| `tech_reg.py` | helpers | auth proxy client + server fetching: `_worker_call`/`_worker_fetch` (via Worker `AUTH_WORKER_URL`, Bearer session for admin routes), `_login_user` (returns ok/reason/user/session), `_request_password`, `_set_user_blocked`, `_fetch_verified_users` (sanitized account list, admin session only), `_fetch_verified_sources` (signed manifest + DB via Worker `/files` + sha256), `hash_password`/`verify_password`, `_purge_session_database` |
 | `tech_admin.py` | `AdminPanelMixin` | Account management dialog (admin only): account list with Block/Unblock per account (via auth proxy Worker) |
 | `tech_ui.py` | `UiMixin` | tab/page UIs: cleaner header/toolbar/legend, monitor, DNS, VirusTotal |
 | `tech_secscan.py` | `SecScanMixin` | background threat scans |
@@ -61,7 +61,7 @@ python techtool.py
   │    └─ login success:
   │         ├─ verify credentials (PBKDF2) server-side via auth proxy Worker
   │         ├─ purge stale per-login database copy
-  │         ├─ fetch users (Worker) + DB (GitHub) → verify DB hash
+  │         ├─ fetch signed manifest + DB via Worker /files → verify DB hash
   │         ├─ write verified DB to temp session cache
   │         ├─ repoint the package DatabaseService to the verified session DB
   │         ├─ clear stale lookups
@@ -146,14 +146,15 @@ DATA update (no new exe needed):
   → git push
   → user app: on EVERY login → fetch + verify
        → verify version.json.sig with embedded Ed25519 public key
-       → accounts + login via auth proxy Worker (AUTH_WORKER_URL)
+       → login + signed files (manifest, DB, banking) via auth proxy Worker
+         (AUTH_WORKER_URL; /files public allowlist, /login, Bearer sessions)
        → secret.json (LIVE accounts) fetched as-is (Worker-written)
        → DB verified vs manifest → session cache in temp
        → after login: _check_updates() → banking_apps.json only
 
 AUTH PROXY deploy (Worker in worker/, one-time):
   cd worker
-  → npx wrangler secret put GITHUB_TOKEN / SMTP_PASSWORD / ADMIN_SECRET_PHRASE
+  → npx wrangler secret put GITHUB_TOKEN / SMTP_PASSWORD / SESSION_SECRET
   → npx wrangler deploy
   → copy printed URL into AUTH_WORKER_URL in tech_common.py
   → rebuild + release the exe
@@ -277,9 +278,9 @@ EXE bundle:
 - Passwords are PBKDF2 hashes and are not stored as local login credentials.
 - Destructive package operations use typed-YES confirmation where required.
 - Release builds are PyArmor-obfuscated according to `AGENTS.md`.
-- Account write token, SMTP credentials and admin phrase live ONLY as
+- GitHub write token, SMTP credentials and session-signing key live ONLY as
   Cloudflare Worker secrets (`worker/`, `wrangler secret put`); the exe holds
-  only the read-only fetch token and the signing public key. Rotate the
+  only the Worker URL and the signing public key (both public). Rotate the
   Worker secrets regularly.
 
 ## Fast architecture workflow

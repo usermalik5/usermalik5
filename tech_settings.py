@@ -9,10 +9,10 @@ import sys
 import requests
 import shutil
 from PIL import Image, ImageDraw, ImageFont
-from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, EMBEDDED_UPDATE_URL, EMBEDDED_UPDATE_TOKEN, ADMIN_SECRET_PHRASE, DEFAULT_USER_PERMS, APP_VERSION
+from tech_common import get_bundle_dir, get_app_dir, get_cache_dir, get_settings_dir, get_live_database_path, get_session_database_path, Tooltip, subprocess, load_package_database, DEFAULT_USER_PERMS, APP_VERSION
 from tech_admin import AdminPanelMixin
 
-from tech_reg import (_parse_repo, _api_fetch, _verify_manifest_sig, _fetch_verified_sources,
+from tech_reg import (_worker_fetch, _verify_manifest_sig, _fetch_verified_sources,
                       _fetch_verified_users, _purge_session_database, _is_valid_email,
                       _request_password, hash_password, verify_password)
 
@@ -352,6 +352,13 @@ class SettingsMixin(AdminPanelMixin):
 
     def _logout(self):
         self.withdraw()
+        # Destroy the session state: the Worker-issued token lives only in
+        # memory and is discarded on logout, along with permissions/admin
+        # state. The per-login database copy is also removed.
+        self._auth_session = None
+        self.is_admin = False
+        self.user_perms = None
+        self.user_tabs = None
         _purge_session_database()
         self._show_login()
 
@@ -432,52 +439,37 @@ class SettingsMixin(AdminPanelMixin):
     # WEB UPDATES (pull from GitHub repo)
     # ----------------------------------------------------
     def _check_updates(self, manual=False, status_cb=None):
-        """Check the embedded update server (EMBEDDED_UPDATE_URL /
-        EMBEDDED_UPDATE_TOKEN, pinned in tech_common.py). The update source
-        is NEVER read from settings/secret.json, so a compromised local or
-        repo settings file cannot redirect clients to a malicious server.
+        """Check for data updates through the auth proxy Worker's /files
+        endpoints (AUTH_WORKER_URL, pinned in tech_common.py). The update
+        source is NEVER read from settings/secret.json, so a compromised
+        local or repo settings file cannot redirect clients to a malicious
+        server. The Worker serves version.json, version.json.sig and the
+        data files (it owns the GitHub read token; the client has none).
         Expects version.json hosting {"database": N, "banking": N,
         "sha256": {file: hex}} plus a version.json.sig (base64 Ed25519
-        signature over the exact bytes of version.json) and the data files
-        at the repo root. The manifest signature is verified with the
-        embedded public key (tech_common.UPDATE_SIGN_PUBLIC_KEY), and every
-        downloaded file's SHA-256 must match the signed manifest before it
-        is applied. Only banking_apps.json is distributed via updates: the
-        package database is pulled fresh, signature-verified, and cached for
-        the session on EVERY login (and deleted on app close / next login),
-        and secret.json is NOT distributed at all - login credentials are
-        fetched and verified on every login and never written to disk.
-        Runs in a background thread."""
+        signature over the exact bytes of version.json) and the data files.
+        The manifest signature is verified with the embedded public key
+        (tech_common.UPDATE_SIGN_PUBLIC_KEY), and every downloaded file's
+        SHA-256 must match the signed manifest before it is applied. Only
+        banking_apps.json is distributed via updates: the package database
+        is pulled fresh, signature-verified, and cached for the session on
+        EVERY login (and deleted on app close / next login), and secret.json
+        is NOT distributed at all - login credentials are fetched and
+        verified on every login and never written to disk. Runs in a
+        background thread."""
         def report(msg):
             if status_cb is not None:
                 self.after(0, lambda: status_cb(msg))
 
         def work():
             data = self._load_settings()
-            # Update source is pinned to the embedded constants only.
-            base = EMBEDDED_UPDATE_URL.strip().rstrip("/")
-            tok = EMBEDDED_UPDATE_TOKEN.strip()
-            if not base:
-                if manual:
-                    report("\u26a0 No update URL embedded. Rebuild the exe.")
-                return
-            parsed = _parse_repo(base)
-            if not parsed:
-                if manual:
-                    report("\u26a0 Embedded update URL is not a GitHub repo URL.")
-                return
-            owner, repo, branch = parsed
-            headers = {"Authorization": f"Bearer {tok}"} if tok else {}
+            # Update source is pinned to the embedded Worker URL only.
             try:
-                manifest_bytes = _api_fetch(owner, repo, branch, "version.json", headers)
-                sig_text = _api_fetch(owner, repo, branch, "version.json.sig", headers)
+                manifest_bytes = _worker_fetch("files/version.json")
+                sig_text = _worker_fetch("files/version.json.sig")
             except Exception as e:
                 if manual:
                     msg = f"\u26a0 Could not reach update server: {type(e).__name__}"
-                    if isinstance(e, requests.HTTPError) and e.response is not None:
-                        msg += f" (HTTP {e.response.status_code})"
-                        if e.response.status_code == 404:
-                            msg += " - file missing, or token lacks access"
                     report(msg)
                 return
             if not _verify_manifest_sig(manifest_bytes, sig_text.decode("utf-8")):
@@ -500,7 +492,7 @@ class SettingsMixin(AdminPanelMixin):
                 if new_v is None or last.get(key) == new_v:
                     continue
                 try:
-                    raw = _api_fetch(owner, repo, branch, fname, headers)
+                    raw = _worker_fetch(f"files/{fname}")
                     expected = sha_map.get(fname)
                     if not expected or hashlib.sha256(raw).hexdigest() != expected:
                         report(f"\u26a0 Update rejected: sha256 mismatch for {fname}.")

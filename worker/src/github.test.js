@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fetchSecret, putSecret, mutateSecret } from "./github.js";
+import { fetchSecret, putSecret, mutateSecret, fetchFile, isPublicFile, SECRET_FILE } from "./github.js";
 
 const env = {
   REPO_OWNER: "usermalik5",
@@ -79,4 +79,35 @@ test("mutateSecret gives up after repeated 422", async () => {
   const result = await mutateSecret(env, (d) => d, "msg", fakeFetch);
   assert.equal(result.ok, false);
   assert.ok(result.error.includes("422"));
+});
+
+test("SECRET_FILE is fixed: writes can never target other paths", () => {
+  assert.equal(SECRET_FILE, "secret.json");
+});
+
+test("fetchFile only accepts the public allowlist", async () => {
+  assert.ok(isPublicFile("version.json"));
+  assert.ok(isPublicFile("version.json.sig"));
+  assert.ok(isPublicFile("gelotech_database_v3.json"));
+  assert.ok(isPublicFile("banking_apps.json"));
+  assert.ok(!isPublicFile("secret.json"));
+  assert.ok(!isPublicFile("../secret.json"));
+  assert.ok(!isPublicFile(""));
+  await assert.rejects(() => fetchFile(env, "secret.json", async () => contentsResponse("x")));
+});
+
+test("fetchFile falls back to the blobs API for large files", async () => {
+  const big = JSON.stringify({ packages: { "com.example": {} } });
+  let blobCalled = false;
+  const fakeFetch = async (url) => {
+    if (url.includes("/git/blobs/")) {
+      blobCalled = true;
+      return { ok: true, status: 200, json: async () => ({ content: btoa(big), sha: "sha-blob" }) };
+    }
+    // contents API returns no content for >1MB files
+    return { ok: true, status: 200, json: async () => ({ sha: "sha-meta" }) };
+  };
+  const bytes = await fetchFile(env, "gelotech_database_v3.json", fakeFetch);
+  assert.equal(new TextDecoder().decode(bytes), big);
+  assert.ok(blobCalled);
 });

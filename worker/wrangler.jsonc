@@ -2,6 +2,20 @@
   "name": "gelotech-auth-proxy",
   "main": "src/index.js",
   "compatibility_date": "2025-08-01",
+  // Secrets (set with `wrangler secret put`, NEVER here):
+  //   GITHUB_TOKEN        fine-grained PAT, Contents read/write, this repo only
+  //   SMTP_PASSWORD       SMTP app password
+  //   SESSION_SECRET      HMAC key for signed login sessions
+  //
+  // Optional rate-limit tuning vars (see handlers.js for defaults):
+  //   LOGIN_RATE_LIMIT, REGISTER_IP_RATE_LIMIT, REGISTER_EMAIL_RATE_LIMIT,
+  //   ACCOUNTS_RATE_LIMIT, ADMIN_BLOCK_RATE_LIMIT, FILES_RATE_LIMIT
+  //
+  // Hard rate limiting (recommended, worker-level, not per-isolate):
+  //   Cloudflare dashboard -> Workers & Pages -> gelotech-auth-proxy ->
+  //   Settings -> "Rate limiting" -> create a namespace, then add the
+  //   matching `ratelimit` binding to this file and redeploy. Without it,
+  //   the in-memory limiter below is only a per-isolate first line.
   "vars": {
     "REPO_OWNER": "usermalik5",
     "REPO_NAME": "GeloTech-Tool",

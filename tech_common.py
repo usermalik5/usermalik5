@@ -51,34 +51,15 @@ ctk.set_default_color_theme("blue")
 ctk.set_widget_scaling(1.15)
 
 # ---------------------------------------------------------------------------
-# EMBEDDED UPDATE SERVER (baked into the exe so users need zero configuration)
-# Only editing these in the source + pushing to the repo changes what users see.
+# AUTH PROXY WORKER (baked into the exe so users need zero configuration)
+# ALL privileged operations go through this Cloudflare Worker: login,
+# registration/password reset, admin sessions, admin block/unblock, and the
+# update files (version.json + signature + package database + banking list).
+# The Worker holds the GitHub read/write token, the SMTP sender and the
+# session-signing key as server-side secrets (wrangler secret put in
+# worker/; deploy with `npx wrangler deploy`). The client contains NO
+# credentials of any kind.
 # ---------------------------------------------------------------------------
-EMBEDDED_UPDATE_URL = "https://github.com/usermalik5/GeloTech-Tool"
-EMBEDDED_UPDATE_TOKEN = "REDACTED"
-
-# Write-capable token used ONLY to persist self-registered user accounts
-# (email + PBKDF2 hash) back into the repo's secret.json. Keep it scoped
-# to this single repository (Contents: Read+Write). Rotate it regularly:
-# whoever extracts it can modify this repo's files.
-EMBEDDED_UPDATE_WRITE_TOKEN = "REDACTED"
-
-# SMTP sender used to email generated passwords to users. Use a DEDICATED
-# low-privilege account with an app password; never your personal account.
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = "angeloespinosa985@gmail.com"
-SMTP_PASSWORD = "REDACTED"
-SMTP_FROM = "angeloespinosa985@gmail.com"
-
-# Secret phrase that reveals the maintainer (admin) login on the login
-# screen. Type it into the email field to unlock the admin option.
-ADMIN_SECRET_PHRASE = "REDACTED"
-
-# Auth proxy Worker: all login/registration/admin-block requests go through
-# this Cloudflare Worker, which holds the repo write token, the SMTP sender
-# and the admin phrase as server-side secrets (set with `wrangler secret
-# put` in worker/; deploy with `npx wrangler deploy`).
 AUTH_WORKER_URL = "https://gelotech-auth-proxy.angeloespinosa985.workers.dev"
 
 # Ed25519 public key (base64, raw 32-byte key) used to verify the signed

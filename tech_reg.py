@@ -5,11 +5,20 @@ Split out of tech_settings.py so that no single module exceeds the
 PyArmor trial license's per-script obfuscation limit, and to keep the
 self-service account flow self-contained. Depends only on tech_common.
 
+The client NEVER talks to GitHub directly and contains NO credentials:
+every operation goes through the auth proxy Worker (AUTH_WORKER_URL),
+which holds the repo read/write token, the SMTP sender and the
+session-signing key as server-side secrets.
+
 Account operations (login, password request, block/unblock) go through
-the auth proxy Worker (AUTH_WORKER_URL), which holds the repo write
-token, the SMTP sender and the admin phrase as server-side secrets.
+the Worker. Admin operations require a short-lived signed session token
+(Authorization: Bearer <session>) issued by the Worker on successful
+login of the admin account; the client stores it ONLY in memory.
+
 The package-database manifest flow (version.json + Ed25519 signature +
-sha256-pinned gelotech_database_v3.json) still uses GitHub directly.
+sha256-pinned gelotech_database_v3.json) also goes through the Worker's
+GET /files/<name> endpoints: integrity is still verified client-side
+with the embedded public key.
 """
 import os
 import re
@@ -18,43 +27,39 @@ import base64
 import hashlib
 import requests
 
-from tech_common import (get_session_database_path, EMBEDDED_UPDATE_URL,
-                         EMBEDDED_UPDATE_TOKEN, AUTH_WORKER_URL,
-                         ADMIN_SECRET_PHRASE, UPDATE_SIGN_PUBLIC_KEY)
+from tech_common import (get_session_database_path, AUTH_WORKER_URL,
+                         UPDATE_SIGN_PUBLIC_KEY)
 
 
-def _parse_repo(base):
-    m = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?(?:\?|$|/tree/([^/]+))", base)
-    if not m:
-        return None
-    owner, repo = m.group(1), m.group(2)
-    branch = m.group(3) or "main"
-    return owner, repo, branch
+def _worker_base():
+    base = AUTH_WORKER_URL.strip().rstrip("/")
+    if not base.startswith("http"):
+        raise RuntimeError("Auth proxy is not configured on this build.")
+    return base
 
 
-def _api_fetch(owner, repo, branch, fname, headers):
-    """Fetch a file's exact committed bytes from GitHub over TLS. Uses the
-    contents API to resolve the blob sha, then the git blobs API to download
-    the bytes (the contents API returns EMPTY content for files larger than
-    1 MB, so the blobs API is the reliable path). Falls back to
-    raw.githubusercontent.com for public repos when no token is set."""
-    if headers:
-        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{fname}?ref={branch}"
-        resp = requests.get(url, headers={**headers, "Accept": "application/vnd.github+json"}, timeout=60)
-        resp.raise_for_status()
-        meta = resp.json()
-        content = meta.get("content") or ""
-        if content:
-            return base64.b64decode(content)
-        sha = meta.get("sha")
-        if not sha:
-            raise RuntimeError(f"no blob sha returned for {fname}")
-        blob_url = f"https://api.github.com/repos/{owner}/{repo}/git/blobs/{sha}"
-        resp2 = requests.get(blob_url, headers={**headers, "Accept": "application/vnd.github+json"}, timeout=120)
-        resp2.raise_for_status()
-        return base64.b64decode(resp2.json()["content"])
-    url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{fname}"
-    resp = requests.get(url, timeout=60)
+def _worker_call(path, payload=None, session=None):
+    """Call the auth proxy Worker. GET when payload is None, else POST JSON.
+    When session is given, it is sent as `Authorization: Bearer <session>`
+    (the Worker verifies its signature and expiry server-side). Returns the
+    parsed JSON response; raises on transport/HTTP errors."""
+    url = f"{_worker_base()}/{path.lstrip('/')}"
+    headers = {}
+    if session:
+        headers["Authorization"] = f"Bearer {session}"
+    if payload is None:
+        resp = requests.get(url, headers=headers, timeout=60)
+    else:
+        resp = requests.post(url, json=payload, headers=headers, timeout=60)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _worker_fetch(path):
+    """Fetch raw bytes from the Worker (GET /files/<name>). The Worker holds
+    the repo read token, so the client needs no GitHub credentials at all."""
+    url = f"{_worker_base()}/{path.lstrip('/')}"
+    resp = requests.get(url, timeout=120)
     resp.raise_for_status()
     return resp.content
 
@@ -72,66 +77,49 @@ def _verify_manifest_sig(manifest_bytes, sig_b64):
         return False
 
 
-def _worker_call(path, payload=None):
-    """Call the auth proxy Worker. GET when payload is None, else POST JSON.
-    Returns the parsed JSON response; raises on transport/HTTP errors."""
-    base = AUTH_WORKER_URL.strip().rstrip("/")
-    if not base.startswith("http"):
-        raise RuntimeError("Auth proxy is not configured on this build.")
-    url = f"{base}/{path.lstrip('/')}"
-    if payload is None:
-        resp = requests.get(url, timeout=60)
-    else:
-        resp = requests.post(url, json=payload, timeout=60)
-    resp.raise_for_status()
-    return resp.json()
-
-
 def _fetch_verified_sources():
-    """Fetch the signed manifest once from the pinned update server, then
-    fetch the package database (gelotech_database_v3.json) from GitHub and
-    the accounts list from the auth proxy Worker. The manifest signature and
-    the database's sha256 are verified; the accounts list comes from the
-    Worker over TLS. Returns (users_dict, db_bytes) or (None, None) if the
+    """Fetch the signed manifest and the package database through the
+    Worker's /files endpoints (the Worker owns the GitHub read token). The
+    manifest signature and the database's sha256 (pinned in the signed
+    manifest) are verified client-side. Returns db_bytes or None if the
     server is unreachable or verification fails. NEVER writes anything to
-    disk — the results exist only in memory."""
-    base = EMBEDDED_UPDATE_URL.strip().rstrip("/")
-    tok = EMBEDDED_UPDATE_TOKEN.strip()
-    parsed = _parse_repo(base)
-    if not parsed:
-        return None, None
-    owner, repo, branch = parsed
-    headers = {"Authorization": f"Bearer {tok}"} if tok else {}
+    disk — the result exists only in memory."""
     try:
-        manifest_bytes = _api_fetch(owner, repo, branch, "version.json", headers)
-        sig_bytes = _api_fetch(owner, repo, branch, "version.json.sig", headers)
+        manifest_bytes = _worker_fetch("files/version.json")
+        sig_bytes = _worker_fetch("files/version.json.sig")
         if not _verify_manifest_sig(manifest_bytes, sig_bytes.decode("utf-8")):
-            return None, None
+            return None
         manifest = json.loads(manifest_bytes.decode("utf-8"))
         sha_map = manifest.get("sha256")
-        if not isinstance(sha_map, dict):
-            return None, None
-        accounts = _worker_call("accounts")
-        users = accounts.get("users")
-        if not isinstance(users, dict):
-            return None, None
-        expected_db = sha_map.get("gelotech_database_v3.json")
+        expected_db = sha_map.get("gelotech_database_v3.json") if isinstance(sha_map, dict) else None
         if not expected_db:
-            return None, None
-        db_bytes = _api_fetch(owner, repo, branch, "gelotech_database_v3.json", headers)
+            return None
+        db_bytes = _worker_fetch("files/gelotech_database_v3.json")
         if hashlib.sha256(db_bytes).hexdigest() != expected_db:
-            return None, None
-        return users, db_bytes
+            return None
+        return db_bytes
     except Exception:
-        return None, None
+        return None
 
 
-def _fetch_verified_users():
-    """Return just the users list from the auth proxy Worker (used by the
-    read-only account list in the admin dialog), or None on failure. Never
-    writes to disk."""
-    users, _ = _fetch_verified_sources()
-    return users
+def _fetch_verified_users(session):
+    """Return the SANITIZED account list from the Worker's admin-only
+    /accounts endpoint (requires a valid admin session; password hashes are
+    never returned). Returns (users, error) — error is None on success."""
+    try:
+        resp = _worker_call("accounts", session=session)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code in (401, 403):
+            return None, "Admin session expired or not authorized. Sign out and sign back in."
+        return None, f"Could not reach the auth server: {type(e).__name__}: {e}"
+    except Exception as e:
+        return None, f"Could not reach the auth server: {type(e).__name__}: {e}"
+    if not resp.get("ok"):
+        return None, resp.get("error") or "Could not load accounts."
+    users = resp.get("users")
+    if not isinstance(users, dict):
+        return None, "Auth server returned an invalid account list."
+    return users, None
 
 
 def _purge_session_database():
@@ -178,16 +166,18 @@ def _is_valid_email(email):
 def _login_user(name, pw):
     """Verify credentials against the auth proxy Worker, which checks the
     PBKDF2 hash and the blocked flag server-side. Returns
-    (ok: bool, reason: str, user: dict|None) where user carries the
-    permissions/tabs the server grants (no hash is ever sent back)."""
+    (ok: bool, reason: str, user: dict|None, session: str|None).
+    user carries the server-issued role/permissions/tabs (no hash is ever
+    sent back); session is a short-lived signed token the Worker issues on
+    success and that the client keeps ONLY in memory."""
     try:
         resp = _worker_call("login", {"email": name, "password": pw})
     except Exception as e:
-        return False, f"Could not reach the auth server: {type(e).__name__}: {e}", None
+        return False, f"Could not reach the auth server: {type(e).__name__}: {e}", None, None
     if not resp.get("ok"):
         reason = resp.get("reason") or resp.get("error") or "Login failed."
-        return False, reason, None
-    return True, "", resp.get("user") or {}
+        return False, reason, None, None
+    return True, "", resp.get("user") or {}, resp.get("session")
 
 
 def _request_password(email):
@@ -204,14 +194,16 @@ def _request_password(email):
     return True, resp.get("message") or "Password sent to your email."
 
 
-def _set_user_blocked(email, blocked):
+def _set_user_blocked(email, blocked, session):
     """Block (or unblock) an account through the auth proxy Worker, which
-    checks the admin phrase server-side before writing secret.json. Returns
-    None on success or an error string."""
+    requires a valid admin session (Bearer) before writing secret.json. No
+    secret phrase is ever sent. Returns None on success or an error string."""
     try:
-        resp = _worker_call("admin/block", {
-            "phrase": ADMIN_SECRET_PHRASE, "email": email, "blocked": blocked,
-        })
+        resp = _worker_call("admin/block", {"email": email, "blocked": blocked}, session=session)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code in (401, 403):
+            return "Admin session expired or not authorized. Sign out and sign back in."
+        return f"Could not reach the auth server: {type(e).__name__}: {e}"
     except Exception as e:
         return f"Could not reach the auth server: {type(e).__name__}: {e}"
     if not resp.get("ok"):
