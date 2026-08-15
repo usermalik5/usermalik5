@@ -14,6 +14,7 @@ import datetime
 import shutil
 import webbrowser
 from PIL import Image, ImageDraw, ImageFont
+import tech_themes
 from tech_common import get_bundle_dir, get_app_dir, get_settings_dir, get_live_database_path, Tooltip, subprocess, load_package_database, APP_VERSION, THEME, THEMES, COLOR_SWAP, CANONICAL_DARK
 from tech_navigation import NavigationController
 from tech_bloatware import BloatwareFilterMixin
@@ -66,7 +67,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
         self.user_perms = None
         self.task_manager = TaskManager(self.after)
         self.database_service = DatabaseService(get_live_database_path())
-        self._theme_mode = self._load_settings().get("theme", "dark")
+        self._theme_mode = self._load_settings().get("theme", tech_themes.DEFAULT_THEME)
 
         # Primary Window Geometry & Title setup
         self.title(f"GeloTech Tool v{APP_VERSION}")
@@ -135,7 +136,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
         separator.grid(row=5, column=0, padx=12, pady=(2, 3), sticky="ew")
 
         self.theme_btn = ctk.CTkButton(
-            self.sidebar_frame, text="\u2600\ufe0f  Light Mode" if self._theme_mode == "dark" else "\U0001f319  Dark Mode",
+            self.sidebar_frame, text=tech_themes.DEFAULT_THEME.capitalize(),
             anchor="w", fg_color=THEME["panel2"], hover_color="#1f6feb", text_color="#e8ecf2",
             border_color="#2c3340", border_width=1, corner_radius=8,
             height=26, font=ctk.CTkFont(size=10, weight="bold"),
@@ -436,7 +437,12 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
             self.log_message(f"[GeloTech] Automatic icon preparation skipped: {exc}")
 
     def _toggle_theme(self):
-        mode = "light" if self._theme_mode != "light" else "dark"
+        # Cycle through the bundled CTkThemesPack palettes (orange first).
+        try:
+            idx = tech_themes.PALETTES.index(self._theme_mode)
+        except ValueError:
+            idx = 0
+        mode = tech_themes.PALETTES[(idx + 1) % len(tech_themes.PALETTES)]
         self._theme_mode = mode
         try:
             data = self._load_settings()

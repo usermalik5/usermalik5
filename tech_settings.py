@@ -366,7 +366,7 @@ class SettingsMixin(AdminPanelMixin):
 
     def _load_settings(self):
         path = os.path.join(get_settings_dir(), SETTINGS_FILE)
-        data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": [], "theme": "dark"}
+        data = {"clean_excluded": [], "uninstall_excluded": [], "debloated": [], "theme": "orange"}
         if os.path.isfile(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:

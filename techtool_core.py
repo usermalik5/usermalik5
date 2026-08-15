@@ -6,6 +6,8 @@ These remain mixin methods of GeloTechTool (resolved via the normal MRO).
 import customtkinter as ctk
 import os
 from tkinter import ttk
+import tech_themes
+from tech_themes import PALETTES
 from tech_common import (THEME, THEMES, COLOR_SWAP, CANONICAL_DARK, get_bundle_dir)
 
 
@@ -182,44 +184,65 @@ class TechToolCore:
     # ----------------------------------------------------
     # TAB INTERFACE CONFIGURATIONS
     # ----------------------------------------------------
-    def _apply_theme(self, mode):
-        """Recolor the whole widget tree for light/dark (phone + log console stay dark)."""
-        THEME.update(THEMES[mode])
-        ctk.set_appearance_mode("Light" if mode == "light" else "Dark")
-        swap = COLOR_SWAP if mode == "light" else {v: CANONICAL_DARK.get(v, k) for k, v in COLOR_SWAP.items()}
-        self._theme_walk(self, swap)
+    def _apply_theme(self, palette):
+        """Recolor the whole widget tree for the chosen palette.
+
+        ``palette`` is a CTkThemesPack palette name (e.g. ``"orange"``).
+        Appearance stays dark (the app ships dark-mode surface palettes and
+        light text on dark surfaces throughout). The palette's accent
+        overrides the blue accent slots so buttons/accents use the pack
+        colors, while every surface text color is forced contrast-readable
+        via the luminance-aware ``_fix_button_text_colors`` pass (so text
+        adapts to each palette/background automatically).
+        Phone screen / log console colors are intentionally absent (a phone
+        display stays dark)."""
+        if palette not in PALETTES:
+            palette = tech_themes.DEFAULT_THEME
+        THEME.update(THEMES["dark"])
+        # Inject this palette's accent into the shared theme slots so the
+        # custom widgets use the pack color instead of the default blue.
+        accent = tech_themes.accent_for(palette)
+        THEME["accent"] = accent
+        THEME["accent_h"] = tech_themes.hover_for(palette)
+        ctk.set_appearance_mode("Dark")
+        # CTk default widgets get the pack's JSON theme (buttons/entries/labels).
         try:
-            self.theme_btn.configure(
-                text="\U0001f319  Dark Mode" if mode == "light" else "\u2600\ufe0f  Light Mode")
+            tech_themes.apply_ctk_theme(palette)
+        except Exception:
+            pass
+        # Swap any already-wired blue-accent hexes onto this palette's accent
+        # so existing custom widgets repaint without hard-coding a new palette.
+        palette_swap = dict(COLOR_SWAP)
+        palette_swap["#3b82f6"] = accent          # default dark accent -> palette accent
+        palette_swap["#2f6fe4"] = THEME["accent_h"]
+        palette_swap["#2563c2"] = accent          # light-mode accent twin
+        self._theme_walk(self, palette_swap)
+        try:
+            self.theme_btn.configure(text=palette.capitalize())
         except Exception:
             pass
         try:
             style = ttk.Style()
-            if mode == "light":
-                style.configure("AppList.Treeview", background="#fbfcfd", fieldbackground="#fbfcfd",
-                                foreground="#1b2530")
-                style.configure("AppList.Vertical.TScrollbar", background="#dde2e8", troughcolor="#fbfcfd",
-                                arrowcolor="#566170", bordercolor="#fbfcfd")
-                tags = {
-                    "threat": ("#fdecef", "#c0392b"), "both_excl": ("#f1eafb", "#7d3fb8"),
-                    "uninstall_excl": ("#fdeaea", "#d64545"), "clean_excl": ("#faf1e0", "#b7791f"),
-                    "normal": ("#eaf6ef", "#1b2530"), "normal_alt": ("#e2f1e8", "#1b2530"),
-                }
-            else:
-                style.configure("AppList.Treeview", background="#0d1117", fieldbackground="#0d1117",
-                                foreground="#e6edf3")
-                style.configure("AppList.Vertical.TScrollbar", background="#21262d", troughcolor="#0d1117",
-                                arrowcolor="#8b949e", bordercolor="#0d1117")
-                tags = {
-                    "threat": ("#2a1015", "#ff6b6b"), "both_excl": ("#241a33", "#d2a8ff"),
-                    "uninstall_excl": ("#2a1212", "#ff8f8f"), "clean_excl": ("#2a2010", "#ffd08a"),
-                    "normal": ("#0f2017", "#e6edf3"), "normal_alt": ("#0c1b13", "#e6edf3"),
-                }
-                for tag, (bg, fg) in tags.items():
-                    try:
-                        self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
-                    except Exception:
-                        pass
+            style.configure("AppList.Treeview", background="#0d1117", fieldbackground="#0d1117",
+                            foreground="#e6edf3")
+            style.configure("AppList.Vertical.Tscrollbar", background="#21262d", troughcolor="#0d1117",
+                            arrowcolor="#8b949e", bordercolor="#0d1117")
+            tags = {
+                "threat": ("#2a1015", "#ff6b6b"), "both_excl": ("#241a33", "#d2a8ff"),
+                "uninstall_excl": ("#2a1212", "#ff8f8f"), "clean_excl": ("#2a2010", "#ffd08a"),
+                "normal": ("#0f2017", "#e6edf3"), "normal_alt": ("#0c1b13", "#e6edf3"),
+            }
+            for tag, (bg, fg) in tags.items():
+                try:
+                    self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            self._fix_button_text_colors("dark")
+        except Exception:
+            pass
         except Exception:
             pass
         try:

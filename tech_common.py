@@ -44,8 +44,9 @@ import shutil
 from PIL import Image, ImageDraw, ImageFont
 
 # Application Global Styling Configurations
+import tech_themes as _tthemes  # palette table for the sidebar theme toggle
 ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("blue")  # import-safe default; the chosen pack palette is applied at runtime by _apply_theme via tech_themes.apply_ctk_theme
 
 # Scale UI for high-DPI / small font compensation
 ctk.set_widget_scaling(1.15)
@@ -81,7 +82,7 @@ DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
 # Bump this on every iteration; shown in the window title and the sidebar
 # tool name, and must match the release tag (v<APP_VERSION>).
-APP_VERSION = "1.7.6"
+APP_VERSION = "1.7.7"
 
 # 3uTools-style theme palettes (shared by all UI modules)
 THEMES = {

@@ -21,7 +21,7 @@ MODULES = [
     "tech_secops4.py", "tech_bloatware.py", "tech_dash.py", "tech_vtop.py", "tech_misc.py", "tech_hardening.py",
     "tech_hardening_ops.py", "tech_dashboard_redesign.py", "tech_phone_mirror.py", "tech_phone_mirror_embedded.py",
     "tech_phone_mirror_host.py", "tech_phone_mirror_fix.py", "tech_phone_mirror_restore_patch.py", "tech_navigation.py",
-    "tech_task_manager.py", "tech_database.py", "tech_phone_mirror/__init__.py", "runtime_hook_gelotech.py", "sitecustomize.py",
+    "tech_task_manager.py", "tech_database.py", "tech_themes.py", "tech_phone_mirror/__init__.py", "runtime_hook_gelotech.py", "sitecustomize.py",
 ]
 
 
