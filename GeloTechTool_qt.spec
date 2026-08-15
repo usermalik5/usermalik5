@@ -10,6 +10,7 @@ ROOT = Path(SPECPATH)
 hiddenimports = [
     "tech_qt_app",
     "tech_qt_mainwindow",
+    "tech_qt_ui",
     "tech_qt_icons",
     "tech_qt_themes",
     "tech_qt_bootstrap",
