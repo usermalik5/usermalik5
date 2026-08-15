@@ -1,8 +1,7 @@
 """Qt6 theme engine for GeloTech.
 
-The bundled CTkThemesPack JSON files remain the palette source of truth. This
-module resolves their widget colors into a Qt stylesheet while keeping the
-same palette names and UI font choices available to users.
+CTkThemesPack remains the palette source of truth. The Qt stylesheet keeps
+the same palette names while reproducing the compact legacy GeloTech UI.
 """
 from __future__ import annotations
 
@@ -78,45 +77,139 @@ def palette_profile(name: str, dark: bool = True) -> dict[str, str]:
 
 def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: str = DEFAULT_UI_FONT) -> str:
     p = palette_profile(name, dark)
-    table = p["panel2"]
     return f"""
-    QWidget {{
-        font-family: \"{font_family}\";
-        font-size: 10pt;
-        color: {p['text']};
-        background: {p['bg']};
-    }}
+    * {{ font-family: \"{font_family}\"; font-size: 10pt; }}
+    QWidget {{ color: {p['text']}; background: {p['bg']}; }}
     QMainWindow, QDialog {{ background: {p['bg']}; }}
-    QFrame#sidebar {{ background: {p['panel2']}; border-right: 1px solid {p['border']}; }}
-    QLabel#brand {{ color: {p['accent']}; font-size: 22pt; font-weight: 800; }}
+
+    QFrame#sidebar {{
+        background: {p['panel2']};
+        border-right: 1px solid {p['border']};
+    }}
+    QLabel#brand {{
+        color: {p['accent']};
+        font-size: 22pt;
+        font-weight: 800;
+    }}
+    QLabel#versionLabel {{ font-size: 9pt; font-weight: 700; }}
+    QLabel#sidebarSection {{
+        color: {p['muted']};
+        font-size: 8pt;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        padding-top: 5px;
+    }}
     QLabel#muted {{ color: {p['muted']}; }}
-    QToolButton, QPushButton {{
-        background: {p['panel']}; border: 1px solid {p['border']};
-        border-radius: 7px; padding: 6px 9px; font-weight: 700;
+
+    QListWidget#sidebarNav {{
+        background: transparent;
+        border: 0;
+        outline: 0;
     }}
-    QToolButton:hover, QPushButton:hover {{ background: {p['accent_hover']}; }}
-    QToolButton:checked {{ background: {p['accent']}; color: white; }}
-    QLineEdit, QComboBox, QSpinBox {{
-        background: {p['input']}; border: 1px solid {p['border']};
-        border-radius: 6px; padding: 6px;
+    QListWidget#sidebarNav::item {{
+        min-height: 28px;
+        padding: 5px 9px;
+        border: 1px solid {p['border']};
+        border-radius: 8px;
+        background: {p['panel']};
+        font-weight: 700;
     }}
+    QListWidget#sidebarNav::item:hover {{ background: {p['accent_hover']}; }}
+    QListWidget#sidebarNav::item:selected {{
+        background: {p['accent']};
+        color: white;
+        border-color: {p['accent']};
+    }}
+
+    QPushButton {{
+        background: {p['panel']};
+        color: {p['text']};
+        border: 1px solid {p['border']};
+        border-radius: 8px;
+        padding: 5px 10px;
+        min-height: 28px;
+        font-weight: 700;
+    }}
+    QPushButton:hover {{ background: {p['accent_hover']}; color: white; }}
+    QPushButton:pressed, QPushButton:checked {{ background: {p['accent']}; color: white; }}
+    QPushButton:disabled {{ color: {p['muted']}; background: {p['panel2']}; }}
+
+    QLineEdit, QComboBox {{
+        background: {p['input']};
+        color: {p['text']};
+        border: 1px solid {p['border']};
+        border-radius: 7px;
+        padding: 6px 9px;
+        min-height: 28px;
+    }}
+    QLineEdit:focus, QComboBox:focus {{ border-color: {p['accent']}; }}
+
+    QFrame#phonePanel {{ background: transparent; }}
+    QLabel#phoneMockup {{ background: transparent; }}
+    QFrame#contentPanel {{ background: {p['bg']}; }}
+    QPlainTextEdit#liveLog {{
+        background: {p['panel2']};
+        color: #7CFF00;
+        border: 1px solid {p['border']};
+        border-radius: 7px;
+        padding: 7px;
+        font-family: Consolas, \"Courier New\", monospace;
+        font-size: 9pt;
+    }}
+    QFrame#guidePanel, QFrame#sidebarGuide {{
+        background: {p['panel']};
+        border: 1px solid {p['border']};
+        border-radius: 8px;
+    }}
+    QLabel#guideTitle {{ font-size: 8pt; font-weight: 800; }}
+    QLabel#guideText {{ color: {p['muted']}; font-size: 8pt; }}
+    QLabel#statusText {{ font-style: italic; color: {p['accent']}; }}
+    QLabel#securityText {{ color: {p['amber']}; font-weight: 800; }}
+    QLabel#deviceText {{ color: {p['green']}; font-weight: 800; }}
+    QLabel#legendText {{ color: {p['muted']}; font-size: 8pt; }}
+    QLabel#subHeading {{ font-weight: 800; font-size: 9pt; }}
+
+    QTableWidget#packageTable {{
+        background: {p['panel2']};
+        alternate-background-color: {p['panel']};
+        color: {p['text']};
+        border: 1px solid {p['border']};
+        gridline-color: {p['border']};
+        selection-background-color: {p['accent']};
+        selection-color: white;
+        outline: 0;
+    }}
+    QTableWidget#packageTable::item {{ padding: 4px 7px; }}
+    QHeaderView::section {{
+        background: {p['panel']};
+        color: {p['text']};
+        padding: 6px 7px;
+        border: 0;
+        border-right: 1px solid {p['border']};
+        border-bottom: 1px solid {p['border']};
+        font-weight: 800;
+        font-size: 9pt;
+    }}
+
     QPlainTextEdit, QTextEdit {{
-        background: {table}; border: 1px solid {p['border']};
-        border-radius: 7px; padding: 6px;
+        background: {p['panel2']};
+        color: {p['text']};
+        border: 1px solid {p['border']};
+        border-radius: 7px;
+        padding: 6px;
     }}
-    QGroupBox {{ border: 1px solid {p['border']}; border-radius: 8px; margin-top: 10px; padding-top: 10px; }}
-    QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; }}
-    QTableWidget, QTreeWidget {{
-        background: {table}; alternate-background-color: {p['panel']};
-        border: 1px solid {p['border']}; gridline-color: {p['border']};
+    QScrollBar:vertical {{ background: {p['bg']}; width: 11px; margin: 0; }}
+    QScrollBar::handle:vertical {{ background: {p['border']}; min-height: 24px; border-radius: 5px; }}
+    QScrollBar:horizontal {{ background: {p['bg']}; height: 11px; margin: 0; }}
+    QScrollBar::handle:horizontal {{ background: {p['border']}; min-width: 28px; border-radius: 5px; }}
+
+    QMenu {{
+        background: {p['panel']};
+        border: 1px solid {p['border']};
+        padding: 4px;
     }}
-    QHeaderView::section {{ background: {p['panel']}; color: {p['text']}; padding: 7px; border: 0; border-right: 1px solid {p['border']}; font-weight: 800; }}
-    QProgressBar {{ background: {p['panel']}; border: 1px solid {p['border']}; border-radius: 6px; text-align: center; }}
-    QProgressBar::chunk {{ background: {p['accent']}; border-radius: 6px; }}
-    QScrollBar:vertical {{ background: {p['bg']}; width: 12px; margin: 0; }}
-    QScrollBar::handle:vertical {{ background: {p['border']}; min-height: 24px; border-radius: 6px; }}
-    QScrollBar:horizontal {{ background: {p['bg']}; height: 12px; margin: 0; }}
-    QScrollBar::handle:horizontal {{ background: {p['border']}; min-width: 24px; border-radius: 6px; }}
+    QMenu::item {{ padding: 6px 14px; }}
+    QMenu::item:selected {{ background: {p['accent']}; color: white; }}
     """
 
 
