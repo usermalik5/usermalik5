@@ -9,6 +9,7 @@ builds the supported obfuscated PyInstaller executable.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,7 @@ def preflight():
     run(sys.executable, "-m", "compileall", "-q", ".")
     run(sys.executable, "-m", "pytest", "-q")
     _verify_security_doc()
+    _verify_documentation_sync()
 
 
 def _verify_pyarmor_module(name):
@@ -59,8 +61,6 @@ def _verify_exe_contains(exe, module):
 
 
 def _verify_source_imports():
-    import re
-
     tool = ROOT / "techtool.py"
     text = tool.read_text(encoding="utf-8")
     if "from tech_bloatware import" not in text and "import tech_bloatware" not in text:
@@ -90,6 +90,74 @@ def _verify_security_doc():
             "Cloudflare secrets). Update its 'Current Security Model' section before releasing."
         )
     print("[verify] SECURITY.md matches the current auth proxy security model: OK")
+
+
+def _read_version():
+    """Read APP_VERSION from tech_common.py without importing application code."""
+    text = (ROOT / "tech_common.py").read_text(encoding="utf-8", errors="replace")
+    match = re.search(r"^\s*APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
+    if not match:
+        raise SystemExit("Could not determine APP_VERSION from tech_common.py; refusing to release.")
+    return match.group(1)
+
+
+def _verify_documentation_sync():
+    """Block the release when user-facing/agent documentation has drifted.
+
+    This is intentionally a hard gate: agents must update the docs after
+    feature changes and before running the release build. It checks version
+    bookkeeping plus a small set of current-source feature markers that would
+    otherwise be easy to forget (themes/fonts, full app descriptions via the
+    horizontal scrollbar, and automatic device icon preparation/cache).
+    """
+    version = _read_version()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8", errors="replace")
+    process = (ROOT / "PROCESS_GUIDE.md").read_text(encoding="utf-8", errors="replace")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8", errors="replace")
+
+    checks = {
+        "README.md": {
+            f"(v{version})": readme,
+            "CTkThemesPack": readme,
+            "UI Font": readme,
+            "horizontal scrollbar": readme.lower(),
+            "app icon": readme.lower(),
+            "automatic": readme.lower(),
+        },
+        "PROCESS_GUIDE.md": {
+            "CTkThemesPack": process,
+            "UI font": process.lower(),
+            "horizontal scrollbar": process.lower(),
+            "icon cache": process.lower(),
+            "automatic": process.lower(),
+        },
+        "AGENTS.md": {
+            "Documentation sync gate": agents,
+            "scripts/release.py": agents,
+        },
+    }
+
+    failures = []
+    for filename, markers in checks.items():
+        for marker, text in markers.items():
+            if marker not in text:
+                failures.append(f"{filename}: missing required marker {marker!r}")
+
+    # README must expose the same release version as the application source.
+    readme_versions = re.findall(r"\(v(\d+\.\d+\.\d+)\)", readme)
+    if not readme_versions or version not in readme_versions:
+        failures.append(f"README.md: Latest release label does not match APP_VERSION v{version}")
+
+    if failures:
+        details = "\n".join(f"  - {item}" for item in failures)
+        raise SystemExit(
+            "Documentation is out of sync; release is blocked.\n"
+            "Update AGENTS.md, README.md, and PROCESS_GUIDE.md to describe the current source behavior, "
+            "then rerun scripts/release.py.\n"
+            f"{details}"
+        )
+
+    print(f"[verify] Documentation sync gate passed for v{version}: OK")
 
 
 def build(obfuscated=True):
