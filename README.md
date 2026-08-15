@@ -69,7 +69,7 @@ can be fixed directly.
 ## Download
 
 **Latest release:** [GeloTechTool.exe
-(v1.7.7)](https://github.com/usermalik5/usermalik5/releases/latest)
+(v1.7.8)](https://github.com/usermalik5/usermalik5/releases/latest)
 
 Windows only. Download the exe and run it — no installation needed. Login is
 verified against the auth server on every launch (needs internet), and the

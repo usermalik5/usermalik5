@@ -82,7 +82,7 @@ DEFAULT_USER_PERMS = frozenset(ALL_PERMS - ADMIN_ONLY_PERMS)
 
 # Bump this on every iteration; shown in the window title and the sidebar
 # tool name, and must match the release tag (v<APP_VERSION>).
-APP_VERSION = "1.7.7"
+APP_VERSION = "1.7.8"
 
 # 3uTools-style theme palettes (shared by all UI modules)
 THEMES = {
