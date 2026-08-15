@@ -20,7 +20,10 @@
 - Background work should use `tech_task_manager.py`; worker threads must not update Tk widgets directly.
 - Package database access should go through `tech_database.py` rather than duplicating cache/load logic.
 - Pages should be created lazily where practical; do not eagerly initialize unrelated features before authentication.
-- Mirror-specific compatibility behavior stays inside the mirror subsystem. Read `docs/SCRCPY_GUIDE.md` for mirror work.
+- Mirror-specific compatibility behavior stays inside the mirror subsystem. Read `docs/SCRCPY_GUIDE.md` for mirror work. The mirror embeds the native scrcpy stream as a child window of the Dashboard phone widget; a single authorized device auto-opens the mirror 5 seconds after connect and it stays open (never auto-stops). The Dashboard log console is hidden while mirroring and restored on the Tk UI thread (configure width/height, then place) when the mirror stops.
+- Theme and UI-font ownership lives in `tech_themes.py`: the 18 bundled CTkThemesPack palettes plus the UI-font picker (22 Windows families). The theme pass must recolor the GeloTech log consoles and the ttk App Cleaner list while preserving the physical phone/mirror display (widgets tagged `_gelotech_theme_role == "phone_display"` are left untouched).
+- The App Cleaner table keeps its four-column layout (app name / package ID / UAD level / description) with a horizontal scrollbar for the full Description text; do not reintroduce a separate description panel.
+- Per-device icon cache lives in `tech_secops4.py` (`action_sec_show_icons`, `icon_cache/<sha256(serial)[:32]>` under the settings dir); automatic sync triggers on a single newly connected device in `techtool.py::_auto_prepare_new_device_icons`.
 - Do not create another mixin merely to avoid reorganizing a responsibility that is better represented by a service/component.
 
 ## Authentication and security

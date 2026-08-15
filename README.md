@@ -24,18 +24,25 @@ purple = both excluded) — rows in the app list follow the same color scheme,
 and removal-level badges use the same colors. The sidebar header shows
 `© 2026 GeloTech` with clickable links to Gsmcodeph.com and
 facebook.com/gelotechxyz, and the title/tool name always shows the current
-version (e.g. v1.0.9). The Dashboard tab shows a device mockup (phone image with the live log console
-rendered inside its screen) on the left, with the App Cleaner UI on the right (a
-scrollable list of installed apps with uninstall/disable/clear-data/exclude
-actions, plus a small live device strip with model, Android version, storage,
-and battery). **Refresh** and **Screen Mirror** sit under the phone.
+version (e.g. v1.7.8). The sidebar also holds a theme button that opens the
+palette picker (18 bundled CTkThemesPack palettes) with a **UI Font** submenu
+(22 Windows font families) — both restyle every GeloTech text surface, log
+console, and the ttk app list while preserving the physical phone display.
+The Dashboard tab shows a device mockup (phone image with the live log console
+rendered inside its screen) on the left, with the App Cleaner UI on the right
+(a four-column table: app name / package ID / UAD level / **full description**
+readable via a horizontal scrollbar, plus a small live device strip with
+model, Android version, storage, and battery). **Refresh** and **Screen
+Mirror** sit under the phone.
 
 After a successful login, the application always returns to the **Dashboard**
-page regardless of the page that was previously selected. The Dashboard
-phone mirror uses the native scrcpy stream embedded into the Dashboard phone
-widget; the existing log console is temporarily hidden during mirroring and
-restored when mirroring stops. The mirror compatibility layer retries log
-restoration if Tk has not completed its geometry update yet.
+page regardless of the page that was previously selected. When a single
+authorized device is connected, GeloTech automatically opens the screen mirror
+5 seconds later (it stays open until you stop it from the sidebar). The
+Dashboard phone mirror embeds the native scrcpy stream as a child window of
+the phone widget; the existing log console is temporarily hidden while
+mirroring and restored on Tk's UI thread (width/height configured first, then
+re-placed) when mirroring stops. The mirror never auto-stops.
 
 Loading the app list is fast even without the phone plugged in: the first
 successful scan caches the package list locally on the PC, later loads render
@@ -43,6 +50,32 @@ that cached list instantly and then refresh from the device in the background
 (stale-while-revalidate), and any load falls back to the cache whenever the
 phone is unreachable. List rows are rendered lazily in small batches so the UI
 stays responsive with hundreds of apps loaded.
+
+### Themes & UI fonts
+
+GeloTech ships with **18 bundled color palettes** (`tech_themes.py` +
+`themes/*.json`, default `orange`). The sidebar theme button opens a picker:
+choose any palette, then use the **UI Font** submenu to pick one of **22
+Windows font families** (default Segoe UI). The chosen palette recolors every
+CTk widget by type, the GeloTech log consoles (tag colors included), and the
+ttk package list; the **UI font applies to every text surface** — labels,
+buttons, entries, dropdowns, lists, and log text. The physical phone / mirror
+display is preserved and never recolored. The palette and font are saved in
+settings and restored on the next launch.
+
+### Automatic per-device icon sync & cache
+
+When a single newly connected authorized device is detected, GeloTech
+automatically prepares its app icons: it clears stale in-memory icon state and
+runs the existing icon workflow (`action_sec_show_icons`), which installs
+`ApkIconHelper.apk` only when it is missing, exports icons, pulls them into the
+local cache, and refreshes the Cleaner rows. Icons are cached **per device**
+under the settings folder (`icon_cache/<sha256(serial)[:32]>/`) together with a
+package fingerprint; if the fingerprint still matches on a later connection,
+the cached icons are restored without re-exporting. Each serial is remembered
+for the session so the 3-second ADB poll does not re-trigger an export; a full
+disconnect clears that state so a reconnect syncs again. Automatic sync waits
+while more than one authorized device is connected.
 
 ## Development workflow
 
@@ -81,6 +114,7 @@ users always get the latest data with zero manual intervention.
 | Item | Purpose |
 |---|---|
 | `techtool.py` + `tech_*.py` | Application source (entry point: `techtool.py`) |
+| `tech_themes.py` + `themes/*.json` | Theme & UI-font system: 18 bundled CTkThemesPack palettes + 22-font picker (`tech_themes.py`) |
 | `GeloTechTool.spec` | PyInstaller build spec (onefile, windowed) |
 | `GeloTechTool_obf.spec` | PyInstaller spec for the PyArmor-obfuscated build (needs `build/pyarmor_out` from `pyarmor gen`) |
 | `gelotech_database_v3.json` | **The package database** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags). Lives ONLY on GitHub — every login pulls it fresh, verifies it, caches it for the session, and deletes it on app close |

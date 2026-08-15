@@ -126,7 +126,7 @@ def _verify_documentation_sync():
         },
         "PROCESS_GUIDE.md": {
             "CTkThemesPack": process,
-            "UI font": process.lower(),
+            "UI Font": process,
             "horizontal scrollbar": process.lower(),
             "icon cache": process.lower(),
             "automatic": process.lower(),
