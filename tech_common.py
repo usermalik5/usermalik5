@@ -44,7 +44,7 @@ import shutil
 from PIL import Image, ImageDraw, ImageFont
 
 # Application Global Styling Configurations
-import tech_themes as _tthemes
+import tech_qt_themes as _tthemes
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme(
     os.path.join(_tthemes.THEME_DIR, f"{_tthemes.DEFAULT_THEME}.json"))
