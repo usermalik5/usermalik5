@@ -5,7 +5,7 @@ import ctypes
 import shutil
 import subprocess
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout, QWidget
 
@@ -115,9 +115,9 @@ def install_scrcpy(MainWindow) -> None:
         self._log("[SCRCPY] Mirror stopped.")
 
     def _bundle_path(self, *parts):
-        from pathlib import Path
         import os
         import sys
+        from pathlib import Path
         return Path(getattr(sys, "_MEIPASS", os.path.dirname(__file__))).joinpath(*parts)
 
     MainWindow.start_mirror = start_mirror

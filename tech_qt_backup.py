@@ -5,7 +5,6 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
