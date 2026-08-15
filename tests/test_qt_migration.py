@@ -2,11 +2,19 @@ from pathlib import Path
 
 
 def test_qt_modules_import_without_creating_a_window():
+    import tech_qt_backup
     import tech_qt_bootstrap
-    tech_qt_bootstrap.enable_qt_mode()
+    import tech_qt_cleaner
+    import tech_qt_drivers
     import tech_qt_icons
-    import tech_qt_themes
+    import tech_qt_iconsync
     import tech_qt_mainwindow
+    import tech_qt_mirror
+    import tech_qt_themes
+    import tech_qt_virustotal
+
+    tech_qt_bootstrap.enable_qt_mode()
+
     import tech_qt_app
 
     assert tech_qt_themes.DEFAULT_THEME in tech_qt_themes.PALETTES
@@ -14,6 +22,12 @@ def test_qt_modules_import_without_creating_a_window():
     assert callable(tech_qt_icons.load_icon)
     assert hasattr(tech_qt_mainwindow, "MainWindow")
     assert callable(tech_qt_app.main)
+    assert callable(tech_qt_backup.install_backup_restore)
+    assert callable(tech_qt_cleaner.install_cleaner_parity)
+    assert callable(tech_qt_drivers.install_driver_workflow)
+    assert callable(tech_qt_iconsync.install_icon_sync)
+    assert callable(tech_qt_mirror.install_scrcpy)
+    assert callable(tech_qt_virustotal.install_virustotal)
 
 
 def test_qt_assets_have_tabler_and_dashboard_resources():
