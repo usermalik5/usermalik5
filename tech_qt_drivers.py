@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtWidgets import QMessageBox
-
 
 def install_driver_workflow(MainWindow) -> None:
     """Replace the placeholder driver button with the tested ADB reset flow."""
@@ -12,7 +10,6 @@ def install_driver_workflow(MainWindow) -> None:
     def action_fix_drivers(self) -> None:
         if getattr(self, "_driver_thread", None) and self._driver_thread.is_alive():
             return
-
         self._driver_thread = threading.Thread(target=self._repair, daemon=True)
         self._driver_thread.start()
 
@@ -33,7 +30,6 @@ def install_driver_workflow(MainWindow) -> None:
                 self._log("[ADB] No authorized device is currently connected.")
         except Exception as exc:
             self._log(f"[ADB ERROR] Driver/connection repair failed: {exc}")
-            QMessageBox.warning(self, "ADB Drivers", str(exc))
 
     MainWindow.action_fix_drivers = action_fix_drivers
     MainWindow._qt_repair_drivers = _repair
