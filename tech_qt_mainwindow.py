@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
 
     def _dashboard_page(self):
         page = QWidget(); outer = QVBoxLayout(page); top = QHBoxLayout(); phone = QFrame(); pv = QVBoxLayout(phone)
-        image = QLabel(); image.setAlignment(Qt.AlignCenter); asset = Path(getattr(__import__("sys"), "_MEIPASS", os.path.dirname(__file__))) / "assets" / "tech_dash_images" / "iPhone17_P_PM_CosmicOrange@2x.png"
+        image = QLabel(); image.setAlignment(Qt.AlignCenter); asset = Path(getattr(__import__("sys"), "_MEIPASS", os.path.dirname(__file__))) / "assets" / "phone_devices" / "iPhone17_P_PM_CosmicOrange@2x.png"
         if asset.is_file(): image.setPixmap(QPixmap(str(asset)).scaled(360, 740, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else: image.setText("iPhone mockup")
         pv.addWidget(image); self.log = QPlainTextEdit(readOnly=True); self.log.setMaximumHeight(170); pv.addWidget(self.log)

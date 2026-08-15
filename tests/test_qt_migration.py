@@ -19,7 +19,7 @@ def test_qt_modules_import_without_creating_a_window():
 def test_qt_assets_have_tabler_and_dashboard_resources():
     root = Path(__file__).resolve().parents[1]
     tabler = root / "assets" / "icons" / "tabler" / "outline"
-    dashboard = root / "assets" / "tech_dash_images" / "iPhone17_P_PM_CosmicOrange@2x.png"
+    dashboard = root / "assets" / "phone_devices" / "iPhone17_P_PM_CosmicOrange@2x.png"
     assert (tabler / "dashboard.svg").is_file()
     assert (tabler / "device-mobile.svg").is_file()
     assert dashboard.is_file()
