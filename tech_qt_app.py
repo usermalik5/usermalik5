@@ -13,6 +13,7 @@ from tech_qt_backup import install_backup_restore
 from tech_qt_cleaner import install_cleaner_parity
 from tech_qt_compat import install_qt_compat
 from tech_qt_drivers import install_driver_workflow
+from tech_qt_final_fixes import install_final_qt_fixes
 from tech_qt_iconsync import install_icon_sync
 from tech_qt_mainwindow import MainWindow
 from tech_qt_mirror import install_scrcpy
@@ -36,6 +37,7 @@ def main() -> int:
     install_visual_parity(MainWindow)
     install_phone_frame(MainWindow)
     install_qt_compat(MainWindow)
+    install_final_qt_fixes(MainWindow)
     window = MainWindow()
     window.hide()
     return app.exec()
