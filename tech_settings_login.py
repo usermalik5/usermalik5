@@ -11,7 +11,7 @@ import threading
 from PIL import Image
 from tech_common import (
     get_bundle_dir, get_session_database_path, get_live_database_path,
-    APP_VERSION, DEFAULT_USER_PERMS,
+    APP_VERSION, DEFAULT_USER_PERMS, THEME,
 )
 from tech_reg import (_is_valid_email, _request_password, _fetch_verified_sources,
                       _login_user)
@@ -24,7 +24,7 @@ class SettingsLoginMixin:
         win = ctk.CTkToplevel(self)
         win.title(f"GeloTech Tool v{APP_VERSION} - Sign in")
         win.resizable(False, False)
-        win.configure(fg_color="#0d1117")
+        win.configure(fg_color=THEME["bg"])
         win.transient(self)
         win.grab_set()
         sw = self.winfo_screenwidth()
@@ -45,44 +45,46 @@ class SettingsLoginMixin:
             ctk.CTkLabel(win, text="", image=icon).pack(pady=(30, 4))
 
         heading_label = ctk.CTkLabel(win, text="Welcome back", font=ctk.CTkFont(family=_FONT, size=24, weight="bold"),
-                                     text_color="#e6edf3")
+                                     text_color=THEME["text"])
         heading_label.pack()
         subtitle_label = ctk.CTkLabel(win, text="Sign in to continue to GeloTech Tool",
-                                      font=ctk.CTkFont(family=_FONT, size=12), text_color="#8b949e")
+                                      font=ctk.CTkFont(family=_FONT, size=12), text_color=THEME["muted"])
         subtitle_label.pack(pady=(2, 14))
 
         error_label = ctk.CTkLabel(win, text="", font=ctk.CTkFont(family=_FONT, size=10),
                                    text_color="#ff6b6b", wraplength=380)
         error_label.pack(pady=(0, 8))
 
-        def set_header(title, subtitle, color="#e6edf3"):
+        def set_header(title, subtitle, color=None):
+            if color is None:
+                color = THEME["text"]
             heading_label.configure(text=title, text_color=color)
             subtitle_label.configure(text=subtitle)
 
         # --------------------------------------------------------
         # SIGN IN
         # --------------------------------------------------------
-        step_login = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=14)
-        login_email_entry = ctk.CTkEntry(step_login, placeholder_text="you@example.com", fg_color="#0d1117",
-                                         border_color="#30363d", height=38, font=ctk.CTkFont(family=_FONT, size=12),
+        step_login = ctk.CTkFrame(win, fg_color=THEME["panel"], corner_radius=14)
+        login_email_entry = ctk.CTkEntry(step_login, placeholder_text="you@example.com", fg_color=THEME["input"],
+                                         border_color=THEME["border"], height=38, font=ctk.CTkFont(family=_FONT, size=12),
                                          corner_radius=8)
-        password_entry = ctk.CTkEntry(step_login, fg_color="#0d1117", border_color="#30363d", height=38,
+        password_entry = ctk.CTkEntry(step_login, fg_color=THEME["input"], border_color=THEME["border"], height=38,
                                       font=ctk.CTkFont(family=_FONT, size=12), show="\u2022", corner_radius=8)
         # Admin secret phrase: shown only while the admin username is
         # entered; validated server-side by the Worker (never embedded).
         phrase_row = ctk.CTkFrame(step_login, fg_color="transparent")
-        phrase_entry = ctk.CTkEntry(phrase_row, fg_color="#0d1117", border_color="#30363d", height=38,
+        phrase_entry = ctk.CTkEntry(phrase_row, fg_color=THEME["input"], border_color=THEME["border"], height=38,
                                     font=ctk.CTkFont(family=_FONT, size=12), show="\u2022", corner_radius=8)
         phrase_entry.pack(fill="x")
-        login_btn = ctk.CTkButton(step_login, text="Sign in", width=220, height=42, fg_color="#1a8cff",
-                                  hover_color="#155bb5", corner_radius=8,
+        login_btn = ctk.CTkButton(step_login, text="Sign in", width=220, height=42, fg_color=THEME["accent"],
+                                  hover_color=THEME["accent_h"], corner_radius=8,
                                   font=ctk.CTkFont(family=_FONT, size=13, weight="bold"))
         forgot_btn = ctk.CTkButton(step_login, text="Forgot your password?", width=220, height=26,
-                                   fg_color="transparent", hover_color="#1c2026",
-                                   font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
+                                   fg_color="transparent", hover_color=THEME["panel2"],
+                                   font=ctk.CTkFont(family=_FONT, size=11), text_color=THEME["accent"])
         create_btn = ctk.CTkButton(step_login, text="New here?  Create an account", width=220, height=26,
-                                   fg_color="transparent", hover_color="#1c2026",
-                                   font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
+                                   fg_color="transparent", hover_color=THEME["panel2"],
+                                   font=ctk.CTkFont(family=_FONT, size=11), text_color=THEME["accent"])
 
         def show_phrase_row(visible):
             if visible:
@@ -109,16 +111,16 @@ class SettingsLoginMixin:
         # --------------------------------------------------------
         # CREATE ACCOUNT / FORGOT PASSWORD
         # --------------------------------------------------------
-        step_email = ctk.CTkFrame(win, fg_color="#16191e", corner_radius=14)
-        email_entry = ctk.CTkEntry(step_email, placeholder_text="you@example.com", fg_color="#0d1117",
-                                   border_color="#30363d", height=38, font=ctk.CTkFont(family=_FONT, size=12),
+        step_email = ctk.CTkFrame(win, fg_color=THEME["panel"], corner_radius=14)
+        email_entry = ctk.CTkEntry(step_email, placeholder_text="you@example.com", fg_color=THEME["input"],
+                                   border_color=THEME["border"], height=38, font=ctk.CTkFont(family=_FONT, size=12),
                                    corner_radius=8)
         send_btn = ctk.CTkButton(step_email, text="Send my password", width=220, height=42,
-                                 fg_color="#1a8cff", hover_color="#155bb5", corner_radius=8,
+                                 fg_color=THEME["accent"], hover_color=THEME["accent_h"], corner_radius=8,
                                  font=ctk.CTkFont(family=_FONT, size=13, weight="bold"))
         back_btn = ctk.CTkButton(step_email, text="\u2190  Back to sign in", width=220, height=26,
-                                 fg_color="transparent", hover_color="#1c2026",
-                                 font=ctk.CTkFont(family=_FONT, size=11), text_color="#58a6ff")
+                                 fg_color="transparent", hover_color=THEME["panel2"],
+                                 font=ctk.CTkFont(family=_FONT, size=11), text_color=THEME["accent"])
 
         def show_email_step(mode="create", prefill=""):
             step_login.pack_forget()

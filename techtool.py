@@ -22,8 +22,8 @@ from tech_task_manager import TaskManager
 from tech_database import DatabaseService
 
 # Application Global Styling Configurations
-ctk.set_appearance_mode("Light")
-ctk.set_default_color_theme("blue")
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("themes/orange.json")
 
 # Scale UI for high-DPI / small font compensation
 ctk.set_widget_scaling(1.15)

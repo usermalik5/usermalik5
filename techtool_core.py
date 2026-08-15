@@ -185,38 +185,19 @@ class TechToolCore:
     # TAB INTERFACE CONFIGURATIONS
     # ----------------------------------------------------
     def _apply_theme(self, palette):
-        """Recolor the whole widget tree for the chosen palette.
+        """Apply the chosen CTkThemesPack palette.
 
         ``palette`` is a CTkThemesPack palette name (e.g. ``"orange"``).
-        Appearance stays dark (the app ships dark-mode surface palettes and
-        light text on dark surfaces throughout). The palette's accent
-        overrides the blue accent slots so buttons/accents use the pack
-        colors, while every surface text color is forced contrast-readable
-        via the luminance-aware ``_fix_button_text_colors`` pass (so text
-        adapts to each palette/background automatically).
+        CTk handles all widget styling automatically via set_default_color_theme.
         Phone screen / log console colors are intentionally absent (a phone
         display stays dark)."""
         if palette not in PALETTES:
             palette = tech_themes.DEFAULT_THEME
-        THEME.update(THEMES["light"])
-        # Inject this palette's accent into the shared theme slots so the
-        # custom widgets use the pack color instead of the default blue.
-        accent = tech_themes.accent_for(palette)
-        THEME["accent"] = accent
-        THEME["accent_h"] = tech_themes.hover_for(palette)
-        ctk.set_appearance_mode("Light")
-        # CTk default widgets get the pack's JSON theme (buttons/entries/labels).
+        ctk.set_appearance_mode("Dark")
         try:
             tech_themes.apply_ctk_theme(palette)
         except Exception:
             pass
-        # Swap any already-wired blue-accent hexes onto this palette's accent
-        # so existing custom widgets repaint without hard-coding a new palette.
-        palette_swap = dict(COLOR_SWAP)
-        palette_swap["#3b82f6"] = accent          # default dark accent -> palette accent
-        palette_swap["#2f6fe4"] = THEME["accent_h"]
-        palette_swap["#2563c2"] = accent          # light-mode accent twin
-        self._theme_walk(self, palette_swap)
         try:
             self.theme_btn.configure(text=palette.capitalize())
         except Exception:
@@ -237,16 +218,6 @@ class TechToolCore:
                     self.sec_tree.tag_configure(tag, background=bg, foreground=fg)
                 except Exception:
                     pass
-        except Exception:
-            pass
-        try:
-            self._fix_button_text_colors("light")
-        except Exception:
-            pass
-        except Exception:
-            pass
-        try:
-            self._fix_button_text_colors(mode)
         except Exception:
             pass
 

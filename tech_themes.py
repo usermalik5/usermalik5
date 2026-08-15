@@ -240,7 +240,7 @@ def install_theme_dropdown(current_name):
         pass
 
 
-def apply_ctk_theme(name, dark=False):
+def apply_ctk_theme(name, dark=True):
     """Apply the actual CTkThemesPack JSON and synchronize app surfaces."""
     import customtkinter as ctk
 
@@ -259,5 +259,4 @@ def apply_ctk_theme(name, dark=False):
         except Exception:
             pass
 
-    _install_surface_palette(name, dark=dark)
     install_theme_dropdown(name)
