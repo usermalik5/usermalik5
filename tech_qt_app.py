@@ -10,6 +10,7 @@ enable_qt_mode()
 from PySide6.QtWidgets import QApplication
 
 from tech_qt_backup import install_backup_restore
+from tech_qt_bezel import install_bezel_alias
 from tech_qt_cleaner import install_cleaner_parity
 from tech_qt_compat import install_qt_compat
 from tech_qt_drivers import install_driver_workflow
@@ -38,6 +39,7 @@ def main() -> int:
     install_phone_frame(MainWindow)
     install_qt_compat(MainWindow)
     install_final_qt_fixes(MainWindow)
+    install_bezel_alias(MainWindow)
     window = MainWindow()
     window.hide()
     return app.exec()
