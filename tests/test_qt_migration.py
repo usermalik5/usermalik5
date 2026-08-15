@@ -11,6 +11,7 @@ def test_qt_modules_import_without_creating_a_window():
     import tech_qt_mainwindow
     import tech_qt_mirror
     import tech_qt_themes
+    import tech_qt_ui
     import tech_qt_virustotal
 
     tech_qt_bootstrap.enable_qt_mode()
@@ -27,6 +28,7 @@ def test_qt_modules_import_without_creating_a_window():
     assert callable(tech_qt_drivers.install_driver_workflow)
     assert callable(tech_qt_iconsync.install_icon_sync)
     assert callable(tech_qt_mirror.install_scrcpy)
+    assert callable(tech_qt_ui.install_visual_parity)
     assert callable(tech_qt_virustotal.install_virustotal)
 
 

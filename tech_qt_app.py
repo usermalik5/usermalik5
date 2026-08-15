@@ -11,11 +11,13 @@ from PySide6.QtWidgets import QApplication
 
 from tech_qt_backup import install_backup_restore
 from tech_qt_cleaner import install_cleaner_parity
+from tech_qt_compat import install_qt_compat
 from tech_qt_drivers import install_driver_workflow
 from tech_qt_iconsync import install_icon_sync
 from tech_qt_mainwindow import MainWindow
 from tech_qt_mirror import install_scrcpy
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
+from tech_qt_ui import install_visual_parity
 from tech_qt_virustotal import install_virustotal
 
 
@@ -30,8 +32,10 @@ def main() -> int:
     install_driver_workflow(MainWindow)
     install_scrcpy(MainWindow)
     install_icon_sync(MainWindow)
+    install_visual_parity(MainWindow)
+    install_qt_compat(MainWindow)
     window = MainWindow()
-    window.show()
+    window.hide()
     return app.exec()
 
 
