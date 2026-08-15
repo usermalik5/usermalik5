@@ -1,6 +1,4 @@
-# PyInstaller spec for the PySide6 migration build.
-# This is a migration/debug spec for qt6-migration; the production release
-# helper is intentionally unchanged until the Qt branch reaches parity.
+# PyInstaller spec for the PySide6 GeloTech build.
 
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
@@ -19,6 +17,8 @@ hiddenimports = [
     "tech_qt_virustotal",
     "tech_qt_drivers",
     "tech_qt_mirror",
+    "tech_qt_phone",
+    "tech_qt_final_fixes",
     "tech_qt_iconsync",
     "shiboken6",
 ]
