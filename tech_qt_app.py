@@ -33,7 +33,7 @@ def main() -> int:
     install_icon_sync(MainWindow)
     install_visual_parity(MainWindow)
     window = MainWindow()
-    window.show()
+    window.hide()
     return app.exec()
 
 
