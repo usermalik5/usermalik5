@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Centralized page navigation for GeloTech Tool."""
 
+import customtkinter as ctk
+
 DEFAULT_THEME = {
     "accent": "#1a8cff",
     "panel2": "#16191e",
@@ -32,6 +34,66 @@ class NavigationController:
         except Exception:
             pass
 
+    def _patch_cleaner_table_scrolling(self):
+        """Keep the existing Treeview and add horizontal scrolling for long descriptions."""
+        app = self.app
+        tree = getattr(app, "sec_tree", None)
+        list_frame = getattr(app, "sec_list_frame", None)
+        if tree is None or list_frame is None:
+            return
+        try:
+            if getattr(app, "sec_hsb", None) is None:
+                from tkinter import ttk
+                list_frame.grid_columnconfigure(0, weight=1)
+                list_frame.grid_rowconfigure(0, weight=1)
+                list_frame.grid_rowconfigure(1, weight=0)
+                style = ttk.Style()
+                style.configure(
+                    "AppList.Horizontal.TScrollbar",
+                    background="#21262d",
+                    troughcolor="#0d1117",
+                    arrowcolor="#8b949e",
+                    bordercolor="#0d1117",
+                )
+                app.sec_hsb = ttk.Scrollbar(
+                    list_frame,
+                    orient="horizontal",
+                    command=tree.xview,
+                    style="AppList.Horizontal.TScrollbar",
+                )
+                app.sec_hsb.grid(row=1, column=0, sticky="ew")
+                tree.configure(xscrollcommand=app.sec_hsb.set)
+            app.sec_hsb.grid()
+
+            original_relayout = getattr(app, "_gelotech_original_sec_relayout", None)
+            if original_relayout is None and hasattr(app, "_sec_relayout_columns"):
+                original_relayout = app._sec_relayout_columns
+                app._gelotech_original_sec_relayout = original_relayout
+
+                def relayout_with_description_scroll():
+                    try:
+                        original_relayout()
+                    except Exception:
+                        pass
+                    try:
+                        tree.column("#0", width=42, minwidth=42, stretch=False, anchor="center")
+                        tree.column("chk", width=32, minwidth=32, stretch=False, anchor="center")
+                        tree.column("name", width=210, minwidth=150, stretch=False, anchor="w")
+                        tree.column("package", width=260, minwidth=180, stretch=False, anchor="w")
+                        tree.column("badges", width=160, minwidth=110, stretch=False, anchor="w")
+                        tree.column("desc", width=820, minwidth=500, stretch=False, anchor="w")
+                    except Exception:
+                        pass
+
+                app._sec_relayout_columns = relayout_with_description_scroll
+
+            try:
+                app._sec_relayout_columns()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def _refresh_cleaner_readability(self):
         """Normalize App Cleaner table/instructions after page construction."""
         try:
@@ -51,10 +113,7 @@ class NavigationController:
                         tree.heading(col, text=heading, anchor="w")
                     except Exception:
                         pass
-                try:
-                    self.app._sec_relayout_columns()
-                except Exception:
-                    pass
+                self._patch_cleaner_table_scrolling()
 
             usb = getattr(self.app, "_sec_banner_usb", None)
             howto = getattr(self.app, "_sec_banner_howto", None)
