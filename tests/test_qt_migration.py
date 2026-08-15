@@ -5,11 +5,14 @@ def test_qt_modules_import_without_creating_a_window():
     import tech_qt_backup
     import tech_qt_bootstrap
     import tech_qt_cleaner
+    import tech_qt_compat
     import tech_qt_drivers
+    import tech_qt_final_fixes
     import tech_qt_icons
     import tech_qt_iconsync
     import tech_qt_mainwindow
     import tech_qt_mirror
+    import tech_qt_phone
     import tech_qt_themes
     import tech_qt_ui
     import tech_qt_virustotal
@@ -26,8 +29,10 @@ def test_qt_modules_import_without_creating_a_window():
     assert callable(tech_qt_backup.install_backup_restore)
     assert callable(tech_qt_cleaner.install_cleaner_parity)
     assert callable(tech_qt_drivers.install_driver_workflow)
+    assert callable(tech_qt_final_fixes.install_final_qt_fixes)
     assert callable(tech_qt_iconsync.install_icon_sync)
     assert callable(tech_qt_mirror.install_scrcpy)
+    assert callable(tech_qt_phone.install_phone_frame)
     assert callable(tech_qt_ui.install_visual_parity)
     assert callable(tech_qt_virustotal.install_virustotal)
 
