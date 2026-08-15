@@ -22,12 +22,13 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QComboBox,
     QTableWidgetItem,
 )
 
-from tech_common import get_settings_dir
+from tech_common import get_settings_dir, load_apps_cache
 
 
 LEVELS = ("Recommended", "Advanced", "Expert", "Unsafe")
