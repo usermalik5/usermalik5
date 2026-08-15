@@ -198,13 +198,13 @@ class TechToolCore:
         display stays dark)."""
         if palette not in PALETTES:
             palette = tech_themes.DEFAULT_THEME
-        THEME.update(THEMES["dark"])
+        THEME.update(THEMES["light"])
         # Inject this palette's accent into the shared theme slots so the
         # custom widgets use the pack color instead of the default blue.
         accent = tech_themes.accent_for(palette)
         THEME["accent"] = accent
         THEME["accent_h"] = tech_themes.hover_for(palette)
-        ctk.set_appearance_mode("Dark")
+        ctk.set_appearance_mode("Light")
         # CTk default widgets get the pack's JSON theme (buttons/entries/labels).
         try:
             tech_themes.apply_ctk_theme(palette)
@@ -240,7 +240,7 @@ class TechToolCore:
         except Exception:
             pass
         try:
-            self._fix_button_text_colors("dark")
+            self._fix_button_text_colors("light")
         except Exception:
             pass
         except Exception:

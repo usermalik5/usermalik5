@@ -295,5 +295,5 @@ class SettingsLoginMixin:
 
         show_login_step()
 
-        if getattr(self, "_theme_mode", "dark") != "dark":
+        if getattr(self, "_theme_mode", "light") != "dark":
             self._theme_walk(win)

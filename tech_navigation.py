@@ -28,7 +28,7 @@ class NavigationController:
         try:
             fix = getattr(self.app, "_fix_button_text_colors", None)
             if callable(fix):
-                fix(getattr(self.app, "_theme_mode", "dark"))
+                fix(getattr(self.app, "_theme_mode", "light"))
         except Exception:
             pass
 

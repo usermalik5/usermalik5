@@ -45,7 +45,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # Application Global Styling Configurations
 import tech_themes as _tthemes  # palette table for the sidebar theme toggle
-ctk.set_appearance_mode("Dark")
+ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")  # import-safe default; the chosen pack palette is applied at runtime by _apply_theme via tech_themes.apply_ctk_theme
 
 # Scale UI for high-DPI / small font compensation
@@ -120,7 +120,7 @@ THEMES = {
     },
 }
 
-THEME = THEMES["dark"]
+THEME = THEMES["light"]
 
 # Dark -> light hex swap used by the runtime theme walker. Phone screen / log
 # console colors are intentionally absent (a phone display stays dark).

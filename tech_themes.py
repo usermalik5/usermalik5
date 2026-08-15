@@ -44,7 +44,7 @@ def load_theme_json(name):
         return {}
 
 
-def _value(value, dark=True, fallback=None):
+def _value(value, dark=False, fallback=None):
     """Resolve a CTk theme value and select its light/dark member."""
     if isinstance(value, (list, tuple)) and value:
         index = 1 if dark and len(value) > 1 else 0
@@ -52,7 +52,7 @@ def _value(value, dark=True, fallback=None):
     return value if value is not None else fallback
 
 
-def palette_profile(name, dark=True):
+def palette_profile(name, dark=False):
     """Map CTkThemesPack colors onto GeloTech's existing shared theme slots."""
     if name not in PALETTES:
         name = DEFAULT_THEME
@@ -93,16 +93,16 @@ def palette_profile(name, dark=True):
 
 
 def accent_for(name):
-    """Return the actual dark-mode button accent from the selected JSON."""
-    return palette_profile(name, dark=True)["accent"]
+    """Return the actual light-mode button accent from the selected JSON."""
+    return palette_profile(name, dark=False)["accent"]
 
 
 def hover_for(name):
-    """Return the actual dark-mode button hover color from the selected JSON."""
-    return palette_profile(name, dark=True)["accent_h"]
+    """Return the actual light-mode button hover color from the selected JSON."""
+    return palette_profile(name, dark=False)["accent_h"]
 
 
-def _install_surface_palette(name, dark=True):
+def _install_surface_palette(name, dark=False):
     """Make the CTkThemesPack palette the source of truth for GeloTech surfaces.
 
     ``TechToolCore._apply_theme`` calls this module before walking the existing
@@ -183,7 +183,7 @@ def install_theme_dropdown(current_name):
         if button is None:
             return
 
-        profile = palette_profile(current_name, dark=True)
+        profile = palette_profile(current_name, dark=False)
         menu = getattr(root, "_gelotech_theme_menu", None)
         if menu is not None:
             try:
@@ -240,7 +240,7 @@ def install_theme_dropdown(current_name):
         pass
 
 
-def apply_ctk_theme(name, dark=True):
+def apply_ctk_theme(name, dark=False):
     """Apply the actual CTkThemesPack JSON and synchronize app surfaces."""
     import customtkinter as ctk
 
