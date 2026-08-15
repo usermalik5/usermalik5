@@ -3,6 +3,7 @@ from pathlib import Path
 
 def test_qt_modules_import_without_creating_a_window():
     import tech_qt_backup
+    import tech_qt_bezel
     import tech_qt_bootstrap
     import tech_qt_cleaner
     import tech_qt_compat
@@ -27,6 +28,7 @@ def test_qt_modules_import_without_creating_a_window():
     assert hasattr(tech_qt_mainwindow, "MainWindow")
     assert callable(tech_qt_app.main)
     assert callable(tech_qt_backup.install_backup_restore)
+    assert callable(tech_qt_bezel.install_bezel_alias)
     assert callable(tech_qt_cleaner.install_cleaner_parity)
     assert callable(tech_qt_drivers.install_driver_workflow)
     assert callable(tech_qt_final_fixes.install_final_qt_fixes)
