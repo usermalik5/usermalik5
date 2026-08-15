@@ -102,13 +102,11 @@ def _palette_color_map(root, name, dark=False):
     old_profile = palette_profile(previous, dark)
     mapping = {}
 
-    # Previous selected palette -> current palette.
     for key, old_color in old_profile.items():
         new_color = new_profile.get(key)
         if isinstance(old_color, str) and isinstance(new_color, str):
             mapping[old_color] = new_color
 
-    # Original GeloTech dark/light tokens -> selected palette.
     light_base = tech_common.THEMES.get("light", {})
     dark_base = tech_common.THEMES.get("dark", {})
     for key in new_profile:
@@ -118,7 +116,6 @@ def _palette_color_map(root, name, dark=False):
             if isinstance(old_color, str) and isinstance(new_color, str):
                 mapping[old_color] = new_color
 
-    # Existing COLOR_SWAP values and common hand-authored GeloTech colors.
     reverse_light = {v: k for k, v in light_base.items() if isinstance(v, str)}
     reverse_dark = {v: k for k, v in dark_base.items() if isinstance(v, str)}
     for dark_old, light_old in tech_common.COLOR_SWAP.items():
@@ -127,7 +124,7 @@ def _palette_color_map(root, name, dark=False):
             if slot and slot in new_profile:
                 mapping[old] = new_profile[slot]
 
-    aliases = {
+    mapping.update({
         "#3b82f6": new_profile["accent"],
         "#2f6fe4": new_profile["accent_h"],
         "#2563c2": new_profile["accent"],
@@ -147,8 +144,7 @@ def _palette_color_map(root, name, dark=False):
         "#8b98a9": new_profile["muted"],
         "#aab7c4": new_profile["muted"],
         "#aeb8c2": new_profile["muted"],
-    }
-    mapping.update(aliases)
+    })
     return mapping, _class_attribute_palette(
         load_theme_json(previous), load_theme_json(name), dark
     )
@@ -158,13 +154,9 @@ def _is_preserved_widget(widget):
     """Keep the phone screen / green log console in its existing style."""
     try:
         cls = type(widget).__name__
-        if cls == "CTkTextbox" and str(widget.cget("fg_color")) in {
-            "#000200", "#1D1E1E"
-        }:
+        if cls == "CTkTextbox" and str(widget.cget("fg_color")) in {"#000200", "#1D1E1E"}:
             return True
-        if cls == "CTkFrame" and str(widget.cget("fg_color")) in {
-            "#01030a", "#03160d"
-        }:
+        if cls == "CTkFrame" and str(widget.cget("fg_color")) in {"#01030a", "#03160d"}:
             return True
     except Exception:
         pass
@@ -172,8 +164,7 @@ def _is_preserved_widget(widget):
 
 
 def recolor_existing_widgets(root, name, dark=False):
-    import customtkinter as ctk
-    import tkinter as tk
+    from tkinter import ttk
     import tech_common
 
     mapping, class_maps = _palette_color_map(root, name, dark)
@@ -211,23 +202,11 @@ def recolor_existing_widgets(root, name, dark=False):
                 except Exception:
                     pass
 
-    # Keep the existing Treeview but make its base palette follow the theme.
     profile = palette_profile(name, dark)
     try:
-        style = tk.ttk.Style()
-        style.configure(
-            "AppList.Treeview",
-            background=profile["panel2"],
-            fieldbackground=profile["panel2"],
-            foreground=profile["text"],
-        )
-        style.configure(
-            "AppList.Vertical.Tscrollbar",
-            background=profile["panel"],
-            troughcolor=profile["bg"],
-            arrowcolor=profile["muted"],
-            bordercolor=profile["border"],
-        )
+        style = ttk.Style()
+        style.configure("AppList.Treeview", background=profile["panel2"], fieldbackground=profile["panel2"], foreground=profile["text"])
+        style.configure("AppList.Vertical.Tscrollbar", background=profile["panel"], troughcolor=profile["bg"], arrowcolor=profile["muted"], bordercolor=profile["border"])
         tree = getattr(root, "sec_tree", None)
         if tree is not None:
             tree.tag_configure("normal", background=profile["panel2"], foreground=profile["text"])
@@ -235,7 +214,6 @@ def recolor_existing_widgets(root, name, dark=False):
     except Exception:
         pass
 
-    # Re-run the existing contrast helper after recoloring buttons.
     try:
         root._fix_button_text_colors("dark" if dark else "light")
     except Exception:
@@ -285,11 +263,7 @@ def install_theme_dropdown(current_name):
         menu = getattr(root, "_gelotech_theme_menu", None)
         if menu is not None:
             menu.destroy()
-        menu = tk.Menu(
-            root, tearoff=False, bg=profile["panel"], fg=profile["text"],
-            activebackground=profile["accent"], activeforeground=profile["text"],
-            relief="flat", borderwidth=1,
-        )
+        menu = tk.Menu(root, tearoff=False, bg=profile["panel"], fg=profile["text"], activebackground=profile["accent"], activeforeground=profile["text"], relief="flat", borderwidth=1)
 
         def select(name):
             root._theme_mode = name
