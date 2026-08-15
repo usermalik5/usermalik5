@@ -2,33 +2,30 @@
 
 This branch is the active PySide6 migration. `main` remains untouched.
 
-## Completed in the current slice
+## Functional migration status
 
-- Added `requirements-qt.txt` with PySide6 support.
-- Added `tech_qt_app.py` as the Qt entry point. Every feature installer is explicitly called from this entry point before `MainWindow` is created.
-- Added `tech_qt_bootstrap.py` so the shared core can be imported even on a machine without CustomTkinter installed.
-- Added `tech_qt_icons.py` with native Qt SVG loading from `assets/icons/tabler/`.
-- Added `tech_qt_themes.py` with the 18 bundled palettes and 22 UI-font choices converted to Qt QSS.
-- Added `tech_qt_mainwindow.py` with the Qt shell, login/registration surface, Dashboard, App Cleaner, Monitor Apps, DNS, VirusTotal surface, Task Manager, Accounts, ADB controls, screen-mirror fallback, automatic new-device detection, per-device icon-cache reuse, and automatic helper preparation when the cache is missing.
-- Added `tech_qt_cleaner.py` and wired it into the Qt entry point. The cleaner parity slice performs a complete-device UAD-level scan, checks matching rows, provides Advanced Filter (text, UAD level, user/system scope, category, source), and restores package-list context/batch actions (disable, uninstall, clear data, APK backup, exclusions, APK info, and typed-YES confirmations).
-- Added `tech_qt_backup.py` and wired it into the Qt entry point. The consolidated APK Backup / Restore dialog uses the existing `AppData\\GeloTechTool\\apk_backups` storage location and supports checked-app backups plus APK restore.
-- Added `tech_qt_virustotal.py` and explicitly wired `install_virustotal(MainWindow)`. It provides package/hash lookup, installed-app scans, running-app filtering, pull+hash, upload when missing, and analysis polling.
-- Added `tech_qt_drivers.py` and wired `install_driver_workflow(MainWindow)` with the existing tested ADB kill-server/start-server/recheck behavior.
-- Added `tech_qt_mirror.py` and wired `install_scrcpy(MainWindow)`. It attempts Qt foreign-window embedding through `QWindow.fromWinId`/`createWindowContainer`, with a safe external scrcpy fallback when embedding is unavailable.
-- Added `tech_qt_iconsync.py` and wired `install_icon_sync(MainWindow)`. It verifies the per-device persistent cache using a SHA-256 serial key, verifies whether `ApkIconHelper` is already installed before installing, restores matching icon caches, and runs the complete helper export/import flow when the cache is absent or stale.
-- The Qt cleaner uses the existing four-column table and a real horizontal scrollbar for long descriptions.
-- Updated `GeloTechTool_qt.spec` with all Qt migration modules and bundled `ApkIconHelper.apk`/assets.
-- Added/updated `tests/test_qt_migration.py` to import-check every Qt installer module without creating a window.
+The functional Qt6 migration is complete and has already been merged to `main` separately. This branch contains the follow-up visual-parity work only.
 
-## Still to complete before calling the migration feature-complete
+Completed functional areas include login, Dashboard/App Cleaner, bloatware scanning, Advanced Filter, batch actions, APK backup/restore, VirusTotal, ADB repair, scrcpy embedding with fallback, automatic device icon synchronization/cache reuse, themes/fonts, Accounts, DNS, and Task Manager.
 
-- Run final Ruff cleanup across all new/modified Qt modules, including the existing semicolon-heavy `tech_qt_mainwindow.py`, without hiding real lint errors.
-- Resolve or narrowly annotate the remaining BasedPyright false positives from PySide6 enum stubs.
-- Run the complete Windows validation again after the latest backup/driver/mirror/icon-sync changes.
-- Verify the Qt scrcpy embedding visually on Windows; the external-window fallback must remain reliable if foreign-window parenting is rejected by the OS or scrcpy build.
-- Verify the complete ApkIconHelper export/import pipeline against a genuinely uncached device and a reconnect with a matching cache.
-- Add Qt release-module verification to `scripts/release.py` only after parity is reached. Do not change the production release path yet.
+## Visual parity pass
+
+- Added `tech_qt_ui.py` as the visual composition layer so layout changes do not rewrite feature implementations.
+- Dashboard is now the primary App Cleaner workspace, matching the legacy application's composition: fixed sidebar, large iPhone mockup, live logs, guidance, status row, package table, and bottom action toolbar.
+- Sidebar follows the compact legacy hierarchy and keeps the USB debugging / How to use guidance below Logout.
+- App Cleaner keeps the four-column table and horizontal scrollbar for long descriptions; no always-visible description editor is used.
+- QSS now gives the phone area, logs, table, controls, side navigation, headings, and guide panels consistent legacy-style proportions and typography while retaining the 18 CTkThemesPack palettes and UI-font selector.
+- `GeloTechTool_qt.spec` now bundles `tech_qt_ui.py`.
+- Qt migration tests now import-check the visual parity installer without creating a window.
+
+## Remaining visual verification
+
+- Run `python tech_qt_app.py` from a clean working directory and visually compare the Qt Dashboard/App Cleaner against the legacy Tk screenshot at approximately the same window size.
+- Run `python -m pytest -q` and `python -m compileall -q .` after the visual changes.
+- Confirm all 18 themes and the UI-font selector preserve the same layout without clipping.
+- Confirm the real-device mirror/icon/backup behaviors remain unchanged after the layout-only pass.
+- Do not modify `scripts/release.py` during this parity pass.
 
 ## Validation rule
 
-Do not claim feature parity until `python -m compileall -q .`, `python -m pytest -q`, Ruff, BasedPyright, and a real Windows source run of `python tech_qt_app.py` have all been checked. The migration task also requires testing from a clean working directory with no `themes/` directory in the current working directory.
+Do not claim visual parity until the source boots from a clean working directory, `python -m pytest -q` and `python -m compileall -q .` pass, and the Qt UI has been visually compared against the legacy layout. The existing production release path remains unchanged until the parity pass is accepted.
