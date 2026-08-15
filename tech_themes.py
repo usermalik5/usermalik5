@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """CTkThemesPack integration for GeloTech Tool.
 
-Each bundled JSON remains the source of truth.  The important detail is that
-we apply the JSON by *widget type* (CTkFrame, CTkButton, CTkEntry, etc.) rather
-than trying to guess a widget's role from whatever color it currently has.
-That prevents one palette's accent from leaking into every panel on the next
-palette switch.
+Each bundled JSON remains the source of truth. The palette is applied by
+widget type, with a small compatibility layer for GeloTech's ttk package list
+and custom log consoles.
 """
 
 import json
@@ -44,7 +42,7 @@ def _value(value, dark=False, fallback=None):
 
 
 def palette_profile(name, dark=False):
-    """Return the small set of shared GeloTech colors used outside CTk widgets."""
+    """Return shared GeloTech colors used by ttk and custom log surfaces."""
     data = load_theme_json(name if name in PALETTES else DEFAULT_THEME)
     root = data.get("CTk", {})
     frame = data.get("CTkFrame", {})
@@ -91,12 +89,10 @@ def hover_for(name):
 
 
 def _is_preserved_widget(widget):
-    """Keep the phone screen and neon log console visually independent."""
+    """Only preserve the physical phone/mirror display; GeloTech logs are themed."""
     try:
-        cls = type(widget).__name__
-        if cls == "CTkTextbox" and str(widget.cget("fg_color")) in {"#000200", "#1D1E1E"}:
-            return True
-        if cls == "CTkFrame" and str(widget.cget("fg_color")) in {"#01030a", "#03160d"}:
+        role = getattr(widget, "_gelotech_theme_role", "")
+        if role == "phone_display":
             return True
     except Exception:
         pass
@@ -127,42 +123,73 @@ def _apply_widget_palette(widget, data, dark=False):
     else:
         return
 
-    if not config:
-        return
-
-    # The live phone/mirror terminal deliberately keeps its own black/green design.
-    if _is_preserved_widget(widget):
+    if not config or _is_preserved_widget(widget):
         return
 
     _configure_widget(widget, config)
 
-    # The theme JSON has ``text_color`` but CTk's disabled text uses a separate
-    # option.  Let the pack define that value where available.
-    if "text_color_disabled" in config:
-        try:
-            widget.configure(text_color_disabled=config["text_color_disabled"])
-        except Exception:
-            pass
+
+def _apply_log_palette(root, name, dark=False):
+    """Theme GeloTech's log consoles without changing the physical phone display."""
+    profile = palette_profile(name, dark)
+    log_bg = profile["panel2"]
+    log_border = profile["border"]
+    log_text = profile["text"]
+    consoles = getattr(root, "_log_consoles", None) or []
+
+    tag_colors = {
+        "ADB": profile["accent"],
+        "SECURITY": profile["accent_h"],
+        "VT": profile["green"],
+        "DNS": profile["accent"],
+        "EXEC": profile["amber"],
+        "SYSTEM": profile["green"],
+        "ERROR": profile["red"],
+        "INFO": profile["green"],
+        "HINT": profile["muted"],
+        "DEFAULT": log_text,
+    }
+
+    for entry in consoles:
+        frame = entry.get("frame")
+        text = entry.get("text")
+        if frame is not None:
+            _configure_widget(frame, {
+                "fg_color": log_bg,
+                "border_color": log_border,
+            })
+        if text is not None:
+            _configure_widget(text, {
+                "fg_color": log_bg,
+                "text_color": log_text,
+                "border_color": log_border,
+            })
+            for tag, color in tag_colors.items():
+                try:
+                    text.tag_config(tag, foreground=color)
+                except Exception:
+                    pass
+
+        # The compact console has a LIVE LOGS header and clear button inside it.
+        if frame is not None:
+            try:
+                stack = list(frame.winfo_children())
+                while stack:
+                    child = stack.pop()
+                    stack.extend(child.winfo_children())
+                    if type(child).__name__ == "CTkFrame":
+                        _configure_widget(child, {
+                            "fg_color": profile["card"],
+                            "border_color": log_border,
+                        })
+            except Exception:
+                pass
 
 
-def recolor_existing_widgets(root, name, dark=False):
-    """Apply the selected JSON directly by widget class; no color guessing."""
-    import tkinter as tk
-    from tkinter import ttk
-    import tech_common
+def _apply_app_list_palette(root, name, dark=False):
+    """Bring the ttk package list onto the selected theme instead of old dark colors."""
+    import tkinter.ttk as ttk
 
-    data = load_theme_json(name if name in PALETTES else DEFAULT_THEME)
-    stack = list(root.winfo_children())
-
-    while stack:
-        widget = stack.pop()
-        try:
-            stack.extend(widget.winfo_children())
-        except Exception:
-            pass
-        _apply_widget_palette(widget, data, dark)
-
-    # The package list is ttk-based, so it is outside the CTk theme JSON.
     profile = palette_profile(name, dark)
     try:
         style = ttk.Style()
@@ -179,19 +206,52 @@ def recolor_existing_widgets(root, name, dark=False):
             arrowcolor=profile["muted"],
             bordercolor=profile["border"],
         )
-        tree = getattr(root, "sec_tree", None)
-        if tree is not None:
-            tree.tag_configure("normal", background=profile["panel2"], foreground=profile["text"])
-            tree.tag_configure("normal_alt", background=profile["panel"], foreground=profile["text"])
     except Exception:
-        pass
+        return
 
-    # Keep shared colors available to the handful of legacy custom widgets that
-    # intentionally use THEME[] instead of a CTk widget's own defaults.
+    tree = getattr(root, "sec_tree", None)
+    if tree is None:
+        return
+
+    # Preserve the meaning of threat/exclusion colors, but remove the old
+    # hard-coded dark-green/purple row backgrounds.
+    tags = {
+        "normal": (profile["panel2"], profile["text"]),
+        "normal_alt": (profile["panel"], profile["text"]),
+        "threat": (profile["panel2"], profile["red"]),
+        "both_excl": (profile["panel2"], profile["accent"]),
+        "uninstall_excl": (profile["panel2"], profile["red"]),
+        "clean_excl": (profile["panel2"], profile["amber"]),
+    }
+    for tag, (bg, fg) in tags.items():
+        try:
+            tree.tag_configure(tag, background=bg, foreground=fg)
+        except Exception:
+            pass
+
+
+def recolor_existing_widgets(root, name, dark=False):
+    """Apply the selected JSON directly by widget class and themed GeloTech surfaces."""
+    import tech_common
+
+    data = load_theme_json(name if name in PALETTES else DEFAULT_THEME)
+    stack = list(root.winfo_children())
+
+    while stack:
+        widget = stack.pop()
+        try:
+            stack.extend(widget.winfo_children())
+        except Exception:
+            pass
+        _apply_widget_palette(widget, data, dark)
+
+    _apply_log_palette(root, name, dark)
+    _apply_app_list_palette(root, name, dark)
+
+    profile = palette_profile(name, dark)
     tech_common.THEME.update(profile)
     root._gelotech_applied_theme = name if name in PALETTES else DEFAULT_THEME
 
-    # Re-run the existing button contrast guard after the selected palette is in place.
     try:
         root._fix_button_text_colors("dark" if dark else "light")
     except Exception:
@@ -279,6 +339,22 @@ def install_theme_dropdown(current_name):
         pass
 
 
+def _schedule_theme_refresh(root, name, dark=False):
+    """Reapply custom/ttk surfaces after GeloTech's legacy theme pass finishes."""
+    def refresh():
+        try:
+            _apply_log_palette(root, name, dark)
+            _apply_app_list_palette(root, name, dark)
+        except Exception:
+            pass
+
+    try:
+        root.after_idle(refresh)
+        root.after(150, refresh)
+    except Exception:
+        refresh()
+
+
 def apply_ctk_theme(name, dark=False):
     """Apply the selected bundled palette to new and existing UI widgets."""
     import customtkinter as ctk
@@ -287,7 +363,6 @@ def apply_ctk_theme(name, dark=False):
     if name not in PALETTES:
         name = DEFAULT_THEME
 
-    # CTk consumes the JSON for all widgets created after this call.
     ctk.set_appearance_mode("Dark" if dark else "Light")
     path = os.path.join(THEME_DIR, f"{name}.json")
     try:
@@ -302,3 +377,4 @@ def apply_ctk_theme(name, dark=False):
     if root is not None:
         recolor_existing_widgets(root, name, dark)
         install_theme_dropdown(name)
+        _schedule_theme_refresh(root, name, dark)
