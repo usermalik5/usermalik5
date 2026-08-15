@@ -82,86 +82,32 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QWidget {{ color: {p['text']}; background: {p['bg']}; }}
     QMainWindow, QDialog {{ background: {p['bg']}; }}
 
-    QFrame#sidebar {{
-        background: {p['panel2']};
-        border-right: 1px solid {p['border']};
-    }}
-    QLabel#brand {{
-        color: {p['accent']};
-        font-size: 22pt;
-        font-weight: 800;
-    }}
-    QLabel#versionLabel {{ font-size: 9pt; font-weight: 700; }}
-    QLabel#sidebarSection {{
-        color: {p['muted']};
-        font-size: 8pt;
-        font-weight: 800;
-        letter-spacing: 0.6px;
-        padding-top: 5px;
-    }}
+    QFrame#sidebar {{ background: #0d0f12; border-right: 1px solid {p['border']}; }}
+    QLabel#brand {{ color: #1a8cff; font-size: 22pt; font-weight: 800; }}
+    QLabel#copyrightLabel {{ color: #555b63; font-size: 8pt; }}
+    QLabel#versionLabel {{ color: #a6a6a6; font-size: 9pt; font-weight: 700; }}
+    QLabel#brandLink {{ color: #58a6ff; font-size: 8pt; }}
+    QLabel#sidebarSection {{ color: #7a8699; font-size: 8pt; font-weight: 800; padding-top: 5px; }}
     QLabel#muted {{ color: {p['muted']}; }}
 
-    QListWidget#sidebarNav {{
-        background: transparent;
-        border: 0;
-        outline: 0;
-    }}
-    QListWidget#sidebarNav::item {{
-        min-height: 28px;
-        padding: 5px 9px;
-        border: 1px solid {p['border']};
-        border-radius: 8px;
-        background: {p['panel']};
-        font-weight: 700;
-    }}
-    QListWidget#sidebarNav::item:hover {{ background: {p['accent_hover']}; }}
-    QListWidget#sidebarNav::item:selected {{
-        background: {p['accent']};
-        color: white;
-        border-color: {p['accent']};
-    }}
+    QListWidget#sidebarNav {{ background: transparent; border: 0; outline: 0; }}
+    QListWidget#sidebarNav::item {{ min-height: 27px; padding: 5px 9px; border: 1px solid #2c3340; border-radius: 8px; background: #171b20; font-weight: 700; }}
+    QListWidget#sidebarNav::item:hover {{ background: {p['accent_hover']}; color: white; }}
+    QListWidget#sidebarNav::item:selected {{ background: {p['accent']}; color: white; border-color: {p['accent']}; }}
 
-    QPushButton {{
-        background: {p['panel']};
-        color: {p['text']};
-        border: 1px solid {p['border']};
-        border-radius: 8px;
-        padding: 5px 10px;
-        min-height: 28px;
-        font-weight: 700;
-    }}
+    QPushButton {{ background: #171b20; color: {p['text']}; border: 1px solid #2c3340; border-radius: 8px; padding: 5px 10px; min-height: 28px; font-weight: 700; }}
     QPushButton:hover {{ background: {p['accent_hover']}; color: white; }}
     QPushButton:pressed, QPushButton:checked {{ background: {p['accent']}; color: white; }}
-    QPushButton:disabled {{ color: {p['muted']}; background: {p['panel2']}; }}
+    QPushButton:disabled {{ color: #666c74; background: #111419; }}
 
-    QLineEdit, QComboBox {{
-        background: {p['input']};
-        color: {p['text']};
-        border: 1px solid {p['border']};
-        border-radius: 7px;
-        padding: 6px 9px;
-        min-height: 28px;
-    }}
+    QLineEdit, QComboBox {{ background: {p['input']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 7px; padding: 6px 9px; min-height: 28px; }}
     QLineEdit:focus, QComboBox:focus {{ border-color: {p['accent']}; }}
 
-    QFrame#phonePanel {{ background: transparent; }}
-    QLabel#phoneMockup {{ background: transparent; }}
-    QFrame#contentPanel {{ background: {p['bg']}; }}
-    QPlainTextEdit#liveLog {{
-        background: {p['panel2']};
-        color: #7CFF00;
-        border: 1px solid {p['border']};
-        border-radius: 7px;
-        padding: 7px;
-        font-family: Consolas, \"Courier New\", monospace;
-        font-size: 9pt;
-    }}
-    QFrame#guidePanel, QFrame#sidebarGuide {{
-        background: {p['panel']};
-        border: 1px solid {p['border']};
-        border-radius: 8px;
-    }}
-    QLabel#guideTitle {{ font-size: 8pt; font-weight: 800; }}
+    QFrame#phonePanel, QFrame#contentPanel {{ background: transparent; }}
+    QPlainTextEdit#liveLog {{ background: #1b222c; color: #7CFF00; border: 1px solid #2c3340; border-radius: 7px; padding: 7px; font-family: Consolas, \"Courier New\", monospace; font-size: 9pt; }}
+    QFrame#guidePanel {{ background: #1b222c; border: 1px solid #2c3340; border-radius: 8px; }}
+    QFrame#sidebarGuide {{ background: #15191e; border: 1px solid #2c3340; border-radius: 8px; }}
+    QLabel#guideTitle {{ color: {p['text']}; font-size: 8pt; font-weight: 800; }}
     QLabel#guideText {{ color: {p['muted']}; font-size: 8pt; }}
     QLabel#statusText {{ font-style: italic; color: {p['accent']}; }}
     QLabel#securityText {{ color: {p['amber']}; font-weight: 800; }}
@@ -169,45 +115,16 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QLabel#legendText {{ color: {p['muted']}; font-size: 8pt; }}
     QLabel#subHeading {{ font-weight: 800; font-size: 9pt; }}
 
-    QTableWidget#packageTable {{
-        background: {p['panel2']};
-        alternate-background-color: {p['panel']};
-        color: {p['text']};
-        border: 1px solid {p['border']};
-        gridline-color: {p['border']};
-        selection-background-color: {p['accent']};
-        selection-color: white;
-        outline: 0;
-    }}
+    QTableWidget#packageTable {{ background: #111a16; alternate-background-color: #0e1813; color: {p['text']}; border: 1px solid #2c3340; gridline-color: #17241d; selection-background-color: {p['accent']}; selection-color: white; outline: 0; }}
     QTableWidget#packageTable::item {{ padding: 4px 7px; }}
-    QHeaderView::section {{
-        background: {p['panel']};
-        color: {p['text']};
-        padding: 6px 7px;
-        border: 0;
-        border-right: 1px solid {p['border']};
-        border-bottom: 1px solid {p['border']};
-        font-weight: 800;
-        font-size: 9pt;
-    }}
+    QHeaderView::section {{ background: #d9d9d9; color: #202020; padding: 6px 7px; border: 0; border-right: 1px solid #a7a7a7; border-bottom: 1px solid #a7a7a7; font-weight: 800; font-size: 9pt; }}
 
-    QPlainTextEdit, QTextEdit {{
-        background: {p['panel2']};
-        color: {p['text']};
-        border: 1px solid {p['border']};
-        border-radius: 7px;
-        padding: 6px;
-    }}
+    QPlainTextEdit, QTextEdit {{ background: {p['panel2']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 7px; padding: 6px; }}
     QScrollBar:vertical {{ background: {p['bg']}; width: 11px; margin: 0; }}
     QScrollBar::handle:vertical {{ background: {p['border']}; min-height: 24px; border-radius: 5px; }}
     QScrollBar:horizontal {{ background: {p['bg']}; height: 11px; margin: 0; }}
     QScrollBar::handle:horizontal {{ background: {p['border']}; min-width: 28px; border-radius: 5px; }}
-
-    QMenu {{
-        background: {p['panel']};
-        border: 1px solid {p['border']};
-        padding: 4px;
-    }}
+    QMenu {{ background: {p['panel']}; border: 1px solid {p['border']}; padding: 4px; }}
     QMenu::item {{ padding: 6px 14px; }}
     QMenu::item:selected {{ background: {p['accent']}; color: white; }}
     """
