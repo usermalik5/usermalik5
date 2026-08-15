@@ -14,6 +14,7 @@ hiddenimports = [
     "tech_qt_themes",
     "tech_qt_bootstrap",
     "tech_qt_cleaner",
+    "tech_qt_backup",
     "tech_qt_virustotal",
     "tech_qt_drivers",
     "tech_qt_mirror",
