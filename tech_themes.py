@@ -1,57 +1,30 @@
 # -*- coding: utf-8 -*-
-"""Theme palette management for GeloTech Tool.
+"""CTkThemesPack palette management for GeloTech Tool.
 
-Integrates the upstream CTkThemesPack palettes (see ``themes/*.json``) so the
-sidebar toggle can switch between palettes while keeping every widget
-contrast-readable in both light and dark appearance.
+The upstream theme JSON is the source of truth. GeloTech keeps its existing
+3uTools-style layout, but the selected palette now supplies the actual surface,
+text, input, border, accent, and hover colors instead of only replacing the
+accent with a hand-maintained fallback table.
 
-Two concerns are separated:
-  * **CTk default widgets** (CTkButton, CTkEntry, the scrollbars, etc.) are
-    styled from the pack ``themes/<name>.json`` via ``apply_ctk_theme``.
-  * **Custom 3uTools-style surfaces** (sidebar, panels, cards, the status bar,
-    the log console frame) use the app's own hex palettes in ``THEMES``.
-    ``PALETTE_COLORS`` maps each palette name to a full light<->dark hex map
-    so the existing ``COLOR_SWAP``/``_theme_walk`` walker recolors them, and
-    ``_fix_button_text_colors`` picks a readable text color per background.
-
-Themes are bundled as data files (``themes/*.json``) next to the executable.
+The app currently uses the dark side of each CTkThemesPack palette. The JSON
+files keep their light-side values so a separate appearance selector can be
+added later without changing the theme data format.
 """
 
-import os
 import json
+import os
+import sys
 
-# Where the bundled theme JSON files live, accounting for the one-file
-# PyInstaller layout (files sit next to the frozen exe / in _MEIPASS) as well
-# as a plain source checkout.
 try:
-    import sys
-
     _MEIPASS = getattr(sys, "_MEIPASS", None)
     if _MEIPASS:
         THEME_DIR = os.path.join(_MEIPASS, "themes")
     else:
-        # themes/ lives alongside this module (inside the repo / next to the
-        # frozen exe bundle), not one directory above it.
         THEME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "themes")
-except Exception:  # pragma: no cover - defensive
+except Exception:  # pragma: no cover
     THEME_DIR = "themes"
 
 
-def load_theme_json(name):
-    """Load a CTkThemesPack theme JSON by name (e.g. ``"orange"``).
-
-    Returns the parsed dict, or an empty dict if missing/corrupt.
-    """
-    path = os.path.join(THEME_DIR, name + ".json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-# The palettes users can switch between. "orange" is the shipped default.
-# Order matters for the sidebar toggle (cycled in this order).
 PALETTES = [
     "orange", "autumn", "breeze", "carrot", "cherry", "coffee", "lavender",
     "marsh", "metal", "midnight", "patina", "pink", "red", "rime", "rose",
@@ -61,78 +34,220 @@ PALETTES = [
 DEFAULT_THEME = "orange"
 
 
-def _pack_accent(name):
-    """Pull the dark-mode button foreground from a pack theme (the accent)."""
+def load_theme_json(name):
+    """Return one CTkThemesPack palette, or an empty dict if unavailable."""
+    path = os.path.join(THEME_DIR, f"{name}.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _value(value, dark=True, fallback=None):
+    """Resolve a CTk theme value and select its light/dark member."""
+    if isinstance(value, (list, tuple)) and value:
+        index = 1 if dark and len(value) > 1 else 0
+        return value[index]
+    return value if value is not None else fallback
+
+
+def palette_profile(name, dark=True):
+    """Map CTkThemesPack colors onto GeloTech's existing shared theme slots."""
+    if name not in PALETTES:
+        name = DEFAULT_THEME
     data = load_theme_json(name)
-    try:
-        btn = data.get("CTkButton", {})
-        fg = btn.get("fg_color", ["#FF6505", "#FF6505"])
-        if isinstance(fg, list) and len(fg) >= 2:
-            return fg[1]
-        return fg
-    except Exception:
-        return "#FF6505"
 
+    root = data.get("CTk", {})
+    frame = data.get("CTkFrame", {})
+    button = data.get("CTkButton", {})
+    label = data.get("CTkLabel", {})
+    entry = data.get("CTkEntry", {})
 
-# Fallback accent palette per theme (dark-mode button color from each pack's
-# CTkButton.fg_color when available; kept compact so this module stays small).
-_FALLBACK_ACCENT = {
-    "orange": "#FF6505", "autumn": "#D35400", "breeze": "#0275D8",
-    "carrot": "#FF6F00", "cherry": "#C2185B", "coffee": "#6F4E37",
-    "lavender": "#9C27B0", "marsh": "#009688", "metal": "#4ECDC4",
-    "midnight": "#1976D2", "patina": "#008080", "pink": "#E1306C",
-    "red": "#DC143C", "rime": "#7FDBFF", "rose": "#FF66CC", "sky": "#039BE5",
-    "violet": "#673AB7", "yellow": "#FFD300",
-}
+    bg = _value(root.get("fg_color"), dark, "gray14")
+    panel = _value(frame.get("fg_color"), dark, "gray17")
+    panel2 = _value(frame.get("top_fg_color"), dark, panel)
+    border = _value(frame.get("border_color"), dark, "gray28")
+    input_color = _value(entry.get("fg_color"), dark, panel2)
+    accent = _value(button.get("fg_color"), dark, "#3b82f6")
+    accent_hover = _value(button.get("hover_color"), dark, accent)
+    text = _value(label.get("text_color"), dark, "#DCE4EE")
+    muted = _value(entry.get("placeholder_text_color"), dark, text)
 
-# Hover color per palette (a step darker along the pack's own ramp where the
-# pack exposes one; otherwise a darken of the accent).
-_HOVER = {
-    "orange": "#CC5500", "autumn": "#B84500", "breeze": "#0257B3",
-    "carrot": "#CC5500", "cherry": "#8E0045", "coffee": "#4E3A2A",
-    "lavender": "#6A1B9A", "marsh": "#00796B", "midnight": "#115296",
-    "patina": "#005F5F", "pink": "#A31052", "red": "#9B1B32",
-    "rime": "#62B1E9", "rose": "#CC0066", "sky": "#0275D8",
-    "violet": "#4527A0", "yellow": "#D4AF37",
-}
-
-
-def _darken(hexcolor, amount=0.18):
-    """Return a hex color darkened by ``amount`` (0..1) for hover variants."""
-    try:
-        h = hexcolor.lstrip("#")
-        if len(h) == 3:
-            h = "".join(c * 2 for c in h)
-        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
-        r = max(0, int(r * (1 - amount)))
-        g = max(0, int(g * (1 - amount)))
-        b = max(0, int(b * (1 - amount)))
-        return "#%02x%02x%02x" % (r, g, b)
-    except Exception:
-        return hexcolor
+    return {
+        "bg": bg,
+        "panel": panel,
+        "panel2": panel2,
+        "card": panel2,
+        "border": border,
+        "input": input_color,
+        "accent": accent,
+        "accent_h": accent_hover,
+        "green": "#22c55e",
+        "red": "#ef4444",
+        "amber": "#f59e0b",
+        "text": text,
+        "muted": muted,
+        "sidebar": bg,
+    }
 
 
 def accent_for(name):
-    """Dark-mode accent (button fg) for a palette."""
-    return _FALLBACK_ACCENT.get(name, _pack_accent(name))
+    """Return the actual dark-mode button accent from the selected JSON."""
+    return palette_profile(name, dark=True)["accent"]
 
 
 def hover_for(name):
-    return _HOVER.get(name, _darken(accent_for(name)))
+    """Return the actual dark-mode button hover color from the selected JSON."""
+    return palette_profile(name, dark=True)["accent_h"]
 
 
-def apply_ctk_theme(name):
-    """Apply the pack's CTk default-widget theme for ``name``.
+def _install_surface_palette(name, dark=True):
+    """Make the CTkThemesPack palette the source of truth for GeloTech surfaces.
 
-    Sets CustomTkinter's default color theme from the bundled
-    ``themes/<name>.json`` via its file path (CTk accepts a path or a dict).
-    Falls back to CTk's built-in ``blue`` theme if the file is missing/corrupt.
-    Never raises.
+    ``TechToolCore._apply_theme`` calls this module before walking the existing
+    widget tree. Updating the shared dictionaries here lets the existing theme
+    walker recolor older widgets without a second large UI-specific theme layer.
     """
+    try:
+        import tech_common
+
+        profile = palette_profile(name, dark=dark)
+        tech_common.THEME.update(profile)
+
+        dark_tokens = tech_common.THEMES.get("dark", {})
+        for key in ("bg", "panel", "panel2", "card", "border", "input", "text", "muted", "sidebar"):
+            old = dark_tokens.get(key)
+            new = profile.get(key)
+            if isinstance(old, str) and isinstance(new, str):
+                tech_common.COLOR_SWAP[old] = new
+
+        aliases = {
+            "#0d1117": profile["input"],
+            "#16191e": profile["panel"],
+            "#11151c": profile["panel2"],
+            "#131921": profile["panel2"],
+            "#1b222c": profile["card"],
+            "#21262d": profile["border"],
+            "#27313d": profile["card"],
+            "#30363d": profile["border"],
+            "#2c3340": profile["border"],
+            "#e6edf3": profile["text"],
+            "#e8ecf2": profile["text"],
+            "#8b949e": profile["muted"],
+            "#8b98a9": profile["muted"],
+            "#aab7c4": profile["muted"],
+            "#aeb8c2": profile["muted"],
+        }
+        for old, new in aliases.items():
+            tech_common.COLOR_SWAP[old] = new
+    except Exception:
+        pass
+
+
+def _find_theme_button(root):
+    """Find the sidebar palette button without coupling this module to GeloTechTool."""
+    try:
+        import customtkinter as ctk
+    except Exception:
+        return None
+
+    def walk(widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from walk(child)
+
+    try:
+        for widget in walk(root):
+            if isinstance(widget, ctk.CTkButton):
+                try:
+                    text = str(widget.cget("text")).strip()
+                except Exception:
+                    continue
+                if text.casefold() in {p.casefold() for p in PALETTES}:
+                    return widget
+    except Exception:
+        pass
+    return None
+
+
+def install_theme_dropdown(current_name):
+    """Turn the existing sidebar theme button into a direct palette picker."""
+    try:
+        import tkinter as tk
+
+        root = getattr(tk, "_default_root", None)
+        if root is None:
+            return
+        button = _find_theme_button(root)
+        if button is None:
+            return
+
+        profile = palette_profile(current_name, dark=True)
+        menu = getattr(root, "_gelotech_theme_menu", None)
+        if menu is not None:
+            try:
+                menu.destroy()
+            except Exception:
+                pass
+
+        menu = tk.Menu(
+            root,
+            tearoff=False,
+            bg=profile["panel"],
+            fg=profile["text"],
+            activebackground=profile["accent"],
+            activeforeground=profile["text"],
+            relief="flat",
+            borderwidth=1,
+        )
+
+        def select(name):
+            try:
+                root._theme_mode = name
+                data = root._load_settings()
+                data["theme"] = name
+                root._save_settings(data)
+            except Exception:
+                pass
+            try:
+                root._apply_theme(name)
+            except Exception:
+                pass
+
+        for palette in PALETTES:
+            label = palette.capitalize()
+            if palette == current_name:
+                label = "✓ " + label
+            menu.add_command(label=label, command=lambda p=palette: select(p))
+
+        root._gelotech_theme_menu = menu
+
+        def open_menu():
+            try:
+                x = button.winfo_rootx()
+                y = button.winfo_rooty() + button.winfo_height()
+                menu.tk_popup(x, y)
+            finally:
+                try:
+                    menu.grab_release()
+                except Exception:
+                    pass
+
+        button.configure(command=open_menu)
+        button.configure(text=current_name.capitalize())
+    except Exception:
+        pass
+
+
+def apply_ctk_theme(name, dark=True):
+    """Apply the actual CTkThemesPack JSON and synchronize app surfaces."""
     import customtkinter as ctk
+
     if name not in PALETTES:
         name = DEFAULT_THEME
-    path = os.path.join(THEME_DIR, name + ".json")
+    path = os.path.join(THEME_DIR, f"{name}.json")
+
     try:
         if os.path.isfile(path):
             ctk.set_default_color_theme(path)
@@ -143,3 +258,6 @@ def apply_ctk_theme(name):
             ctk.set_default_color_theme("blue")
         except Exception:
             pass
+
+    _install_surface_palette(name, dark=dark)
+    install_theme_dropdown(name)
