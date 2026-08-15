@@ -91,24 +91,16 @@ class UiMixin:
     def build_security_tab(self, parent=None):
         tab = parent if parent is not None else self.page("Adware Remover")
         tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(3, weight=1)
+        tab.grid_rowconfigure(0, weight=1)
+        tab.grid_rowconfigure(3, weight=2)
 
         # Row 0 - Log console header (title text removed; logs moved here)
         header = ctk.CTkFrame(tab, fg_color="#1b222c", corner_radius=8, border_width=0)
-        header.grid(row=0, column=0, padx=15, pady=(12, 6), sticky="ew")
+        header.grid(row=0, column=0, padx=15, pady=(12, 6), sticky="nsew")
         header.grid_columnconfigure(0, weight=1)
         header.grid_rowconfigure(1, weight=1)
         self._sec_banner_header = header
-        header.bind("<Configure>", self._sec_banner_wraplength)
-        self._build_log_panel(header, fixed_height=150)
-
-        self._sec_banner_usb = ctk.CTkLabel(header, text="\U0001f4f1 USB debugging: Settings \u2192 About Phone \u2192 tap Build Number 7\u00d7 \u2192 Developer Options \u2192 USB debugging ON \u2192 connect cable \u2192 tap \u201cAllow\u201d (tick Always allow) \u2192 Refresh",
-                     font=ctk.CTkFont(size=10), text_color="#aeb8c2", anchor="w", justify="left")
-        self._sec_banner_usb.grid(row=2, column=0, columnspan=2, padx=14, pady=(0, 2), sticky="w")
-
-        self._sec_banner_howto = ctk.CTkLabel(header, text="\U0001f4a1 How to use: press Refresh to load user apps. Load Apps \u25be loads All / User / System / Disabled lists \u2014 Advanced Filter loads apps from the database. Scan Bloatware \u25be picks a UAD level (Recommended / Advanced / Expert / Unsafe), checks all matching apps and offers actions. Restore/Backup restores apps you removed. Right-click any row for per-app options (Disable / Uninstall / Clear App Data / Backup / Exclude / Info).",
-                     font=ctk.CTkFont(size=10), text_color="#58a6ff", anchor="w", justify="left")
-        self._sec_banner_howto.grid(row=3, column=0, columnspan=2, padx=14, pady=(0, 8), sticky="w")
+        self._build_log_panel(header)
 
         # Row 1 - Status bar: status | scan anim | threats counter | progress
         stats = ctk.CTkFrame(tab, fg_color="#131921", corner_radius=8)
@@ -293,13 +285,13 @@ class UiMixin:
             pass
 
     def _sec_banner_wraplength(self, _event=None):
-        """Wrap the instruction banners to the panel width so they never run
-        off the edge of the (often narrow) App Cleaner column."""
+        """Wrap the instruction banners to the sidebar width so they never run
+        off the edge of the fixed-width App Cleaner column."""
         try:
-            header = getattr(self, "_sec_banner_header", None)
-            if header is None:
+            sidebar = getattr(self, "sidebar_frame", None)
+            if sidebar is None:
                 return
-            width = header.winfo_width()
+            width = sidebar.winfo_width()
             if width < 10:
                 return
             wl = max(120, width - 28)

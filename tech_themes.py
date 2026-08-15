@@ -25,6 +25,18 @@ PALETTES = [
 ]
 DEFAULT_THEME = "orange"
 
+# Windows-friendly UI fonts. The chosen family applies to every GeloTech text
+# surface (labels, buttons, entries, lists, log text, dropdowns); only the
+# physical phone display keeps its fixed layout.
+UI_FONTS = [
+    "Segoe UI", "Arial", "Arial Black", "Calibri", "Cambria", "Candara",
+    "Comic Sans MS", "Consolas", "Constantia", "Corbel", "Courier New",
+    "Franklin Gothic Medium", "Garamond", "Georgia", "Impact",
+    "Lucida Console", "Microsoft Sans Serif", "Palatino Linotype",
+    "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana",
+]
+DEFAULT_UI_FONT = "Segoe UI"
+
 
 def load_theme_json(name):
     path = os.path.join(THEME_DIR, f"{name}.json")
@@ -230,6 +242,80 @@ def _apply_app_list_palette(root, name, dark=False):
             pass
 
 
+def _font_weight_for(widget):
+    cls = type(widget).__name__
+    if cls in {"CTkButton", "CTkCheckBox", "CTkSwitch", "CTkRadioButton",
+               "CTkOptionMenu", "CTkComboBox", "CTkSegmentedButton"}:
+        return "bold"
+    if cls == "CTkLabel":
+        try:
+            text = str(widget.cget("text"))
+            current = widget.cget("font")
+            weight = current.cget("weight") if hasattr(current, "cget") else "normal"
+            if weight == "bold" or text.isupper() or len(text) < 24:
+                return "bold"
+        except Exception:
+            pass
+    return "normal"
+
+
+def _font_spec(widget, family):
+    try:
+        current = widget.cget("font")
+        if hasattr(current, "cget"):
+            size = current.cget("size")
+            underline = current.cget("underline")
+            overstrike = current.cget("overstrike")
+        else:
+            size, underline, overstrike = 10, False, False
+    except Exception:
+        size, underline, overstrike = 10, False, False
+    return {"family": family, "size": size, "weight": _font_weight_for(widget),
+            "underline": underline, "overstrike": overstrike}
+
+
+def _apply_ui_font(root, family):
+    """Apply the chosen UI font to every GeloTech text surface.
+
+    Covers all CTk text widgets, the ttk package list, and ttk scrollbar
+    styling. The physical phone display is preserved via
+    ``_is_preserved_widget``; the log consoles follow the chosen font too so
+    the whole app reads consistently."""
+    if family not in UI_FONTS:
+        family = DEFAULT_UI_FONT
+    try:
+        supported = {"CTkButton", "CTkLabel", "CTkEntry", "CTkCheckBox", "CTkSwitch",
+                     "CTkRadioButton", "CTkOptionMenu", "CTkComboBox",
+                     "CTkSegmentedButton", "CTkTextbox", "CTkScrollableFrame"}
+        stack = list(root.winfo_children())
+        while stack:
+            widget = stack.pop()
+            try:
+                stack.extend(widget.winfo_children())
+            except Exception:
+                pass
+            if type(widget).__name__ not in supported or _is_preserved_widget(widget):
+                continue
+            try:
+                widget.configure(font=_font_spec(widget, family))
+            except Exception:
+                pass
+        from tkinter import ttk
+        style = ttk.Style()
+        for style_name in ("AppList.Treeview", "Treeview"):
+            try:
+                style.configure(style_name, font=(family, 10))
+            except Exception:
+                pass
+        try:
+            style.configure("AppList.Treeview.Heading", font=(family, 10, "bold"))
+        except Exception:
+            pass
+        root._gelotech_ui_font = family
+    except Exception:
+        pass
+
+
 def recolor_existing_widgets(root, name, dark=False):
     """Apply the selected JSON directly by widget class and themed GeloTech surfaces."""
     import tech_common
@@ -307,19 +393,34 @@ def install_theme_dropdown(current_name):
             borderwidth=1,
         )
 
-        def select(name):
-            root._theme_mode = name
+        def save_setting(key, value):
             try:
                 data = root._load_settings()
-                data["theme"] = name
+                data[key] = value
                 root._save_settings(data)
             except Exception:
                 pass
+
+        def select(name):
+            root._theme_mode = name
+            save_setting("theme", name)
             root._apply_theme(name)
+
+        def select_font(family):
+            root._ui_font = family
+            save_setting("font", family)
+            _apply_ui_font(root, family)
 
         for palette in PALETTES:
             label = ("✓ " if palette == current_name else "") + palette.capitalize()
             menu.add_command(label=label, command=lambda p=palette: select(p))
+
+        menu.add_separator()
+        menu.add_command(label="UI Font", state="disabled")
+        current_font = getattr(root, "_ui_font", DEFAULT_UI_FONT)
+        for family in UI_FONTS:
+            label = ("✓ " if family == current_font else "") + family
+            menu.add_command(label=label, command=lambda f=family: select_font(f))
 
         root._gelotech_theme_menu = menu
 
@@ -345,12 +446,13 @@ def _schedule_theme_refresh(root, name, dark=False):
         try:
             _apply_log_palette(root, name, dark)
             _apply_app_list_palette(root, name, dark)
+            _apply_ui_font(root, getattr(root, "_ui_font", DEFAULT_UI_FONT))
         except Exception:
             pass
 
     try:
-        root.after_idle(refresh)
-        root.after(150, refresh)
+        for delay in (0, 75, 200, 450, 900, 1600):
+            root.after(delay, refresh)
     except Exception:
         refresh()
 
@@ -375,6 +477,12 @@ def apply_ctk_theme(name, dark=False):
 
     root = getattr(tk, "_default_root", None)
     if root is not None:
+        if not hasattr(root, "_ui_font"):
+            try:
+                root._ui_font = root._load_settings().get("font", DEFAULT_UI_FONT)
+            except Exception:
+                root._ui_font = DEFAULT_UI_FONT
         recolor_existing_widgets(root, name, dark)
         install_theme_dropdown(name)
+        _apply_ui_font(root, getattr(root, "_ui_font", DEFAULT_UI_FONT))
         _schedule_theme_refresh(root, name, dark)

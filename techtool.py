@@ -93,6 +93,7 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
         self.known_adb_devices = None
         self.adb_monitor_enabled = True
         self._icon_sync_seen_serials = set()
+        self._auto_mirror_seen = set()
         self._fonts = {
             "row_name": ctk.CTkFont(size=11, weight="bold"),
             "row_badge": ctk.CTkFont(size=9, weight="bold"),
@@ -208,6 +209,33 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
         _add_header("SESSION")
         self._admin_panel_btn = _add_btn("\U0001f511", "Accounts", self._open_admin_panel, color="#d4af37")
         _add_btn("\U0001f6aa", "Logout", self._logout, color="#7f8c8d")
+
+        # USB debugging + How-to instructions, pinned below the Logout button.
+        self._sec_banner_usb = ctk.CTkLabel(
+            self.sidebar_frame,
+            text=(
+                "\U0001f4f1 USB debugging:\n"
+                "Enable Developer Options \u2192 USB debugging, connect the phone, then tap Allow.\n"
+                "GeloTech automatically prepares app icons for new devices."
+            ),
+            font=ctk.CTkFont(size=9), text_color="#aeb8c2", anchor="w", justify="left",
+            wraplength=200)
+        self._sec_banner_usb.grid(row=row, column=0, padx=12, pady=(10, 2), sticky="w")
+        row += 1
+
+        self._sec_banner_howto = ctk.CTkLabel(
+            self.sidebar_frame,
+            text=(
+                "\U0001f4a1 How to use:\n"
+                "Refresh loads user apps. Load Apps chooses All / User / System / Disabled.\n"
+                "Advanced Filter uses the database. Scan Bloatware filters by UAD level.\n"
+                "Right-click a row for app actions."
+            ),
+            font=ctk.CTkFont(size=9), text_color="#58a6ff", anchor="w", justify="left",
+            wraplength=200)
+        self._sec_banner_howto.grid(row=row, column=0, padx=12, pady=(2, 10), sticky="w")
+        row += 1
+        self.sidebar_frame.bind("<Configure>", self._sec_banner_wraplength)
 
         # ----------------------------------------------------
         # MIDDLE: PAGE STACK (3uTools-style sidebar navigation)
@@ -414,8 +442,41 @@ class GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SettingsLoginMixin, SecScanM
             self.log_message(f"[ADB] {status}")
             if devices:
                 self._auto_prepare_new_device_icons(devices)
+                self._auto_launch_mirror(devices)
             else:
                 self._icon_sync_seen_serials.clear()
+                self._auto_mirror_seen.clear()
+
+    def _auto_launch_mirror(self, devices):
+        """Auto-launch the phone mirror 5s after a device connects, so the
+        screen stays visible while using the app. Never auto-stops; the user
+        can stop it via the sidebar button."""
+        try:
+            if len(devices) != 1:
+                return
+            mgr = getattr(self, "_phone_mirror", None)
+            if mgr is not None and mgr.state != "off":
+                return
+            if not os.path.exists(self.scrcpy_exe):
+                return
+            serial = devices[0]
+            if serial in self._auto_mirror_seen:
+                return
+            self._auto_mirror_seen.add(serial)
+            self.log_message("[SCRCPY] Device connected - opening screen mirror in 5 seconds")
+            self.after(5000, self._delayed_auto_mirror)
+        except Exception as exc:
+            self.log_message(f"[PHONE ERROR] Auto mirror skipped: {exc}")
+
+    def _delayed_auto_mirror(self):
+        """Fire the delayed auto-mirror start, skipping if already running."""
+        try:
+            mgr = getattr(self, "_phone_mirror", None)
+            if mgr is not None and mgr.state != "off":
+                return
+            self._start_phone_mirror(-1, -1)
+        except Exception as exc:
+            self.log_message(f"[PHONE ERROR] Auto mirror failed: {exc}")
 
     def _auto_prepare_new_device_icons(self, devices):
         """Automatically prepare icons when a new single authorized device is detected."""

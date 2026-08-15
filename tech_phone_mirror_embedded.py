@@ -96,7 +96,11 @@ class PhoneMirrorManager(_BaseMirrorManager):
             r = getattr(d, "_dash_log_rect", None) or getattr(self, "_console_place", None)
             if not r:
                 return
-            c.place(x=int(r[0]), y=int(r[1]), width=int(r[2]), height=int(r[3]))
+            try:
+                c.configure(width=int(r[2]), height=int(r[3]))
+            except Exception:
+                pass
+            c.place(x=int(r[0]), y=int(r[1]))
             c.lift()
             d.update_idletasks()
             clip = getattr(d, "_clip_dash_console", None)

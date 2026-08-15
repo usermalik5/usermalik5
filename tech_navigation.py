@@ -117,8 +117,8 @@ class NavigationController:
 
             usb = getattr(self.app, "_sec_banner_usb", None)
             howto = getattr(self.app, "_sec_banner_howto", None)
-            header = getattr(self.app, "_sec_banner_header", None)
-            wraplength = max(220, (header.winfo_width() - 28) if header is not None else 900)
+            sidebar = getattr(self.app, "sidebar_frame", None)
+            wraplength = max(200, (sidebar.winfo_width() - 24) if sidebar is not None else 900)
             if usb is not None:
                 usb.configure(
                     text=(

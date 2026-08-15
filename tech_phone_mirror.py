@@ -594,7 +594,11 @@ class PhoneMirrorManager(object):
         try:
             r = self._console_place
             if r:
-                c.place(x=r[0], y=r[1], width=r[2], height=r[3])
+                try:
+                    c.configure(width=int(r[2]), height=int(r[3]))
+                except Exception:
+                    pass
+                c.place(x=r[0], y=r[1])
         except Exception:
             pass
         self._hidden_console = None
