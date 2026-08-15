@@ -46,7 +46,8 @@ from PIL import Image, ImageDraw, ImageFont
 # Application Global Styling Configurations
 import tech_themes as _tthemes
 ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("themes/orange.json")
+ctk.set_default_color_theme(
+    os.path.join(_tthemes.THEME_DIR, f"{_tthemes.DEFAULT_THEME}.json"))
 
 # Scale UI for high-DPI / small font compensation
 ctk.set_widget_scaling(1.15)

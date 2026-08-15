@@ -23,7 +23,8 @@ from tech_database import DatabaseService
 
 # Application Global Styling Configurations
 ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("themes/orange.json")
+ctk.set_default_color_theme(
+    os.path.join(tech_themes.THEME_DIR, f"{tech_themes.DEFAULT_THEME}.json"))
 
 # Scale UI for high-DPI / small font compensation
 ctk.set_widget_scaling(1.15)
