@@ -31,6 +31,7 @@ datas = [
     (str(ROOT / "ApkIconHelper.apk"), "."),
     (str(ROOT / "banking_apps.json"), "."),
     (str(ROOT / "gelotech_icon.ico"), "."),
+    ("scrcpy.exe", "."),
 ]
 
 

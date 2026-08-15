@@ -99,11 +99,16 @@ class MainWindow(QMainWindow):
             self.nav.addItem(QListWidgetItem(load_icon(ICONS.get(key, "info-circle")), title))
         self.nav.currentRowChanged.connect(self._nav_changed)
         for text, key, slot in [
-            ("Screen Mirror", "Screen Mirror", self.start_mirror), ("Reboot to Recovery", "Reboot", lambda: self._adb_simple(["reboot", "recovery"])),
+            ("Reboot to Recovery", "Reboot", lambda: self._adb_simple(["reboot", "recovery"])),
             ("Reboot to Fastboot", "Power", lambda: self._adb_simple(["reboot", "bootloader"])), ("Re-authorize ADB", "Re-authorize ADB", self._reauthorize),
             ("Fix / DL ADB Drivers", "Fix Drivers", self._driver_help), ("Logout", "Logout", self._logout),
         ]:
             b = QPushButton(text); b.setIcon(load_icon(ICONS.get(key, "info-circle"))); b.clicked.connect(slot); side.addWidget(b)
+        # USB debugging + How-to hints placed below the sidebar logouts
+        usb = QLabel("📱 USB debugging:\nEnable Developer Options → USB debugging, connect the phone, then tap Allow.\nGeloTech automatically prepares app icons for new devices.")
+        usb.setWordWrap(True); usb.setObjectName("muted"); side.addWidget(usb)
+        howto = QLabel("💡 How to use:\nRefresh loads user apps. Load Apps chooses All / User / System / Disabled.\nAdvanced Filter uses the database. Scan Bloatware filters by UAD level.\nRight-click a row for app actions.")
+        howto.setWordWrap(True); howto.setObjectName("muted"); side.addWidget(howto)
         for text in ["📱 USB debugging:\nEnable Developer Options → USB debugging, connect the phone, then tap Allow.\nGeloTech automatically prepares app icons for new devices.", "💡 How to use:\nRefresh loads user apps. Load Apps chooses All / User / System / Disabled.\nAdvanced Filter uses the database. Scan Bloatware filters by UAD level.\nRight-click a row for app actions."]:
             label = QLabel(text); label.setWordWrap(True); label.setObjectName("muted"); side.addWidget(label)
         self.stack = QStackedWidget(); self.pages = [self._dashboard_page(), self._cleaner_page(), self._monitor_page(), self._dns_page(), self._vt_page(), self._task_page(), self._accounts_page()]
@@ -315,7 +320,15 @@ class MainWindow(QMainWindow):
         if error: self._log(error); return
         items = list((users or {}).items()); self.accounts.setRowCount(len(items))
         for r, (email, info) in enumerate(items):
-            blocked = bool(info.get("blocked")); self.accounts.setItem(r, 0, QTableWidgetItem(email)); self.accounts.setItem(r, 1, QTableWidgetItem(str(info.get("role", "user")))); self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No")); button = QPushButton("Unblock" if blocked else "Block"); button.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b)); self.accounts.setCellWidget(r, 3, button)
+            blocked = bool(info.get("blocked")); self.accounts.setItem(r, 0, QTableWidgetItem(email)); self.accounts.setItem(r, 1, QTableWidgetItem(str(info.get("role", "user")))); self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No"))
+            button = QPushButton("Unblock" if blocked else "Block"); button.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b))
+            # Change password (managed via admin phrase / external system)
+            change_pw = QPushButton("Change password"); change_pw.setEnabled(False); change_pw.setToolTip("Password change managed via admin phrase / external system")
+            self.accounts.setCellWidget(r, 3, button)
+            # Insert change password widget after the block button
+            layout = QVBoxLayout(); layout.addWidget(button); layout.addWidget(change_pw)
+            w = QWidget(); w.setLayout(layout)
+            self.accounts.setCellWidget(r, 3, w)
 
     def _block_account(self, email, blocked):
         error = _set_user_blocked(email, blocked, self.session)

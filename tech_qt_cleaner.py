@@ -64,17 +64,25 @@ def _save_exclusions(clean: set[str], uninstall: set[str]) -> None:
 
 def _record(db: dict, package: str, user_packages: set[str], clean: set[str], uninstall: set[str]) -> dict:
     rec = db.get(package, {}) if isinstance(db, dict) else {}
+    label = rec.get("label") or rec.get("description") or package
+    if not label:
+        label = package
+    removal = rec.get("removal") or "Unknown"
+    description = rec.get("description") or "No description available."
+    category = rec.get("category") or "Other"
+    source = rec.get("source") or "Unknown"
+    risk = rec.get("risk") or "unknown"
     return {
         "id": package,
-        "label": rec.get("label") or rec.get("description") or package,
+        "label": label,
         "system": package not in user_packages,
         "excluded_clean": package in clean,
         "excluded_uninstall": package in uninstall,
-        "removal": str(rec.get("removal") or "Unknown"),
-        "description": str(rec.get("description") or "No description available."),
-        "category": str(rec.get("category") or "Other"),
-        "source": str(rec.get("source") or "Unknown"),
-        "risk": str(rec.get("risk") or "unknown"),
+        "removal": removal,
+        "description": description,
+        "category": category,
+        "source": source,
+        "risk": risk,
     }
 
 
