@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QCloseEvent, QThread, QTimer, Qt, QObject, Signal
+from PySide6.QtCore import QThread, QTimer, Qt, QObject, Signal
 from PySide6.QtGui import QCloseEvent, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QDialog, QDialogButtonBox,
@@ -87,7 +87,6 @@ class MainWindow(QMainWindow):
         self.theme_name = DEFAULT_THEME; self.ui_font = DEFAULT_UI_FONT; self._load_preferences(); self._build_shell(); self._apply_theme()
         self._adb_timer = QTimer(self); self._adb_timer.timeout.connect(self._scan_devices); self._adb_timer.start(3000); QTimer.singleShot(250, self._open_login)
 
-    # ----- shell -----
     def _build_shell(self):
         root = QWidget(); layout = QHBoxLayout(root); layout.setContentsMargins(0, 0, 0, 0)
         self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setMinimumWidth(240); side = QVBoxLayout(self.sidebar); side.setContentsMargins(12, 12, 12, 12)
@@ -107,7 +106,6 @@ class MainWindow(QMainWindow):
             b = QPushButton(text); b.setIcon(load_icon(ICONS.get(key, "info-circle"))); b.clicked.connect(slot); side.addWidget(b)
         for text in ["📱 USB debugging:\nEnable Developer Options → USB debugging, connect the phone, then tap Allow.\nGeloTech automatically prepares app icons for new devices.", "💡 How to use:\nRefresh loads user apps. Load Apps chooses All / User / System / Disabled.\nAdvanced Filter uses the database. Scan Bloatware filters by UAD level.\nRight-click a row for app actions."]:
             label = QLabel(text); label.setWordWrap(True); label.setObjectName("muted"); side.addWidget(label)
-
         self.stack = QStackedWidget(); self.pages = [self._dashboard_page(), self._cleaner_page(), self._monitor_page(), self._dns_page(), self._vt_page(), self._task_page(), self._accounts_page()]
         for page in self.pages: self.stack.addWidget(page)
         layout.addWidget(self.sidebar); layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.nav.setCurrentRow(0)
@@ -120,7 +118,6 @@ class MainWindow(QMainWindow):
             elif row == 5: self._refresh_task_manager()
             elif row == 6: self.refresh_accounts()
 
-    # ----- pages -----
     def _dashboard_page(self):
         page = QWidget(); outer = QVBoxLayout(page); top = QHBoxLayout(); phone = QFrame(); pv = QVBoxLayout(phone)
         image = QLabel(); image.setAlignment(Qt.AlignCenter); asset = Path(getattr(__import__("sys"), "_MEIPASS", os.path.dirname(__file__))) / "assets" / "tech_dash_images" / "iPhone17_P_PM_CosmicOrange@2x.png"
@@ -160,7 +157,6 @@ class MainWindow(QMainWindow):
     def _accounts_page(self):
         page = QWidget(); layout = QVBoxLayout(page); r = QPushButton("Refresh Accounts"); r.clicked.connect(self.refresh_accounts); layout.addWidget(r); self.accounts = QTableWidget(0, 4); self.accounts.setHorizontalHeaderLabels(["EMAIL", "ROLE", "BLOCKED", "ACTION"]); layout.addWidget(self.accounts, 1); return page
 
-    # ----- settings/login -----
     def _preferences_path(self):
         base = Path(os.environ.get("APPDATA", os.path.dirname(__file__))) / "GeloTechTool"; base.mkdir(parents=True, exist_ok=True); return base / "qt_preferences.json"
 
@@ -169,9 +165,7 @@ class MainWindow(QMainWindow):
             data = json.loads(self._preferences_path().read_text(encoding="utf-8")); self.theme_name = data.get("theme", DEFAULT_THEME); self.ui_font = data.get("font", DEFAULT_UI_FONT)
         except Exception: pass
 
-    def _save_preferences(self):
-        self._preferences_path().write_text(json.dumps({"theme": self.theme_name, "font": self.ui_font}, indent=2), encoding="utf-8")
-
+    def _save_preferences(self): self._preferences_path().write_text(json.dumps({"theme": self.theme_name, "font": self.ui_font}, indent=2), encoding="utf-8")
     def _apply_theme(self): apply_theme(QApplication.instance(), self.theme_name, True, self.ui_font)
 
     def _theme_dialog(self):
@@ -187,7 +181,6 @@ class MainWindow(QMainWindow):
         if db_bytes: p = Path(get_session_database_path()); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(db_bytes)
         self.db = load_package_database(str(get_session_database_path())); role = str(self.current_user.get("role", "user")); self.user_label.setText(f"{self.current_user.get('email', 'user')} ({role.upper()})"); self._log("Logged in. Dashboard ready."); self._scan_devices()
 
-    # ----- ADB and device workflow -----
     def _adb_path(self):
         found = shutil.which("adb")
         if found: return found
@@ -206,7 +199,8 @@ class MainWindow(QMainWindow):
         serial = devices[0]; new = serial not in self._seen_serials; self.serial = serial; self._seen_serials.add(serial)
         model = self._adb(["-s", serial, "shell", "getprop", "ro.product.model"], 8).stdout.strip(); android = self._adb(["-s", serial, "shell", "getprop", "ro.build.version.release"], 8).stdout.strip(); self.device_label.setText(f"{model or 'Android device'}\nAndroid {android or '?'}\nADB: {serial}"); self.phone_status.setText("Connected" + (" • new device detected" if new else ""))
         if new:
-            self._log(f"[ADB] Connected: {serial}"); self._prepare_icon_cache(serial); QTimer.singleShot(5000, self.start_mirror)
+            self._log(f"[ADB] Connected: {serial}"); self._prepare_icon_cache(serial)
+            if serial not in self._auto_mirror_seen: self._auto_mirror_seen.add(serial); QTimer.singleShot(5000, self.start_mirror)
 
     def _cache_dir_for(self, serial): return Path(get_cache_dir()) / hashlib.sha256(serial.encode()).hexdigest()[:32]
 
@@ -222,7 +216,6 @@ class MainWindow(QMainWindow):
             except Exception as exc: self._log(f"[GeloTech] Icon helper preparation failed: {exc}")
         else: self._log("[GeloTech] ApkIconHelper.apk not available in this source build; cache restore will still be used when present.")
 
-    # ----- app cleaner -----
     def refresh_apps(self, mode="all"):
         if not self.serial: self._scan_devices()
         if not self.serial: self.cleaner_status.setText("Connect a device first."); return
@@ -237,9 +230,8 @@ class MainWindow(QMainWindow):
         rows.sort(key=lambda x: x[0].lower()); self.table.setRowCount(len(rows))
         for r, (label, pkg, level, desc) in enumerate(rows):
             icon = self._cached_icon(pkg)
-            values = (label, pkg, level, desc)
-            for c, value in enumerate(values):
-                item = QTableWidgetItem(str(value))
+            for c, value in enumerate((label, pkg, level, desc)):
+                item = QTableWidgetItem(str(value));
                 if c == 0 and not icon.isNull(): item.setIcon(icon)
                 self.table.setItem(r, c, item)
         self.cleaner_status.setText(f"{len(rows)} packages loaded. Horizontal scrollbar reads full descriptions.")
@@ -247,11 +239,9 @@ class MainWindow(QMainWindow):
     def _cached_icon(self, package):
         root = self._cache_dir_for(self.serial) if self.serial else None
         if not root or not root.exists(): return load_icon("device-mobile")
-        candidates = [root / f"{package}.png", root / f"{package}.ico", root / "apk_icon_export" / f"{package}.png"]
-        for path in candidates:
-            if path.is_file():
-                from PySide6.QtGui import QIcon
-                return QIcon(str(path))
+        from PySide6.QtGui import QIcon
+        for path in (root / f"{package}.png", root / f"{package}.ico", root / "apk_icon_export" / f"{package}.png"):
+            if path.is_file(): return QIcon(str(path))
         return load_icon("device-mobile")
 
     def apply_advanced_filter(self):
@@ -271,20 +261,18 @@ class MainWindow(QMainWindow):
     def _table_menu(self, pos):
         row = self.table.rowAt(pos.y())
         if row < 0: return
-        pkg_item = self.table.item(row, 1)
-        if pkg_item is None: return
-        pkg = pkg_item.text(); menu = QMenu(self)
-        menu.addAction("Disable", lambda: self._package_action(pkg, "disable-user")); menu.addAction("Uninstall", lambda: self._package_action(pkg, "uninstall", "--user", "0")); menu.addAction("Clear App Data", lambda: self._package_action(pkg, "clear", "--user", "0")); menu.exec(self.table.viewport().mapToGlobal(pos))
+        item = self.table.item(row, 1)
+        if item is None: return
+        package = item.text(); menu = QMenu(self); menu.addAction("Disable", lambda: self._package_action(package, "disable-user")); menu.addAction("Uninstall", lambda: self._package_action(package, "uninstall", "--user", "0")); menu.addAction("Clear App Data", lambda: self._package_action(package, "clear", "--user", "0")); menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _package_action(self, package, action, *extra):
         if not self.serial: return
-        args = ["-s", self.serial, "shell", "pm", action, *extra, package]
-        try: result = self._adb(args, 30); self._log(f"[ADB] {action} {package}: {result.stdout.strip() or result.stderr.strip()}"); self.refresh_apps()
+        try:
+            result = self._adb(["-s", self.serial, "shell", "pm", action, *extra, package], 30); self._log(f"[ADB] {action} {package}: {result.stdout.strip() or result.stderr.strip()}"); self.refresh_apps()
         except Exception as exc: QMessageBox.warning(self, "ADB", str(exc))
 
     def _backup_help(self): QMessageBox.information(self, "Restore / Backup", "The existing APK backup/restore logic remains authoritative. This Qt page is wired for the full dialog port.")
 
-    # ----- monitor / task manager / DNS / mirror -----
     def _refresh_monitor(self):
         if not self.serial: self.monitor_text.setPlainText("No device connected."); return
         try: self.monitor_text.setPlainText(self._adb(["-s", self.serial, "shell", "dumpsys", "activity", "activities"], 12).stdout[-14000:])
@@ -308,7 +296,6 @@ class MainWindow(QMainWindow):
         try: subprocess.Popen([exe, "-s", self.serial, "--window-title", f"GeloTech Mirror - {self.serial}"]); self._log("[SCRCPY] Screen mirror started.")
         except Exception as exc: self._log(f"[SCRCPY] Failed to start mirror: {exc}")
 
-    # ----- system/admin -----
     def _adb_simple(self, command):
         if self.serial: self._adb(["-s", self.serial] + command)
 
@@ -328,8 +315,7 @@ class MainWindow(QMainWindow):
         if error: self._log(error); return
         items = list((users or {}).items()); self.accounts.setRowCount(len(items))
         for r, (email, info) in enumerate(items):
-            self.accounts.setItem(r, 0, QTableWidgetItem(email)); self.accounts.setItem(r, 1, QTableWidgetItem(str(info.get("role", "user")))); blocked = bool(info.get("blocked")); self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No"))
-            button = QPushButton("Unblock" if blocked else "Block"); button.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b)); self.accounts.setCellWidget(r, 3, button)
+            blocked = bool(info.get("blocked")); self.accounts.setItem(r, 0, QTableWidgetItem(email)); self.accounts.setItem(r, 1, QTableWidgetItem(str(info.get("role", "user")))); self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No")); button = QPushButton("Unblock" if blocked else "Block"); button.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b)); self.accounts.setCellWidget(r, 3, button)
 
     def _block_account(self, email, blocked):
         error = _set_user_blocked(email, blocked, self.session)
@@ -337,7 +323,6 @@ class MainWindow(QMainWindow):
         else: self.refresh_accounts()
 
     def _logout(self): self.session = None; self.current_user = {}; self.user_label.setText("Not signed in"); self._open_login()
-
     def _log(self, text): self.log.appendPlainText(str(text))
 
     def closeEvent(self, event: QCloseEvent):
