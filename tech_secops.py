@@ -113,11 +113,15 @@ class SecOpsMixin:
         self.sec_tree.grid()
         if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.grid()
+        if self.__dict__.get("sec_hsb") is not None:
+            self.sec_hsb.grid()
 
     def _sec_show_empty(self, text):
         self.sec_tree.grid_remove()
         if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.grid_remove()
+        if self.__dict__.get("sec_hsb") is not None:
+            self.sec_hsb.grid_remove()
         empty = self.__dict__.get("sec_list_empty")
         if empty is not None:
             empty.configure(text=text)
@@ -156,9 +160,9 @@ class SecOpsMixin:
         label = entry.get("label", entry["id"])
         pkg = entry["id"]
         display = label
+        # Keep the complete description. The App Cleaner table provides a
+        # horizontal scrollbar so the user can read the full text in place.
         desc = (entry.get("description") or "").strip().replace("\n", " ")
-        if len(desc) > 110:
-            desc = desc[:110].rsplit(" ", 1)[0] + "..."
         badges = []
         if entry.get("threat_level", 0) >= 3:
             badges.append("\U0001f6a8 High Risk")
@@ -216,4 +220,3 @@ class SecOpsMixin:
     def _sec_tree_scroll_set(self, first, last):
         if self.__dict__.get("sec_vsb") is not None:
             self.sec_vsb.set(first, last)
-
