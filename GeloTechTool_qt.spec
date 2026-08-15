@@ -19,6 +19,7 @@ hiddenimports = [
     "tech_qt_mirror",
     "tech_qt_phone",
     "tech_qt_final_fixes",
+    "tech_qt_bezel",
     "tech_qt_iconsync",
     "shiboken6",
 ]
