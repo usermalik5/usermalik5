@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 from pathlib import Path
 from typing import Callable
@@ -185,11 +186,24 @@ def _backup_packages(window, packages: list[str]) -> None:
                     failed += 1
                     window._log(f"[GeloTech ERROR] Backup APK not found: {package}")
                     continue
-                destination = backup_dir / f"{package}.apk"
-                pulled = window._adb(["-s", window.serial, "pull", paths[0], str(destination)], 120)
-                if pulled.returncode == 0 and destination.is_file():
+                package_dir = backup_dir / package
+                if package_dir.exists():
+                    shutil.rmtree(package_dir)
+                package_dir.mkdir(parents=True)
+                saved_apks = []
+                for idx, apk_path in enumerate(paths):
+                    apk_name = "base.apk" if idx == 0 else f"split_{idx}.apk"
+                    dest = package_dir / apk_name
+                    pulled = window._adb(["-s", window.serial, "pull", apk_path, str(dest)], 120)
+                    if pulled.returncode == 0 and dest.is_file():
+                        saved_apks.append(apk_name)
+                    else:
+                        window._log(f"[GeloTech ERROR] Failed to pull {apk_name} for {package}")
+                if saved_apks:
+                    manifest = {"package": package, "apks": saved_apks, "base": saved_apks[0]}
+                    (package_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
                     saved += 1
-                    window._log(f"[GeloTech] Backed up: {package}")
+                    window._log(f"[GeloTech] Backed up: {package} ({len(saved_apks)} APKs)")
                 else:
                     failed += 1
                     window._log(f"[GeloTech ERROR] Backup failed: {package}")
@@ -204,25 +218,34 @@ def _backup_packages(window, packages: list[str]) -> None:
 def _restore_dialog(window) -> None:
     backup_dir = Path(get_settings_dir()) / "apk_backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted(backup_dir.glob("*.apk"))
-    if not files:
+    packages = [d.name for d in backup_dir.iterdir() if d.is_dir() and (d / "manifest.json").is_file()]
+    if not packages:
         QMessageBox.information(window, "Restore / Backup", "No APK backups are available yet.")
         return
-    choices = [p.name for p in files]
-    selected, ok = QInputDialog.getItem(window, "Restore APK", "Choose a backup to install:", choices, 0, False)
+    selected, ok = QInputDialog.getItem(window, "Restore APK", "Choose a package backup to install:", packages, 0, False)
     if not ok:
         return
-    source = backup_dir / selected
-    if not _confirm_yes(window, "Restore APK", f"Install {selected} on the connected device?"):
+    package_dir = backup_dir / selected
+    manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
+    apks = [str(package_dir / apk) for apk in manifest.get("apks", [])]
+    if not apks:
+        QMessageBox.warning(window, "Restore APK", "Backup manifest is empty.")
+        return
+    if not _confirm_yes(window, "Restore APK", f"Install {selected} ({len(apks)} APKs) on the connected device?"):
         return
     try:
-        result = window._adb(["-s", window.serial, "install", "-r", str(source)], 180)
+        if len(apks) == 1:
+            result = window._adb(["-s", window.serial, "install", "-r", apks[0]], 180)
+        else:
+            result = window._adb(["-s", window.serial, "install-multiple", "-r"] + apks, 180)
         output = (result.stdout or "") + (result.stderr or "")
         if result.returncode == 0 and "Success" in output:
-            QMessageBox.information(window, "Restore APK", f"Restored {selected}.")
+            QMessageBox.information(window, "Restore APK", f"Restored {selected} ({len(apks)} APKs).")
             window.refresh_apps(getattr(window, "_qt_list_mode", "all"))
         else:
             QMessageBox.warning(window, "Restore APK", output.strip() or "ADB install failed.")
+    except Exception as exc:
+        QMessageBox.warning(window, "Restore APK", str(exc))
     except Exception as exc:
         QMessageBox.warning(window, "Restore APK", str(exc))
 

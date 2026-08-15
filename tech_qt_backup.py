@@ -1,6 +1,7 @@
 """Qt APK backup/restore dialog using the existing GeloTech storage location."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -47,10 +48,11 @@ def install_backup_restore(MainWindow) -> None:
 
         def load_files() -> None:
             files.clear()
-            for path in sorted(backup_dir().glob("*.apk")):
-                item = QListWidgetItem(path.name)
-                item.setToolTip(str(path))
-                files.addItem(item)
+            for path in sorted(backup_dir().iterdir()):
+                if path.is_dir() and (path / "manifest.json").is_file():
+                    item = QListWidgetItem(path.name)
+                    item.setToolTip(str(path))
+                    files.addItem(item)
 
         def do_backup() -> None:
             packages = self._checked_packages()
@@ -65,9 +67,18 @@ def install_backup_restore(MainWindow) -> None:
         def do_restore() -> None:
             item = files.currentItem()
             if item is None:
-                QMessageBox.information(dialog, "Restore", "Select an APK backup first.")
+                QMessageBox.information(dialog, "Restore", "Select a package backup first.")
                 return
-            source = backup_dir() / item.text()
+            package_dir = backup_dir() / item.text()
+            manifest_path = package_dir / "manifest.json"
+            if not manifest_path.is_file():
+                QMessageBox.warning(dialog, "Restore", "Backup manifest is missing.")
+                return
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            apks = [str(package_dir / apk) for apk in manifest.get("apks", [])]
+            if not apks:
+                QMessageBox.warning(dialog, "Restore", "Backup manifest is empty.")
+                return
             if not self.serial:
                 self._scan_devices()
             if not self.serial:
@@ -76,19 +87,25 @@ def install_backup_restore(MainWindow) -> None:
             confirm = QMessageBox.question(
                 dialog,
                 "Restore APK",
-                f"Install {source.name} on the connected device?",
+                f"Install {item.text()} ({len(apks)} APKs) on the connected device?",
                 QMessageBox.Yes | QMessageBox.No,
             )
             if confirm != QMessageBox.Yes:
                 return
-            result = self._adb(["-s", self.serial, "install", "-r", str(source)], 180)
-            output = (result.stdout or "") + (result.stderr or "")
-            if result.returncode == 0 and "Success" in output:
-                self._log(f"[GeloTech] Restored: {source.name}")
-                QMessageBox.information(dialog, "Restore", f"Restored {source.name}.")
-                self.refresh_apps(getattr(self, "_qt_list_mode", "all"))
-            else:
-                QMessageBox.warning(dialog, "Restore", output.strip() or "ADB install failed.")
+            try:
+                if len(apks) == 1:
+                    result = self._adb(["-s", self.serial, "install", "-r", apks[0]], 180)
+                else:
+                    result = self._adb(["-s", self.serial, "install-multiple", "-r"] + apks, 180)
+                output = (result.stdout or "") + (result.stderr or "")
+                if result.returncode == 0 and "Success" in output:
+                    self._log(f"[GeloTech] Restored: {item.text()} ({len(apks)} APKs)")
+                    QMessageBox.information(dialog, "Restore", f"Restored {item.text()} ({len(apks)} APKs).")
+                    self.refresh_apps(getattr(self, "_qt_list_mode", "all"))
+                else:
+                    QMessageBox.warning(dialog, "Restore", output.strip() or "ADB install failed.")
+            except Exception as exc:
+                QMessageBox.warning(dialog, "Restore", str(exc))
 
         refresh.clicked.connect(load_files)
         backup.clicked.connect(do_backup)
