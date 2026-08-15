@@ -9,6 +9,7 @@ enable_qt_mode()
 
 from PySide6.QtWidgets import QApplication
 
+from tech_qt_backup import install_backup_restore
 from tech_qt_cleaner import install_cleaner_parity
 from tech_qt_drivers import install_driver_workflow
 from tech_qt_iconsync import install_icon_sync
@@ -24,6 +25,7 @@ def main() -> int:
     app.setApplicationVersion("1.7.8")
     apply_theme(app, DEFAULT_THEME, True, DEFAULT_UI_FONT)
     install_cleaner_parity(MainWindow)
+    install_backup_restore(MainWindow)
     install_virustotal(MainWindow)
     install_driver_workflow(MainWindow)
     install_scrcpy(MainWindow)
