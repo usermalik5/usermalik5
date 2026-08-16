@@ -24,8 +24,8 @@ MODULES = [
     "tech_qt_app.py", "tech_qt_auto_refresh.py", "tech_qt_backup.py", "tech_qt_bezel.py",
     "tech_qt_bootstrap.py", "tech_qt_cleaner.py", "tech_qt_compat.py", "tech_qt_drivers.py",
     "tech_qt_final_fixes.py", "tech_qt_iconfix.py", "tech_qt_icons.py", "tech_qt_iconsync.py",
-    "tech_qt_mainwindow.py", "tech_qt_mirror.py", "tech_qt_phone.py", "tech_qt_themes.py",
-    "tech_qt_ui.py", "tech_qt_virustotal.py",
+    "tech_qt_mainwindow.py", "tech_qt_mirror.py", "tech_qt_phone.py", "tech_qt_sidebar_compact.py",
+    "tech_qt_themes.py", "tech_qt_ui.py", "tech_qt_virustotal.py",
 ]
 
 
@@ -67,23 +67,15 @@ def _verify_source_imports():
     """Verify that every Qt module in MODULES is imported by tech_qt_app.py."""
     text = (ROOT / "tech_qt_app.py").read_text(encoding="utf-8", errors="replace")
     imported = set(re.findall(r"(?:from|import)\s+(tech_qt_[A-Za-z0-9_]+)", text))
-    required = {
-        Path(name).stem for name in MODULES
-        if Path(name).stem.startswith("tech_qt_")
-    }
+    required = {Path(name).stem for name in MODULES if Path(name).stem.startswith("tech_qt_")}
     missing = sorted(required - imported)
     if missing:
-        raise SystemExit(
-            "Missing Qt module imports in tech_qt_app.py: " + ", ".join(missing)
-        )
+        raise SystemExit("Missing Qt module imports in tech_qt_app.py: " + ", ".join(missing))
     print("[verify] tech_qt_app.py imports all required Qt modules: OK")
 
 
 def _verify_security_doc():
-    """SECURITY.md must describe the current auth proxy security model (the Cloudflare auth
-    proxy Worker) or it silently drifts back to the obsolete embedded-token
-    wording. Block the release if the markers are missing or stale wording
-    reappears."""
+    """SECURITY.md must describe the current auth proxy security model."""
     path = ROOT / "SECURITY.md"
     text = path.read_text(encoding="utf-8", errors="replace")
     required = ["auth proxy Worker", "wrangler secret put", "AUTH_WORKER_URL"]
@@ -115,25 +107,9 @@ def _verify_documentation_sync():
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8", errors="replace")
 
     checks = {
-        "README.md": {
-            f"(v{version})": readme,
-            "CTkThemesPack": readme,
-            "UI Font": readme,
-            "horizontal scrollbar": readme.lower(),
-            "app icon": readme.lower(),
-            "automatic": readme.lower(),
-        },
-        "PROCESS_GUIDE.md": {
-            "CTkThemesPack": process,
-            "UI Font": process,
-            "horizontal scrollbar": process.lower(),
-            "icon cache": process.lower(),
-            "automatic": process.lower(),
-        },
-        "AGENTS.md": {
-            "Documentation sync gate": agents,
-            "scripts/release.py": agents,
-        },
+        "README.md": {f"(v{version})": readme, "CTkThemesPack": readme, "UI Font": readme, "horizontal scrollbar": readme.lower(), "app icon": readme.lower(), "automatic": readme.lower()},
+        "PROCESS_GUIDE.md": {"CTkThemesPack": process, "UI Font": process, "horizontal scrollbar": process.lower(), "icon cache": process.lower(), "automatic": process.lower()},
+        "AGENTS.md": {"Documentation sync gate": agents, "scripts/release.py": agents},
     }
 
     failures = []
@@ -154,7 +130,6 @@ def _verify_documentation_sync():
             "then rerun scripts/release.py.\n"
             f"{details}"
         )
-
     print(f"[verify] Documentation sync gate passed for v{version}: OK")
 
 
@@ -186,7 +161,6 @@ def main():
     parser.add_argument("--qt", action="store_true", help="Build the Qt6 version EXE.")
     parser.add_argument("--skip-tests", action="store_true", help="Skip preflight/tests (not recommended).")
     args = parser.parse_args()
-
     if not args.skip_tests:
         preflight()
     if args.qt:
