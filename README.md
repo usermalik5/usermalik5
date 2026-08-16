@@ -1,356 +1,110 @@
 # GeloTechTool
 
-Android debloating / security tool for Windows. Scans connected ADB devices,
-classifies packages against the merged GeloTech + UAD database, and supports
-debloating (disable / uninstall for user / restore), exclusion lists, APK
-backup & restore, screen mirroring via scrcpy, VirusTotal scanning, popup
-virus cleanup, and DNS-based ad blocking.
+**GeloTechTool v1.7.8** is a Windows Android maintenance and debloating utility built around **PySide6 / Qt6**. The Qt application is now the official desktop UI and starts from `tech_qt_app.py`.
 
-Access is protected by a login system with per-user permissions and tabs
-(admin always has everything). Logs stream to a Matrix-style console, and
-non-URL application hints appear in a red attention banner at the bottom of
-the window. Website links remain clickable without a hover tooltip. The
-package-list context menu (right-click) offers per-app actions plus batch
-actions for all checked apps (disable / uninstall / APK backup / exclude).
-Destructive batch actions ask you to type YES to confirm, and clicking a
-color in the list legend filters the list to that group (click again to
-reset). The toolbar keeps a single **Scan Bloatware** button (its menu
-covers uninstalling by UAD recommendation level — Recommended / Advanced /
-Expert / Unsafe), plus **Restore/Backup**, **Load Apps**, and **Advanced Filter**. A permanent legend in the sidebar explains the app
-removal levels (Recommended = safe to remove, Advanced = mostly safe,
-Expert = may break features, Unsafe = dangerous) and the list row colors
-(green = removable, orange = clean excluded, red = uninstall excluded,
-purple = both excluded) — rows in the app list follow the same color scheme,
-and removal-level badges use the same colors. The sidebar header shows
-`© 2026 GeloTech` with clickable links to Gsmcodeph.com and
-facebook.com/gelotechxyz, and the title/tool name always shows the current
-version (e.g. v1.7.8). The sidebar also holds a theme button that opens the
-palette picker (18 bundled CTkThemesPack palettes) with a **UI Font** submenu
-(22 Windows font families) — both restyle every GeloTech text surface, log
-console, and the ttk app list while preserving the physical phone display.
-The Dashboard tab shows a device mockup (phone image with the live log console
-rendered inside its screen) on the left, with the App Cleaner UI on the right
-(a four-column table: app name / package ID / UAD level / **full description**
-readable via a horizontal scrollbar, plus a small live device strip with
-model, Android version, storage, and battery). **Refresh** and **Screen
-Mirror** sit under the phone.
+## What it does
 
-After a successful login, the application always returns to the **Dashboard**
-page regardless of the page that was previously selected. When a single
-authorized device is connected, GeloTech automatically opens the screen mirror
-5 seconds later (it stays open until you stop it). The Dashboard phone mirror
-embeds the native scrcpy stream as a real child window of the phone widget
-(see `docs/SCRCPY_GUIDE.md`): the video is clipped to the rounded display
-opening of the transparent iPhone bezel, the **Screen Mirror** button toggles
-between starting and stopping the stream, and the mirror stops cleanly when
-the app exits. The mirror never auto-stops.
+- **Dashboard** with device status, iPhone-style phone mockup, live logs, and App Cleaner.
+- **App Cleaner** with UAD levels, bloatware scanning, Advanced Filter, batch actions, per-app actions, and a four-column table: `APP NAME | PACKAGE ID | UAD LEVEL | DESCRIPTION`.
+- Long descriptions remain readable in-place with the table's **horizontal scrollbar**; there is no permanent description editor panel.
+- **Automatic ADB detection** loads the app list on connect/reconnect without requiring a manual Refresh.
+- **Automatic per-device icon sync** using `ApkIconHelper.apk`, package fingerprints, cached PNGs, and cache restore on reconnect.
+- **Monitor Apps** with foreground-app monitoring, history, actions, and a dedicated guide.
+- **Block Ads DNS** with curated provider cards, Apply/Disable feedback, and a DNS guide.
+- **VirusTotal** scanning workflow with package/phone/running-app actions and a dedicated guide.
+- **APK Backup/Restore**, including split-APK packages with manifests and `adb install-multiple` restoration.
+- **ADB repair**, re-authorization, recovery/fastboot actions, Accounts, and Logout.
+- **scrcpy screen mirroring** embedded into the single Dashboard phone mockup and cleaned up when the app exits.
+- **18 bundled palettes** derived from CTkThemesPack and a **UI Font** selector with 22 Windows font families.
+- `gelotech_icon.ico` is used by the Qt application, Login window, and packaged executable.
 
-Loading the app list is fast even without the phone plugged in: the first
-successful scan caches the package list locally on the PC, later loads render
-that cached list instantly and then refresh from the device in the background
-(stale-while-revalidate), and any load falls back to the cache whenever the
-phone is unreachable. List rows are rendered lazily in small batches so the UI
-stays responsive with hundreds of apps loaded.
+## Qt6 architecture
 
-### Themes & UI fonts
+| Area | Current owner |
+|---|---|
+| Qt entry point | `tech_qt_app.py` |
+| Main window / login | `tech_qt_mainwindow.py` |
+| Qt styling / visual parity | `tech_qt_ui.py`, `tech_qt_visual_polish.py` |
+| Themes / fonts | `tech_qt_themes.py` |
+| Tabler icons | `tech_qt_icons.py` |
+| App Cleaner | `tech_qt_cleaner.py` |
+| Automatic device refresh | `tech_qt_auto_refresh.py` |
+| Icon sync/cache | `tech_qt_iconsync.py`, `tech_qt_iconfix.py` |
+| scrcpy / phone frame | `tech_qt_mirror.py`, `tech_qt_phone.py`, `tech_qt_bezel.py` |
+| Monitor / DNS / VirusTotal UI | `tech_qt_mainwindow.py`, `tech_qt_help_pages.py`, feature installers |
+| APK backup/restore | `tech_qt_backup.py` |
+| ADB driver workflow | `tech_qt_drivers.py` |
+| Shared authentication/data logic | `tech_reg.py`, `tech_common.py` |
+| Auth service | `worker/` Cloudflare Worker |
 
-GeloTech ships with **18 bundled color palettes** (`tech_themes.py` +
-`themes/*.json`, default `orange`). The sidebar theme button opens a picker:
-choose any palette, then use the **UI Font** submenu to pick one of **22
-Windows font families** (default Segoe UI). The chosen palette recolors every
-CTk widget by type, the GeloTech log consoles (tag colors included), and the
-ttk package list; the **UI font applies to every text surface** — labels,
-buttons, entries, dropdowns, lists, and log text. The physical phone / mirror
-display is preserved and never recolored. The palette and font are saved in
-settings and restored on the next launch.
+Legacy Tk modules may remain for compatibility/history, but they are **not the official UI entry point**. Use `python tech_qt_app.py` for the current application.
 
-### Automatic per-device icon sync & cache
+## Dashboard and device automation
 
-When a single newly connected authorized device is detected, GeloTech
-automatically prepares its app icons: it clears stale in-memory icon state and
-runs the existing icon workflow (`action_sec_show_icons`), which installs
-`ApkIconHelper.apk` only when it is missing, exports icons, pulls them into the
-local cache, and refreshes the Cleaner rows. Icons are cached **per device**
-under the settings folder (`icon_cache/<sha256(serial)[:32]>/`) together with a
-package fingerprint; if the fingerprint still matches on a later connection,
-the cached icons are restored without re-exporting. Each serial is remembered
-for the session so the 3-second ADB poll does not re-trigger an export; a full
-disconnect clears that state so a reconnect syncs again. Automatic sync waits
-while more than one authorized device is connected.
+After login, GeloTech returns to Dashboard. The ADB monitor watches for authorized devices. A new or reconnected single device automatically triggers package loading and icon preparation. The same device is not repeatedly reloaded on every poll; a disconnect clears the state so a reconnect can trigger synchronization again.
 
-## Development workflow
+The screen mirror uses the existing Dashboard phone mockup. scrcpy is the real native video surface; the phone bezel sits above it and the video is clipped to the display opening. See [`docs/SCRCPY_GUIDE.md`](docs/SCRCPY_GUIDE.md).
 
-Repository coding agents MUST run the preflight before every coding task:
+## App icons
+
+The Qt icon pipeline mirrors the legacy ApkIconHelper workflow: verify/install the helper when needed, launch its automatic export, wait for completion, pull the export, accept both legacy flat and nested output layouts, read `packages.jsonl` when present, store package PNGs in the per-device cache, and refresh the Cleaner rows. See [`docs/ICON_SYNC.md`](docs/ICON_SYNC.md).
+
+## Themes and appearance
+
+The Qt UI keeps the 18 bundled **CTkThemesPack** palette choices and the **UI Font** selector. Themes affect Qt surfaces, logs, tables, dialogs and controls while preserving the phone display. User appearance choices persist across launches.
+
+## Security and accounts
+
+Authentication and account management remain server-side through the Cloudflare Worker. The desktop client contains no GitHub write token, SMTP credential, session secret, or admin phrase. See [`SECURITY.md`](SECURITY.md) and [`worker/README.md`](worker/README.md).
+
+## Development
+
+Before coding:
 
 ```bash
 python scripts/agent_preflight.py
 ```
 
-The preflight verifies that `AGENTS.md` and `README.md` are present and
-non-empty. **Passing the script does not replace reading them.** Agents must
-read `AGENTS.md` completely and then read the relevant `README.md` sections
-before modifying any code. They must inspect the current execution path,
-identify the root cause before fixing bugs, run source-level verification, and
-review the diff before committing.
+Minimum verification:
 
-For login/navigation changes, test `python techtool.py` directly as well as the
-packaged EXE when an EXE is being built. A working EXE does not prove the source
-execution path is correct, and a working source run does not prove the packaged
-build is correct. Do not solve source navigation problems by relying only on
-PyInstaller runtime hooks or startup timing when the underlying navigation code
-can be fixed directly.
+```bash
+python -m compileall -q .
+python -m pytest -q
+python tech_qt_app.py
+```
+
+For real-device work, explicitly test with an authorized Android device. Do not report a mocked test as a real-device result.
+
+## Release
+
+The Qt6 production packaging definition is [`GeloTechTool_qt.spec`](GeloTechTool_qt.spec).
+
+The release helper remains the authoritative release workflow:
+
+```bash
+python scripts/release.py
+```
+
+The repository uses a hard documentation-sync gate. Before release, update `README.md`, `PROCESS_GUIDE.md`, and `AGENTS.md` whenever current behavior changes. The gate also checks important markers including **CTkThemesPack**, **UI Font**, **horizontal scrollbar**, **app icon**, and **automatic** behavior.
+
+The PyArmor Trial file-size limit is a release constraint; do not use an un-obfuscated build as a workaround for a production release.
+
+## Documentation map
+
+- [`README.md`](README.md) — current user-facing behavior and supported workflow.
+- [`PROCESS_GUIDE.md`](PROCESS_GUIDE.md) — long-form architecture, execution flow, testing and release process.
+- [`AGENTS.md`](AGENTS.md) — mandatory agent rules and release/documentation gates.
+- [`QT6_MIGRATION_STATUS.md`](QT6_MIGRATION_STATUS.md) — completed Qt6 migration status and validation notes.
+- [`QT6_MIGRATION_TASK.md`](QT6_MIGRATION_TASK.md) — historical migration specification and acceptance criteria.
+- [`SECURITY.md`](SECURITY.md) — current security/authentication model.
+- [`docs/DASHBOARD_LAYOUT.md`](docs/DASHBOARD_LAYOUT.md) — Dashboard/App Cleaner layout rules.
+- [`docs/ICON_SYNC.md`](docs/ICON_SYNC.md) — automatic icon export/cache process.
+- [`docs/SCRCPY_GUIDE.md`](docs/SCRCPY_GUIDE.md) — native scrcpy embedding rules.
+- [`docs/README.md`](docs/README.md) — documentation index and authority map.
+- [`worker/README.md`](worker/README.md) — Cloudflare auth Worker API and deployment.
 
 ## Download
 
-**Latest release:** [GeloTechTool.exe
-(v1.7.8)](https://github.com/usermalik5/usermalik5/releases/latest)
+Latest public release: [GeloTechTool v1.7.8](https://github.com/usermalik5/usermalik5/releases/latest)
 
-Windows only. Download the exe and run it — no installation needed. Login is
-verified against the auth server on every launch (needs internet), and the
-package database is pulled fresh from the update repo on every sign-in —
-users always get the latest data with zero manual intervention.
-
-## What's in this folder
-
-| Item | Purpose |
-|---|---|
-| `techtool.py` + `tech_*.py` | Application source (entry point: `techtool.py`) |
-| `tech_themes.py` + `themes/*.json` | Theme & UI-font system: 18 bundled CTkThemesPack palettes + 22-font picker (`tech_themes.py`) |
-| `GeloTechTool.spec` | PyInstaller build spec (onefile, windowed) |
-| `GeloTechTool_obf.spec` | PyInstaller spec for the PyArmor-obfuscated build (needs `build/pyarmor_out` from `pyarmor gen`) |
-| `gelotech_database_v3.json` | **The package database** (merged UAD + GeloTech data; user-app exclusions live here as per-package flags). Lives ONLY on GitHub — every login pulls it fresh, verifies it, caches it for the session, and deletes it on app close |
-| `banking_apps.json` | Banking apps exclusion list — banking apps are auto-protected (never cleaned/uninstalled, shown with a 🏦 badge, can be filter-excluded) |
-| `secret.json` | **The live server-side account registry** — email + PBKDF2 hash per user. The Cloudflare Worker writes it (account creation/reset via the Worker's server-side GitHub credential) and serves a sanitized copy to admin sessions. The desktop app fetches it in memory at login and never writes or stores this file locally. |
-| `version.json` | Update manifest: bump `database` / `banking` to publish a new release; carries the signed SHA-256 hashes of the data files (database + banking only) |
-| `version.json.sig` | Ed25519 signature (base64) over `version.json` — the app rejects unsigned/tampered manifests |
-| `bump_version.py` | Helper that bumps `version.json`, signs it, and pushes the new manifest to the repo |
-| `gelotech_icon.ico` | App icon (also embedded in the built exe) |
-| `scripts/agent_preflight.py` | Mandatory coding-agent preflight; verifies repository instructions are present before work begins |
-| `scripts/release.py` | Repeatable source/test/PyArmor/PyInstaller release build; never commits or pushes |
-| `requirements-dev.txt` | Lightweight development test dependency (`pytest`) |
-
-Build-time resources (ADB/fastboot tools, scrcpy zip, drivers, icon cache)
-live in the local working folder and are excluded from the repo via
-`.gitignore`; they are bundled into the exe at build time.
-
-## Running from source
-
-```bash
-pip install customtkinter pillow requests pyinstaller
-python techtool.py
-```
-
-Login is email-based. **Sign in** with the email and password you were sent —
-passwords stay valid until you request a new one. New here? Choose **Create
-an account** (or **Forgot your password?** if you lost it), enter your email,
-and we'll send you a password (also check the spam folder); requesting a new
-password replaces the old one. A **Back to sign in** link always returns you
-to the login form. The maintainer signs in with the reserved **admin**
-username (maintainer-only, not shown to users); typing `admin` reveals the
-admin secret phrase field — admin login requires the password AND the secret
-phrase (verified server-side by the auth Worker, never stored in the app).
-After successful sign-in, Dashboard is selected automatically. Non-admin
-users get all tabs and tools (Cleaner, Monitor, DNS, all sidebar actions);
-only the VirusTotal tab is reserved for the admin account. The Accounts
-panel (admin) also offers **Change password** per account — use it to
-replace the initial default admin password (`admin123`) right after your
-first sign-in.
-
-## Building the exe
-
-The supported release procedure is the release helper. It runs repository
-preflight, Python compile checks, tests, PyArmor generation, and the
-obfuscated PyInstaller build with verification gates:
-
-```bash
-python scripts/release.py
-```
-
-### PyArmor Trial size constraint
-
-GeloTech uses the **PyArmor Trial** edition in the current build environment.
-Treat the approximate **35 KB per-source-file limit as a hard production-build
-constraint**.
-
-- **32 KB or more:** review the module before adding more code; extract a
-  cohesive responsibility when practical.
-- **35 KB or more:** stop the production build and split the module into
-  focused files before running PyArmor.
-- Keep the size rule enforced in release tooling; documentation alone is not
-  sufficient.
-- If PyArmor reports a size/license error, the correct fix is modularization,
-  not a non-obfuscated fallback.
-- Update `scripts/release.py`'s `MODULES` list and
-  `GeloTechTool_obf.spec` hidden imports whenever a module is split.
-
-Expected release behavior:
-
-```text
-oversized source module
-    ↓
-release blocked
-    ↓
-exact file + byte size reported
-    ↓
-split cohesive functionality
-    ↓
-PyArmor obfuscation succeeds
-    ↓
-PyInstaller obfuscated EXE
-```
-
-A PyInstaller build that succeeds without successful PyArmor obfuscation is a
-debug build only and must not be treated as a production artifact.
-
-Manual build / debugging only — the release helper runs the same PyArmor +
-PyInstaller sequence below; run these by hand only when debugging the build
-itself (obfuscation applies to all modules and all release exes):
-
-```bash
-pyarmor gen -O build/pyarmor_out techtool.py techtool_core.py tech_common.py tech_ui.py tech_settings.py tech_settings_login.py tech_admin.py tech_reg.py tech_secscan.py tech_secops.py tech_secops3.py tech_secops2.py tech_secops4.py tech_bloatware.py tech_dash.py tech_vtop.py tech_misc.py tech_hardening.py tech_hardening_ops.py tech_dashboard_redesign.py tech_phone_mirror.py tech_phone_mirror_embedded.py tech_phone_mirror_host.py tech_phone_mirror_fix.py tech_phone_mirror_restore_patch.py tech_navigation.py tech_task_manager.py tech_database.py tech_phone_mirror/__init__.py runtime_hook_gelotech.py sitecustomize.py
-python -m PyInstaller GeloTechTool_obf.spec --noconfirm
-```
-
-Standard (non-obfuscated) build — debugging only, **never distribute, never commit/push**:
-(agents: only build this when the user explicitly asks for a debug build; the
-supported production build is the obfuscated one from `python scripts/release.py`.
-If PyArmor reports a size/license limit, split oversized source modules into
-~35 KB files instead of falling back to this build.)
-
-```bash
-python -m PyInstaller GeloTechTool.spec --noconfirm
-```
-
-## Updating the app on other PCs
-
-The update URL and the Worker URL are embedded in the app (`tech_common.py`),
-so users need no configuration — the update source is **pinned** to those
-embedded constants and can never be redirected by settings or by the repo's
-`secret.json`. Every login does three verified things in one go:
-
-1. Verifies your login against the auth proxy **Cloudflare Worker**
-   (`AUTH_WORKER_URL` in `tech_common.py`) — the Worker holds the repo write
-   token, the SMTP sender and the session-signing key as server-side
-   secrets, checks your PBKDF2 hash + blocked flag, and returns your
-   permissions.
-   Entering your email in the first step self-registers / resets your
-   password: the Worker generates a password, hashes it (PBKDF2, 100000
-   iterations), writes it into the repo's `secret.json`, and emails it to
-   you — credentials are never written to the user's PC.
-2. Pulls the latest `gelotech_database_v3.json`, verifies it, caches it for
-   the session in the temp folder, and deletes it on app close / logout / the
-   next login — so users always get the newest database with no manual
-   intervention.
-3. Checks `version.json` for a newer `banking_apps.json` and downloads it
-   into the user's settings folder (version-based, same verification).
-
-Every update is cryptographically verified before it is applied:
-
-1. `version.json` must be signed — the app verifies `version.json.sig`
-   against the embedded Ed25519 public key (`tech_common.py`), otherwise the
-   update is rejected.
-2. Each downloaded data file must match the signed SHA-256 hash listed inside
-   `version.json`, otherwise that file is rejected. The signed hashes cover
-   the exact bytes GitHub serves (`.gitattributes` enforces LF line endings).
-    `secret.json` is exempt: it is the live server-side account registry
-    maintained by the auth proxy Worker, not a client-distributed file.
-
-To publish a data update:
-
-1. Replace `gelotech_database_v3.json` (and/or `banking_apps.json`) and/or
-   edit user hashes in `secret.json` at the repo root.
-2. Run `python bump_version.py` (add `db` or `banking` to bump only one;
-   `sign` to re-hash/re-sign without bumping). This computes the file
-   hashes, writes `version.json`, signs it into `version.json.sig`, and
-   commits + pushes both.
-3. Users' apps fetch it automatically on their next login — and only if the
-   signature and hashes verify.
-
-To change a user's password, use the auth Worker: sign in as admin, open
-**Settings -> Account management**, and pick **Change password** on the
-account row (server-side PBKDF2 hashing, `POST /admin/password`). Manual
-edits of `secret.json` (format `iters$salt$digest`, 100000 iterations,
-never the legacy plain-SHA-256 format) followed by
-`python bump_version.py sign` still work but should be reserved for
-emergencies.
-
-To ship a code change, edit the Python files, rebuild the exe (above), and
-redistribute the new exe — code only changes when a new exe is built.
-
-## Security notes
-
-- Accounts are email-based, self-managed: the auth proxy Worker (Cloudflare,
-  `worker/`) generates PBKDF2 hashed passwords, persists them to the repo's
-  `secret.json`, and emails them via a dedicated SMTP sender — the write
-  token, SMTP credentials and session-signing key live ONLY as Cloudflare
-  Worker secrets, never in the exe. Credentials are never stored on users'
-  PCs. The
-  **Accounts** panel (admin) shows the account list and can **Block /
-  Unblock** any account — blocked accounts can't sign in and can't request a
-  new password (the `blocked` flag lives on the account in `secret.json`).
-- Updates are signed (Ed25519): the manifest signature and per-file SHA-256
-  hashes are verified before anything is applied, and the update source is
-  pinned to the embedded constants in `tech_common.py`.
-- The exe embeds no tokens: update files are fetched through the Worker's
-  public `/files` allowlist and verified with the embedded Ed25519 public
-  key; account writes and password emails go through the Worker. Rotate the
-  Worker secrets regularly — anything embedded in the exe can be extracted.
-- The package database is only ever pulled fresh from the server per login
-  (no bundled copy in the exe), so stale data is impossible.
-
-## The package database
-
-`gelotech_database_v3.json` is the single live database. The loader
-(`tech_common.py::load_package_database`) maps its schema into internal
-records: removal levels (`Recommended` / `Advanced` / `Expert` / `Unsafe`),
-UAD warnings, GeloTech notes, and the `debloated` / exclusion flags. If the
-file is missing it falls back to `gelotech_database_v2.json`.
-
-## Fast development/release commands
-
-Source smoke check:
-
-```bash
-python scripts/agent_preflight.py
-python -m compileall -q .
-python -m pytest -q
-```
-
-Agent environment check (Python, pytest, Ruff, BasedPyright, required files,
-test discovery, syntax compilation — fast, no network, no app imports):
-
-```bash
-python scripts/agent_check.py
-```
-
-Lint / format check (Ruff is configured in `pyproject.toml`; do not reformat
-the whole repo — fix findings incrementally):
-
-```bash
-python -m ruff check .
-python -m ruff format --check .
-```
-
-Python language server: BasedPyright is configured in `pyproject.toml`
-(`typeCheckingMode = "basic"`, excludes `build/`/`dist/`). Editors and OpenCode
-with LSP enabled use it for go-to-definition, find-references, and diagnostics.
-
-Release build:
-
-```bash
-python scripts/release.py
-```
-
-### Coding-agent tooling
-
-`opencode.json` enables LSP for the project. Semantic code navigation
-(go-to-definition / find-references / find-implementations over the code graph)
-is provided by the `codebase-memory-mcp` server, which is already configured
-globally. Filesystem and terminal access use OpenCode's built-in tools, GitHub
-work uses the `gh` CLI plus `git`, and documentation lookup uses the built-in
-web search/fetch tools. No extra MCP servers are required.
-
-See the **Code intelligence** section in `AGENTS.md` for the preferred
-navigation order before editing code.
-
-The release helper performs repository preflight, Python compile checks, tests, PyArmor generation, and the supported obfuscated PyInstaller build. It does not commit, tag, or push anything automatically.
+Windows only. The private source repository is for development; the public download repository hosts user-facing releases.
