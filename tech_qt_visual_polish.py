@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from tech_qt_icons import ICONS, load_icon
 
@@ -24,52 +24,6 @@ def _set_app_icon() -> QIcon:
     if app is not None and not icon.isNull():
         app.setWindowIcon(icon)
     return icon
-
-
-def _set_sidebar_header(self) -> None:
-    sidebar = getattr(self, "sidebar", None)
-    if sidebar is None:
-        return
-    layout = sidebar.layout()
-    if layout is None:
-        return
-
-    if layout.count():
-        first = layout.itemAt(0)
-        old = first.widget() if first else None
-        if isinstance(old, QLabel):
-            layout.takeAt(0)
-            old.deleteLater()
-
-    user_label = getattr(self, "user_label", None)
-    if isinstance(user_label, QLabel):
-        user_label.hide()
-
-    header = QFrame(sidebar)
-    header.setObjectName("compactBrandHeader")
-    hv = QVBoxLayout(header)
-    hv.setContentsMargins(0, 0, 0, 0)
-    hv.setSpacing(0)
-
-    title = QLabel("GELOTECH TOOL")
-    title.setObjectName("brandTitle")
-    version = QLabel("v1.7.8 - Angelo Estrada Espinosa")
-    version.setObjectName("brandVersion")
-    copyright_label = QLabel("© 2026 GeloTech")
-    copyright_label.setObjectName("brandCopyright")
-    gsm = QLabel('<a href="https://gsmcodeph.com">Gsmcodeph.com</a>')
-    facebook = QLabel('<a href="https://facebook.com/gelotechxyz">facebook.com/gelotechxyz</a>')
-    for label in (gsm, facebook):
-        label.setOpenExternalLinks(True)
-        label.setObjectName("brandLink")
-
-    for label in (title, version, copyright_label, gsm, facebook):
-        label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        hv.addWidget(label)
-
-    layout.insertWidget(0, header)
-    layout.setContentsMargins(8, 6, 8, 6)
-    layout.setSpacing(0)
 
 
 def _apply_sidebar_icons(self) -> None:
@@ -101,8 +55,8 @@ def _apply_sidebar_icons(self) -> None:
             if icon_name:
                 button.setIcon(load_icon(icon_name))
         button.setMinimumHeight(28)
-        button.setMaximumHeight(28)
-        button.setContentsMargins(2, 0, 2, 0)
+        button.setMaximumHeight(32)
+        button.setContentsMargins(4, 2, 4, 2)
 
     theme = getattr(self, "theme_btn", None)
     if isinstance(theme, QPushButton):
@@ -177,7 +131,6 @@ def _wrap_apply_theme(self):
             QFrame#sidebar {{ background: {bg}; border-right: 1px solid {border}; }}
             """
         )
-        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
 
@@ -193,7 +146,6 @@ def install_visual_polish(MainWindow, LoginDialog=None) -> None:
         original_init(self, *args, **kwargs)
         if not icon.isNull():
             self.setWindowIcon(icon)
-        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
         _wrap_apply_theme(self)
