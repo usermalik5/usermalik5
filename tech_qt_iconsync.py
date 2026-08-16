@@ -9,7 +9,7 @@ import shutil
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from tech_common import get_bundle_dir, get_cache_dir, get_settings_dir
 
@@ -20,6 +20,7 @@ DONE_FLAG = f"{EXPORT_DIR}/DONE.flag"
 
 class _IconLogBridge(QObject):
     message = Signal(str)
+    finished = Signal(str, bool)
 
 
 class _IconSyncWorker:
@@ -198,32 +199,46 @@ class _IconSyncWorker:
         return count > 0
 
     def run(self) -> None:
-        state = self.adb(["get-state"], 10).stdout.strip().lower()
-        if state != "device":
-            self.log("[GeloTech] Icon sync waiting: device is not ready for ADB.")
-            return
-        fingerprint, package_count = self.package_fingerprint()
-        if not fingerprint:
-            self.log("[GeloTech] Icon sync waiting: package list is not ready.")
-            return
-        if self.restore_cache(fingerprint):
-            return
-        self.export_icons(fingerprint, package_count)
+        success = False
+        try:
+            state = self.adb(["get-state"], 10).stdout.strip().lower()
+            if state != "device":
+                self.log("[GeloTech] Icon sync waiting: device is not ready for ADB.")
+                return
+            fingerprint, package_count = self.package_fingerprint()
+            if not fingerprint:
+                self.log("[GeloTech] Icon sync waiting: package list is not ready.")
+                return
+            if self.restore_cache(fingerprint):
+                success = True
+                return
+            success = self.export_icons(fingerprint, package_count)
+        except Exception as exc:
+            self.log(f"[GeloTech ERROR] Icon sync failed: {exc}")
+        finally:
+            self.bridge.finished.emit(self.serial, success)
 
 
 def install_icon_sync(MainWindow) -> None:
-    """Replace placeholder icon preparation with full verified export/cache sync."""
+    """Run the verified icon export/cache flow and refresh the table when ready."""
 
-    bridge_attr = "_qt_icon_log_bridge"
+    def icon_sync_completed(self, serial: str, success: bool) -> None:
+        if serial != getattr(self, "serial", None):
+            return
+        if success:
+            self._log(f"[GeloTech] Icon sync complete for {serial}; refreshing app icons...")
+        else:
+            self._log(f"[GeloTech] Icon sync did not complete for {serial}; using fallback icons.")
+        QTimer.singleShot(0, self.refresh_apps)
 
     def prepare_icon_cache(self, serial: str) -> None:
-        bridge = getattr(self, bridge_attr, None)
-        if bridge is None:
-            bridge = _IconLogBridge(self)
-            bridge.message.connect(self._log)
-            setattr(self, bridge_attr, bridge)
+        bridge = _IconLogBridge(self)
+        bridge.message.connect(self._log)
+        bridge.finished.connect(lambda device_serial, success: icon_sync_completed(self, device_serial, success))
+        setattr(self, "_qt_icon_log_bridge", bridge)
         import threading
         worker = _IconSyncWorker(self, serial, bridge)
-        threading.Thread(target=worker.run, daemon=True).start()
+        threading.Thread(target=worker.run, daemon=True, name=f"GeloTech-IconSync-{serial}").start()
 
     MainWindow._prepare_icon_cache = prepare_icon_cache
+    MainWindow._icon_sync_completed = icon_sync_completed
