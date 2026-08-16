@@ -66,8 +66,8 @@ class LoginDialog(QDialog):
         feat.setObjectName("loginFeat"); feat.setWordWrap(True); bl.addWidget(feat)
 
         formwrap = QFrame(); fr = QVBoxLayout(formwrap); fr.setContentsMargins(36, 32, 36, 32); fr.setSpacing(10)
-        welcome = QLabel("Welcome back"); welcome.setObjectName("loginWelcome"); fr.addWidget(welcome)
-        sub = QLabel("Sign in to your account to continue"); sub.setObjectName("loginSub"); fr.addWidget(sub)
+        welcome = QLabel("Welcome to GeloTech"); welcome.setObjectName("loginWelcome"); fr.addWidget(welcome)
+        sub = QLabel("Sign in with the password sent to your email."); sub.setObjectName("loginSub"); fr.addWidget(sub)
         fr.addSpacing(6)
         self.email = QLineEdit(); self.email.setPlaceholderText("Email address")
         self.password = QLineEdit(); self.password.setPlaceholderText("Password"); self.password.setEchoMode(QLineEdit.Password)
@@ -76,17 +76,22 @@ class LoginDialog(QDialog):
             lab = QLabel(label_text); lab.setObjectName("fieldLabel"); fr.addWidget(lab); fr.addWidget(field)
         self.status = QLabel(""); self.status.setWordWrap(True); self.status.setObjectName("loginStatus"); fr.addWidget(self.status)
         self.signin = QPushButton("Sign in"); self.signin.setObjectName("accentButton"); self.signin.setIcon(tinted_icon("login", "#ffffff", 18))
-        self.register = QPushButton("Create an account"); self.register.setObjectName("linkButton")
-        row = QHBoxLayout(); row.addWidget(self.signin); row.addStretch(1); row.addWidget(self.register); fr.addLayout(row)
+        self.request_password = QPushButton("Email me a password"); self.request_password.setObjectName("linkButton")
+        row = QHBoxLayout(); row.addWidget(self.signin); row.addStretch(1); row.addWidget(self.request_password); fr.addLayout(row)
+        recovery = QLabel("New here or need a new password? Enter your email, then choose Email me a password. It replaces any previous password.")
+        recovery.setObjectName("loginSub"); recovery.setWordWrap(True); fr.addWidget(recovery)
         fr.addStretch(1)
 
         root.addWidget(brand); root.addWidget(formwrap, 1)
         self.email.textChanged.connect(lambda s: self.phrase.setVisible(s.strip().lower() == "admin"))
-        self.signin.clicked.connect(self._sign_in); self.register.clicked.connect(self._register)
+        self.signin.clicked.connect(self._sign_in); self.request_password.clicked.connect(self._request_password_email)
         self._thread = None; self._worker = None
 
-    def _register(self):
-        ok, message = _request_password(self.email.text().strip()); self.status.setText(message)
+    def _request_password_email(self):
+        email = self.email.text().strip()
+        if not email:
+            self.status.setText("Enter your email first, then request a password."); return
+        ok, message = _request_password(email); self.status.setText(message)
         if ok: QMessageBox.information(self, "GeloTech", message)
 
     def _sign_in(self):
@@ -352,13 +357,52 @@ class MainWindow(QMainWindow):
                 host = dns_widget.currentData() or dns_widget.currentText()
         if not host:
             self._log("[DNS] Select a provider before applying.")
+            if hasattr(self, "dns_status"):
+                self.dns_status.setText("Choose a DNS provider first.")
             return
-        if self.serial:
-            self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "hostname"])
-            self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_specifier", host])
+        if not self.serial:
+            self._scan_devices()
+        if not self.serial:
+            message = "Connect an authorized Android device before applying Private DNS."
+            self._log(f"[DNS] {message}")
+            if hasattr(self, "dns_status"):
+                self.dns_status.setText(message)
+            return
+        if hasattr(self, "dns_status"):
+            self.dns_status.setText(f"Applying {host}…")
+        mode_result = self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "hostname"])
+        host_result = self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_specifier", host])
+        failures = [result for result in (mode_result, host_result) if getattr(result, "returncode", 0) != 0]
+        if failures:
+            detail = (getattr(failures[0], "stderr", "") or getattr(failures[0], "stdout", "") or "ADB rejected the setting").strip()
+            message = f"Private DNS could not be applied: {detail}"
+            self._log(f"[DNS] {message}")
+            if hasattr(self, "dns_status"):
+                self.dns_status.setText(message)
+            return
+        message = f"Private DNS active: {host}"
+        self._log(f"[DNS] {message}")
+        if hasattr(self, "dns_status"):
+            self.dns_status.setText(message)
 
     def disable_dns(self):
-        if self.serial: self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "off"])
+        if not self.serial:
+            self._scan_devices()
+        if not self.serial:
+            message = "Connect an authorized Android device before disabling Private DNS."
+            self._log(f"[DNS] {message}")
+            if hasattr(self, "dns_status"):
+                self.dns_status.setText(message)
+            return
+        result = self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "off"])
+        if getattr(result, "returncode", 0) != 0:
+            detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "ADB rejected the setting").strip()
+            message = f"Private DNS could not be disabled: {detail}"
+        else:
+            message = "Private DNS disabled on the connected device."
+        self._log(f"[DNS] {message}")
+        if hasattr(self, "dns_status"):
+            self.dns_status.setText(message)
 
     def start_mirror(self):
         if not self.serial: return

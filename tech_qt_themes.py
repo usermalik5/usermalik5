@@ -10,7 +10,17 @@ import os
 import sys
 from functools import lru_cache
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFontDatabase
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QVBoxLayout,
+)
 
 THEME_DIR = os.path.join(
     getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))),
@@ -24,7 +34,13 @@ PALETTES = [
 ]
 DEFAULT_THEME = "orange"
 
-UI_FONTS = ["Segoe UI Variable", "Segoe UI", "Aptos", "Bahnschrift", "Consolas"]
+UI_FONTS = [
+    "Segoe UI Variable", "Segoe UI", "Aptos", "Bahnschrift", "Calibri",
+    "Cambria", "Candara", "Cascadia Code", "Consolas", "Corbel",
+    "Courier New", "Franklin Gothic Medium", "Gadugi", "Georgia",
+    "Helvetica", "Leelawadee UI", "Microsoft JhengHei UI", "Microsoft YaHei UI",
+    "Palatino Linotype", "Tahoma", "Trebuchet MS", "Verdana",
+]
 DEFAULT_UI_FONT = "Segoe UI Variable"
 
 
@@ -173,3 +189,89 @@ def apply_theme(app: QApplication, name: str, dark: bool = True, font_family: st
     app.setStyleSheet(build_stylesheet(name, dark, font_family))
     app.setProperty("gelotech_theme", name)
     app.setProperty("gelotech_font", font_family)
+
+
+def _appearance_preferences(window) -> dict:
+    try:
+        return json.loads(window._preferences_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _available_fonts() -> list[str]:
+    available = set(QFontDatabase.families())
+    choices = [font for font in UI_FONTS if font in available]
+    return choices or [DEFAULT_UI_FONT]
+
+
+def _apply_window_theme(window) -> None:
+    """Apply the saved appearance choice to the active Qt application."""
+    preferences = _appearance_preferences(window)
+    palette = str(preferences.get("palette", getattr(window, "theme_name", DEFAULT_THEME)))
+    font = str(preferences.get("font", getattr(window, "ui_font", DEFAULT_UI_FONT)))
+    window.theme_name = palette if palette in PALETTES else DEFAULT_THEME
+    window.ui_font = font if font in _available_fonts() else DEFAULT_UI_FONT
+    app = QApplication.instance()
+    if app is not None:
+        apply_theme(app, window.theme_name, bool(getattr(window, "dark_mode", True)), window.ui_font)
+    button = getattr(window, "theme_btn", None)
+    if button is not None:
+        button.setText("Appearance")
+        button.setToolTip("Change color palette, display mode, and UI font")
+
+
+def _show_appearance_dialog(window) -> None:
+    """Keep visual preferences in one small, discoverable dialog."""
+    dialog = QDialog(window)
+    dialog.setWindowTitle("Appearance")
+    dialog.setMinimumWidth(390)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(24, 22, 24, 22)
+    layout.setSpacing(12)
+
+    title = QLabel("Make GeloTech feel like yours")
+    title.setObjectName("dialogTitle")
+    subtitle = QLabel("Choose a palette, display mode, and font. Your choices are saved for the next launch.")
+    subtitle.setObjectName("dialogDesc")
+    subtitle.setWordWrap(True)
+    layout.addWidget(title)
+    layout.addWidget(subtitle)
+
+    form = QFormLayout()
+    palette = QComboBox()
+    palette.addItems([name.title() for name in PALETTES])
+    palette.setCurrentText(str(getattr(window, "theme_name", DEFAULT_THEME)).title())
+    mode = QCheckBox("Use dark mode")
+    mode.setChecked(bool(getattr(window, "dark_mode", True)))
+    font = QComboBox()
+    font.addItems(_available_fonts())
+    font.setCurrentText(str(getattr(window, "ui_font", DEFAULT_UI_FONT)))
+    form.addRow("Color palette", palette)
+    form.addRow("Display", mode)
+    form.addRow("UI font", font)
+    layout.addLayout(form)
+
+    buttons = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Apply)
+    buttons.rejected.connect(dialog.reject)
+    buttons.accepted.connect(dialog.accept)
+    layout.addWidget(buttons)
+    if dialog.exec() != QDialog.Accepted:
+        return
+
+    window.theme_name = palette.currentText().lower()
+    window.dark_mode = mode.isChecked()
+    window.ui_font = font.currentText()
+    preferences = _appearance_preferences(window)
+    preferences.update({
+        "theme": "dark" if window.dark_mode else "light",
+        "palette": window.theme_name,
+        "font": window.ui_font,
+    })
+    window._preferences_path().write_text(json.dumps(preferences, indent=2), encoding="utf-8")
+    window._apply_theme()
+
+
+def install_appearance_controls(MainWindow) -> None:
+    """Install the user-facing appearance workflow on the Qt main window."""
+    MainWindow._apply_theme = _apply_window_theme
+    MainWindow._toggle_theme = _show_appearance_dialog

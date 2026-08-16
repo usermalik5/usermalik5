@@ -15,7 +15,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton
 
 from tech_qt_icons import load_icon
-from tech_qt_themes import palette_profile
+from tech_qt_themes import DEFAULT_UI_FONT, palette_profile
 
 REFERENCE_DARK = {
     "bg": "#474747",
@@ -122,11 +122,10 @@ def _normalise_sidebar(self) -> None:
         button.setStyleSheet("QPushButton { margin:0; padding:4px 10px; border-radius:2px; }")
 
     if theme is not None:
-        dark = bool(getattr(self, "dark_mode", True))
-        theme.setText("Theme - Dark" if dark else "Theme - Light")
-        theme.setIcon(load_icon("moon" if dark else "sun"))
-        theme.setCheckable(True)
-        theme.setChecked(dark)
+        theme.setText("Appearance")
+        theme.setToolTip("Change color palette, display mode, and UI font")
+        theme.setIcon(load_icon("settings"))
+        theme.setCheckable(False)
         theme.setMinimumHeight(30)
         theme.setMaximumHeight(30)
         theme.setContentsMargins(0, 0, 0, 0)
@@ -210,13 +209,14 @@ def _wrap_apply_theme(self) -> None:
             original()
         dark = bool(getattr(self, "dark_mode", True))
         palette = palette_profile(getattr(self, "theme_name", "orange"), dark)
+        font_family = getattr(self, "ui_font", DEFAULT_UI_FONT)
         accent = palette.get("accent", "#f97316")
         c = REFERENCE_DARK if dark else REFERENCE_LIGHT
         app = QApplication.instance()
         if app is None:
             return
         app.setStyleSheet(f"""
-            * {{ font-family:'Segoe UI',sans-serif; font-size:10pt; }}
+            * {{ font-family:'{font_family}','Segoe UI',sans-serif; font-size:10pt; }}
             QWidget, QMainWindow, QDialog, QStackedWidget, QScrollArea,
             QAbstractScrollArea::viewport {{ background:{c['bg']}; color:{c['text']}; }}
             QFrame#sidebar {{ background:{c['bg']}; border-right:1px solid {c['border']}; }}
@@ -232,6 +232,11 @@ def _wrap_apply_theme(self) -> None:
             QFrame#sidebarGuide, QFrame#guidePanel, QFrame#contentPanel,
             QFrame#featureHeader, QFrame#helpHeader, QFrame#helpCard,
             QFrame#statusPanel, QFrame#providerCard {{ background:{c['panel']}; color:{c['text']}; border:1px solid {c['border']}; border-radius:4px; }}
+            QFrame#deviceCard {{ background:{c['panel']}; color:{c['text']}; border:1px solid {accent}; border-radius:6px; }}
+            QLabel#connectionTitle {{ color:{c['muted']}; font-size:8pt; font-weight:800; }}
+            QLabel#connectionSummary {{ color:{c['text']}; font-size:10pt; font-weight:800; }}
+            QLabel#connectionDetail {{ color:{c['muted']}; font-size:8.5pt; }}
+            QLabel#connectionBadge {{ background:transparent; }}
             QLabel#guideText, QLabel#muted, QLabel#helpText {{ color:{c['muted']}; }}
             QLabel#brandTitle, QLabel#sidebarBrandHeader, QLabel#brand {{ background:transparent; color:#2388ff; }}
             QLabel#brandVersion {{ background:transparent; color:{c['text']}; }}

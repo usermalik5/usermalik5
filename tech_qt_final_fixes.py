@@ -14,18 +14,13 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QComboBox,
     QDialog,
-    QFormLayout,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMenu,
-    QMessageBox,
     QPushButton,
     QStackedWidget,
     QTableWidget,
@@ -34,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from tech_common import APP_VERSION, get_bundle_dir, get_session_database_path, load_package_database
+from tech_common import get_bundle_dir, get_session_database_path, load_package_database
 from tech_qt_icons import ICONS, load_icon, tinted_icon
 
 
@@ -212,6 +207,10 @@ def _build_dashboard(self) -> QWidget:
     refresh.clicked.connect(self.refresh_apps)
     mirror = _button("Screen Mirror", "device-mobile")
     mirror.clicked.connect(self.start_mirror)
+    mirror.setEnabled(False)
+    mirror.setToolTip("Connect an authorized Android device to start screen mirroring")
+    self._device_action_buttons = list(getattr(self, "_device_action_buttons", []))
+    self._device_action_buttons.append(mirror)
     row.addWidget(refresh)
     row.addWidget(mirror)
     pv.addLayout(row)
@@ -222,27 +221,50 @@ def _build_dashboard(self) -> QWidget:
     cv.setContentsMargins(0, 0, 0, 0)
     cv.setSpacing(7)
 
+    device_card = QFrame()
+    device_card.setObjectName("deviceCard")
+    device_layout = QHBoxLayout(device_card)
+    device_layout.setContentsMargins(14, 11, 14, 11)
+    device_layout.setSpacing(12)
+    device_icon = QLabel()
+    device_icon.setObjectName("connectionBadge")
+    device_icon.setPixmap(tinted_icon("device-mobile", "#22c55e", 26).pixmap(26, 26))
+    device_icon.setFixedSize(32, 32)
+    device_layout.addWidget(device_icon)
+    device_copy = QVBoxLayout()
+    device_copy.setSpacing(2)
+    device_title = QLabel("DEVICE STATUS")
+    device_title.setObjectName("connectionTitle")
+    self.connection_summary = QLabel("No Android device detected")
+    self.connection_summary.setObjectName("connectionSummary")
+    self.connection_detail = QLabel("Connect a phone with USB debugging enabled, then tap Allow on the phone.")
+    self.connection_detail.setObjectName("connectionDetail")
+    self.connection_detail.setWordWrap(True)
+    device_copy.addWidget(device_title)
+    device_copy.addWidget(self.connection_summary)
+    device_copy.addWidget(self.connection_detail)
+    device_layout.addLayout(device_copy, 1)
+    check_connection = _button("Check connection", "refresh")
+    check_connection.setToolTip("Scan for an authorized Android device now")
+    check_connection.clicked.connect(self._scan_devices)
+    device_layout.addWidget(check_connection)
+    cv.addWidget(device_card)
+
     self.log = self.log if hasattr(self, "log") else None
     if self.log is None:
         from PySide6.QtWidgets import QPlainTextEdit
         self.log = QPlainTextEdit(readOnly=True)
     self.log.setObjectName("liveLog")
-    self.log.setMinimumHeight(118)
-    self.log.setMaximumHeight(150)
-    cv.addWidget(self.log)
-
     status = QHBoxLayout()
     self.cleaner_status = QLabel("Connect a device and press Refresh to load apps.")
-    self.security_label = QLabel("Security indicators: 0")
-    self.device_inline = QLabel("NO DEVICE")
+    self.security_label = QLabel("Safe mode: confirmations on")
+    self.security_label.setToolTip("GeloTech asks for confirmation before device-changing actions.")
     self.cleaner_status.setObjectName("statusText")
     self.security_label.setObjectName("securityText")
-    self.device_inline.setObjectName("deviceText")
-    self.device_label = self.device_inline
-    self.phone_status = self.device_inline
+    self.device_label = self.connection_summary
+    self.phone_status = self.connection_detail
     status.addWidget(self.cleaner_status, 1)
     status.addWidget(self.security_label)
-    status.addWidget(self.device_inline)
     cv.addLayout(status)
 
     controls = QHBoxLayout()
@@ -295,6 +317,11 @@ def _build_dashboard(self) -> QWidget:
     for widget in (scan, backup, load, advanced):
         toolbar.addWidget(widget)
     cv.addLayout(toolbar)
+
+    self.log.setMinimumHeight(90)
+    self.log.setMaximumHeight(110)
+    self.log.setPlaceholderText("Live activity will appear here as you connect a device and run tools.")
+    cv.addWidget(self.log)
 
     outer.addWidget(phone_panel)
     outer.addWidget(content, 1)
@@ -512,8 +539,10 @@ def _build_shell(self):
     for title, idx, action in (("DASHBOARD", 0, lambda: (self.stack.setCurrentIndex(0), self.refresh_apps())), ("MONITOR", 1, lambda: (self.stack.setCurrentIndex(1), self._refresh_monitor())), ("AD BLOCK", 2, lambda: self.stack.setCurrentIndex(2)), ("VT SCAN", 3, lambda: self.stack.setCurrentIndex(3))):
         b = _button(title); b.clicked.connect(action); side.addWidget(b)
 
+    self._device_action_buttons = []
     for text, mode, icon, color in (("RECOVERY", "recovery", "refresh", "#f97316"), ("FASTBOOT", "bootloader", "power", "#fb923c")):
-        b = _button(text, icon); b.clicked.connect(lambda _=False, m=mode: _confirm_reboot(self, m)); side.addWidget(b)
+        b = _button(text, icon); b.clicked.connect(lambda _=False, m=mode: _confirm_reboot(self, m)); b.setEnabled(False); side.addWidget(b)
+        self._device_action_buttons.append(b)
     auth = _button("AUTH ADB", "plug-connected"); auth.clicked.connect(lambda: _confirm_adb_auth(self)); side.addWidget(auth)
     drivers = _button("ADB DRIVERS", "tool"); drivers.clicked.connect(lambda: _confirm_drivers(self)); side.addWidget(drivers)
     accounts = _button("ADMIN"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
@@ -541,7 +570,9 @@ def _build_shell(self):
     side.addWidget(howto)
 
     self.stack = QStackedWidget()
-    self.pages = [_build_dashboard(self), _build_monitor(self), _build_dns(self), self._vt_page(), _build_accounts(self)]
+    # Resolve feature pages through the installed MainWindow methods so the
+    # rich help/monitor/DNS/VirusTotal workspaces are actually used at runtime.
+    self.pages = [_build_dashboard(self), self._monitor_page(), self._dns_page(), self._vt_page(), _build_accounts(self)]
     for page in self.pages: self.stack.addWidget(page)
     root_layout.addWidget(self.sidebar); root_layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.stack.setCurrentIndex(0)
 
@@ -558,6 +589,16 @@ def _nav_changed(self, row):
 def _show_accounts(self):
     self.stack.setCurrentIndex(4)
     self.refresh_accounts()
+
+
+def _set_device_action_state(self, connected: bool) -> None:
+    """Keep actions that require a phone honest about the current connection."""
+    for button in getattr(self, "_device_action_buttons", []):
+        button.setEnabled(connected)
+        button.setToolTip(
+            "Ready for the connected device" if connected
+            else "Connect an authorized Android device to use this action"
+        )
 
 
 def _confirm_reboot(self, mode):
@@ -621,6 +662,7 @@ def install_final_qt_fixes(MainWindow):
     MainWindow._build_shell = _build_shell
     MainWindow._nav_changed = _nav_changed
     MainWindow._show_accounts = _show_accounts
+    MainWindow._set_device_action_state = _set_device_action_state
     MainWindow._refresh_monitor = _refresh_monitor
     MainWindow._qt_select_all = _qt_select_all
     MainWindow._qt_filter_table = _qt_filter_table
