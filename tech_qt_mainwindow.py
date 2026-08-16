@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         super().__init__(); self.setWindowTitle(f"GeloTech Tool v{APP_VERSION}"); self.resize(1360, 820)
         self.current_user = {}; self.session = None; self.db = {}; self.serial = None; self._seen_serials = set(); self._auto_mirror_seen = set()
         self.theme_name = DEFAULT_THEME; self.ui_font = DEFAULT_UI_FONT; self._load_preferences(); self._build_shell(); self._apply_theme()
-        self._adb_timer = QTimer(self); self._adb_timer.timeout.connect(self._scan_devices); self._adb_timer.start(3000); QTimer.singleShot(250, self._open_login)
+        self._adb_timer = QTimer(self); self._adb_timer.timeout.connect(self._scan_devices); self._adb_timer.start(3000); QTimer.singleShot(250, self._open_login); self._scrcpy_proc = None
 
     def _build_shell(self):
         root = QWidget(); layout = QHBoxLayout(root); layout.setContentsMargins(0, 0, 0, 0)
@@ -298,8 +298,32 @@ class MainWindow(QMainWindow):
         if not self.serial: return
         exe = shutil.which("scrcpy") or next((str(p) for p in [Path(get_bundle_dir()) / "scrcpy.exe", Path(get_bundle_dir()) / "scrcpy" / "scrcpy.exe"] if p.is_file()), None)
         if not exe: self._log("[SCRCPY] scrcpy executable not found in PATH/bundle."); return
-        try: subprocess.Popen([exe, "-s", self.serial, "--window-title", f"GeloTech Mirror - {self.serial}"]); self._log("[SCRCPY] Screen mirror started.")
+        try:
+            self._scrcpy_proc = subprocess.Popen([exe, "-s", self.serial, "--window-title", f"GeloTech Mirror - {self.serial}"])
+            self._log("[SCRCPY] Screen mirror started.")
         except Exception as exc: self._log(f"[SCRCPY] Failed to start mirror: {exc}")
+
+    def stop_mirror(self):
+        proc = getattr(self, "_qt_scrcpy_process", None) or getattr(self, "_scrcpy_proc", None)
+        if proc:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try: proc.kill()
+                except Exception: pass
+            self._scrcpy_proc = None
+            self._qt_scrcpy_process = None
+            self._log("[SCRCPY] Screen mirror stopped.")
+        if hasattr(self, "_qt_scrcpy_timer") and self._qt_scrcpy_timer:
+            self._qt_scrcpy_timer.stop()
+            self._qt_scrcpy_timer.deleteLater()
+            self._qt_scrcpy_timer = None
+        overlay = getattr(self, "_qt_scrcpy_overlay", None)
+        if overlay:
+            try: overlay.close(); overlay.deleteLater()
+            except Exception: pass
+            self._qt_scrcpy_overlay = None
 
     def _adb_simple(self, command):
         if self.serial: self._adb(["-s", self.serial] + command)
@@ -339,6 +363,9 @@ class MainWindow(QMainWindow):
     def _log(self, text): self.log.appendPlainText(str(text))
 
     def closeEvent(self, event: QCloseEvent):
+        if hasattr(self, "_qt_stop_scrcpy"):
+            self._qt_stop_scrcpy()
+        self.stop_mirror()
         try:
             p = Path(get_session_database_path())
             if p.exists(): p.unlink()
