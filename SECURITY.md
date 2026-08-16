@@ -11,6 +11,15 @@ embedded update system.
 | Latest exe (with embedded update system) | :white_check_mark: |
 | Older exes | :x: |
 
+## Current desktop architecture
+
+The current Windows client uses **PySide6 / Qt6** and starts from
+`tech_qt_app.py`. The Qt6 migration changed the desktop UI architecture but
+did **not** move authentication, account secrets, update signing, or other
+privileged security responsibilities into the client. The security model
+below remains server-side and applies to the Qt client as well as the packaged
+Qt executable.
+
 ## Reporting a Vulnerability
 
 This is a private repository. If you have access and find a security issue
@@ -38,12 +47,11 @@ directly rather than opening a public issue.
   - admin actions (`GET /accounts`, `POST /admin/block`,
     `POST /admin/password`): require a valid signed session with
     `role: "admin"` sent as `Authorization: Bearer`. Every privileged call
-    revalidates the session against the live account registry, so a
-    blocked account (or a deleted one) loses access immediately —
+    revalidates the session against the live account registry, so a blocked
+    account (or a deleted one) loses access immediately —
     sessions are effectively revocable;
   - password changes (`POST /admin/password`): the maintainer sets a new
-    password for any account (e.g. after the shared default `admin123`
-    password is replaced); hashing happens server-side, the value is never
+    password for any account; hashing happens server-side, the value is never
     logged;
   - update files (`GET /files/<name>`): the Worker serves the version
     manifest, its Ed25519 signature, the package database and the banking
@@ -56,68 +64,43 @@ directly rather than opening a public issue.
 - The Worker keeps **no session state**: sessions are stateless HMAC-SHA256
   tokens (`{sub, role, iat, exp, jti}`, 12 h TTL) verified on every
   privileged call. The client holds the token in memory only and discards
-  it on logout/exit. Because every privileged call re-reads the live
-   account registry, blocking an account is denied on its next authorized
-   call rather than relying on a 12-hour TTL;
+  it on logout/exit.
 - Client-side reads are limited to public update files; integrity is
   enforced with the embedded Ed25519 public key (`UPDATE_SIGN_PUBLIC_KEY`),
   which is not a secret.
-- The package database is fetched and SHA-256 verified (against the signed
-  manifest) for each login, then kept only in the per-session temporary
-  cache and removed when the session ends.
+- The package database is fetched and SHA-256 verified against the signed
+  manifest for each login, then kept only in the per-session temporary cache
+  and removed when the session ends.
 - Runtime settings use `exclusions.json`; `secret.json` is reserved for the
   live server-side account source and must not be used as a local settings
   file.
-- The Worker only ever reads/writes `secret.json` (path allowlisted in
-  code, no user-supplied path) and rate-limits all routes by IP: login and
-  registration (in-memory sliding window, tighter limits), account listing
-  and admin operations (`/accounts`, `/admin/block`, `/admin/password`,
-  `/files/<name>`) — see the Worker README for the Cloudflare-native
-  `AUTH_RATE` binding for global/platform-level guarantees.
+- The Worker only ever reads/writes `secret.json` using its code-level path
+  allowlist and applies route rate limiting. See [`worker/README.md`](worker/README.md)
+  for deployment and Cloudflare-native rate limiting.
 - Release builds are PyArmor-obfuscated, but obfuscation is not a substitute
   for secret rotation or server-side authorization.
 
 ## Known Considerations
 
 Anything embedded in a Windows executable can eventually be extracted by a
-sufficiently capable local attacker. Today the exe embeds no secret: only
-the public Ed25519 verification key and the Worker URL, both safe to ship.
+sufficiently capable local attacker. Today the exe embeds no secret: only the
+public Ed25519 verification key, Worker URL, Qt resources and application
+logic are shipped.
 
-The privileged operations (account writes, password delivery, admin
-authorization) moved server-side to the auth proxy Worker in v1.7.3; admin
-authorization moved from a shared embedded phrase to server-issued signed
-sessions in v2.0.0. In v2.2.0 the admin secret phrase was reintroduced as a
-**server-side admin credential** — this did NOT restore the old client-side
-secret: `ADMIN_SECRET_PHRASE` exists only as a Cloudflare Worker secret and is
-never embedded in or shipped with the desktop application. Admin login is a
-two-step knowledge check (admin password + `ADMIN_SECRET_PHRASE`); both are
-credentials, not a hardware/app second factor. If the secret is missing, admin
-login fails closed. Sessions are revocable in practice: every privileged call
-revalidates the session and the account against the live registry, so a
-blocked account is denied on its next authorized call rather than relying on a
-12-hour TTL; the default `admin` password should be changed via the Accounts
-panel ("Change password"), and password changes are a server-side operation
-(`POST /admin/password`). To rotate the Worker secrets, update them with
-`wrangler secret put` in `worker/` and redeploy — no app release is needed.
-
-The Worker's rate limiter is an in-memory per-isolate sliding window; the
-Cloudflare-native `AUTH_RATE` binding is implemented in `handlers.js` and used
-automatically once the namespace exists — create it in the Cloudflare
-dashboard and paste the id into `wrangler.jsonc` (steps in
-`worker/README.md`) for a global, platform-level guarantee. Until it is
-configured, only the per-isolate in-memory limiter is active.
+The Qt6 migration does not change the Worker authentication contract. Keep the
+client, `worker/README.md`, and this document synchronized whenever the auth
+routes, session model, update verification, or secret handling changes.
 
 ## Rotation Checklist (manual, after any exposure)
 
-1. GitHub: revoke the fine-grained PAT in GitHub -> Settings -> Developer
-   settings -> Personal access tokens, create a replacement scoped to
-   Contents read/write on this repository only, then
-   `npx wrangler secret put GITHUB_TOKEN` in `worker/`.
-2. Gmail: revoke the app password (Google Account -> Security -> App
-   passwords), create a new one, then
+1. GitHub: revoke the fine-grained PAT, create a replacement scoped to the
+   required repository contents, then run `npx wrangler secret put GITHUB_TOKEN`
+   in `worker/`.
+2. Gmail: revoke the app password, create a new one, then run
    `npx wrangler secret put SMTP_PASSWORD`.
-3. Sessions: replace `SESSION_SECRET` with a fresh random value
-   (`npx wrangler secret put SESSION_SECRET`); this invalidates all active sessions.
-4. Admin secret phrase: replace `ADMIN_SECRET_PHRASE` with a fresh value generated only once and stored in a password manager (it cannot be read back — rotate by overwriting); you must share the new value with maintainers who sign in as admin:
-   `cd worker && <phrase> | npx wrangler secret put ADMIN_SECRET_PHRASE`. Until the new value is deployed, admin logins fail closed.
-5. Redeploy the Worker (`npx wrangler deploy`). No app release required.
+3. Sessions: replace `SESSION_SECRET` with a fresh random value; this
+   invalidates all active sessions.
+4. Admin secret phrase: replace `ADMIN_SECRET_PHRASE` with a fresh value and
+   redeploy it. Until the new value is deployed, admin logins fail closed.
+5. Redeploy the Worker (`npx wrangler deploy`). No desktop code release is
+   required for a Worker-secret-only rotation.
