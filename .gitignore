@@ -14,20 +14,6 @@ scrcpy-win64-*.zip
 Drivers/
 MTK_CDC_Driver/
 
-# scrcpy runtime extraction artifacts (duplicates of scrcpy-win64-v3.3.4/)
-SDL2.dll
-avcodec-*.dll
-avformat-*.dll
-avutil-*.dll
-libusb-*.dll
-swresample-*.dll
-scrcpy.exe
-scrcpy-server
-scrcpy-console.bat
-scrcpy-noconsole.vbs
-open_a_terminal_here.bat
-icon.png
-
 # Installers / logs
 GitHubDesktopSetup-*.exe
 pyarmor.bug.log
