@@ -23,7 +23,7 @@ MODULES = [
     "tech_themes.py", "tech_phone_mirror/__init__.py", "runtime_hook_gelotech.py", "sitecustomize.py",
     "tech_qt_app.py", "tech_qt_auto_refresh.py", "tech_qt_backup.py", "tech_qt_bezel.py",
     "tech_qt_bootstrap.py", "tech_qt_cleaner.py", "tech_qt_compat.py", "tech_qt_drivers.py",
-    "tech_qt_final_fixes.py", "tech_qt_iconfix.py", "tech_qt_icons.py", "tech_qt_iconsync.py",
+    "tech_qt_final_fixes.py", "tech_qt_help_pages.py", "tech_qt_iconfix.py", "tech_qt_icons.py", "tech_qt_iconsync.py",
     "tech_qt_mainwindow.py", "tech_qt_mirror.py", "tech_qt_phone.py", "tech_qt_sidebar_compact.py",
     "tech_qt_themes.py", "tech_qt_ui.py", "tech_qt_virustotal.py",
 ]
