@@ -20,15 +20,10 @@ from tech_qt_phone import DISPLAY_RECT, PHONE_NATIVE, PHONE_DISPLAY_SIZE
 HWND_TOPMOST = -1
 SWP_NOACTIVATE = 0x0010
 SWP_SHOWWINDOW = 0x0040
-SWP_NOMOVE = 0x0002
-SWP_NOSIZE = 0x0001
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 WS_EX_NOACTIVATE = 0x08000000
 WS_EX_LAYERED = 0x00080000
-WS_EX_TRANSPARENT = 0x00000020
-WS_POPUP = 0x80000000
-GWL_STYLE = -16
 GWL_EXSTYLE = -20
 
 
@@ -55,11 +50,8 @@ def _frame_geometry(host: QWidget) -> tuple[int, int, int, int]:
 
 
 def _set_native_window_geometry(hwnd: int, x: int, y: int, w: int, h: int) -> None:
+    """Position the real scrcpy top-level window without reparenting it."""
     user32 = ctypes.windll.user32
-    style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-    style &= ~WS_POPUP
-    style |= 0x40000000  # WS_CHILD-like borderless child-compatible style.
-    user32.SetWindowLongW(hwnd, GWL_STYLE, style)
     ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     ex |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
     ex &= ~WS_EX_APPWINDOW
@@ -79,6 +71,10 @@ def _make_overlay(self, phone_host: QWidget):
     overlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
     overlay.setAttribute(Qt.WA_ShowWithoutActivating, True)
     overlay.setWindowFlag(Qt.WindowDoesNotAcceptFocus, True)
+    try:
+        overlay.setWindowFlag(Qt.WindowTransparentForInput, True)
+    except AttributeError:
+        pass
     overlay.setFixedSize(*PHONE_DISPLAY_SIZE)
 
     from PySide6.QtWidgets import QLabel
@@ -86,11 +82,19 @@ def _make_overlay(self, phone_host: QWidget):
     frame.setGeometry(0, 0, *PHONE_DISPLAY_SIZE)
     frame.setAttribute(Qt.WA_TransparentForMouseEvents, True)
     frame.setScaledContents(True)
-    image = Path(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))) / "assets" / "phone_devices" / "iPhone17_P_PM_CosmicOrange@2x.png"
+    image = Path(
+        getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    ) / "assets" / "phone_devices" / "iPhone17_P_PM_CosmicOrange@2x.png"
     pixmap = QPixmap(str(image))
     if not pixmap.isNull():
         pixmap.setDevicePixelRatio(1.0)
-        frame.setPixmap(pixmap.scaled(*PHONE_DISPLAY_SIZE, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
+        frame.setPixmap(
+            pixmap.scaled(
+                *PHONE_DISPLAY_SIZE,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            )
+        )
 
     def reposition() -> None:
         if not phone_host.isVisible() or not overlay.isVisible():
@@ -98,12 +102,19 @@ def _make_overlay(self, phone_host: QWidget):
         pos = phone_host.mapToGlobal(phone_host.rect().topLeft())
         overlay.move(pos)
         x, y, w, h = _frame_geometry(phone_host)
-        # The frame overlay remains at the full phone-frame size; scrcpy only
-        # occupies the measured transparent display opening inside it.
         hwnd = getattr(self, "_qt_scrcpy_hwnd", 0)
         if hwnd:
-            display_pos = (pos.x() + x, pos.y() + y)
-            _set_native_window_geometry(hwnd, display_pos[0], display_pos[1], w, h)
+            _set_native_window_geometry(
+                hwnd,
+                pos.x() + x,
+                pos.y() + y,
+                w,
+                h,
+            )
+        try:
+            overlay.raise_()
+        except Exception:
+            pass
 
     overlay._reposition = reposition
     overlay.show()
@@ -200,9 +211,9 @@ def install_scrcpy(MainWindow) -> None:
         try:
             x, y, w, h = _frame_geometry(host)
             pos = host.mapToGlobal(host.rect().topLeft())
+            self._qt_scrcpy_hwnd = hwnd
             _set_native_window_geometry(hwnd, pos.x() + x, pos.y() + y, w, h)
             overlay = _make_overlay(self, host)
-            self._qt_scrcpy_hwnd = hwnd
             self._qt_scrcpy_overlay = overlay
             self._qt_scrcpy_host = host
             self._log(
