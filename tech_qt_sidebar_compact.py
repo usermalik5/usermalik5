@@ -5,6 +5,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QListWidget, QPushButton
 
 
+def _set_group_gap(layout, index: int, pixels: int) -> None:
+    # Insert an explicit gap before the next logical group without changing
+    # the order or behavior of the existing controls.
+    if index < layout.count():
+        layout.insertSpacing(index, pixels)
+
+
 def _compact_sidebar(self) -> None:
     sidebar = getattr(self, "sidebar", None)
     if sidebar is None:
@@ -15,54 +22,76 @@ def _compact_sidebar(self) -> None:
 
     layout = sidebar.layout()
     if layout is not None:
-        # Dense, fixed vertical rhythm: never give the navigation list all
-        # remaining height and never wrap the sidebar in a scroll area.
-        layout.setContentsMargins(8, 4, 8, 5)
+        layout.setContentsMargins(8, 5, 8, 6)
         layout.setSpacing(2)
 
-    # Compact action buttons, matching the legacy tool's dense sidebar.
     for button in sidebar.findChildren(QPushButton):
         button.setMinimumHeight(28)
         button.setMaximumHeight(30)
         button.setContentsMargins(4, 1, 4, 1)
 
-    # Branding is deliberately a quiet top-left header rather than a large
-    # centered feature block.
+    # Exact legacy-style branding order:
+    # GELOTECH TOOL
+    # v1.7.8 - Angelo Estrada Espinosa
+    # © 2026 GeloTech
+    # Gsmcodeph.com
+    # facebook.com/gelotechxyz
+    header = sidebar.findChild(QLabel, "sidebarBrandHeader")
+    if header is None:
+        # The current shell creates one combined header QLabel without an
+        # object name. Find the first label that contains the branding text.
+        for label in sidebar.findChildren(QLabel):
+            if "GELOTECH" in label.text() and "Gsmcodeph.com" in label.text():
+                header = label
+                header.setObjectName("sidebarBrandHeader")
+                break
+
+    if header is not None:
+        version = getattr(self, "_qt_sidebar_version", "1.7.8")
+        header.setText(
+            f'<span style="color:#2388ff; font-size:20pt; font-weight:800;">GELOTECH</span>'
+            f'<span style="color:#8f98a3; font-size:9pt; font-weight:700;"> TOOL</span><br>'
+            f'<span style="color:#b0b7c0; font-size:8pt; font-weight:600;">v{version} - Angelo Estrada Espinosa</span><br>'
+            f'<span style="color:#6f7782; font-size:8pt;">© 2026 GeloTech</span><br>'
+            f'<a href="https://gsmcodeph.com" style="color:#58a6ff; font-size:8pt;">Gsmcodeph.com</a><br>'
+            f'<a href="https://facebook.com/gelotechxyz" style="color:#58a6ff; font-size:8pt;">facebook.com/gelotechxyz</a>'
+        )
+        header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setOpenExternalLinks(True)
+        header.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        header.setMaximumHeight(104)
+        header.setContentsMargins(0, 0, 0, 0)
+
     copyright_label = sidebar.findChild(QLabel, "copyrightLabel")
     if copyright_label is not None:
-        copyright_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        copyright_label.setStyleSheet("font-size: 9px; color: #6f7782; padding: 0; margin: 0;")
-        copyright_label.setMaximumHeight(14)
-
+        copyright_label.hide()
     brand = sidebar.findChild(QLabel, "brand")
     if brand is not None:
-        brand.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        brand.setStyleSheet("font-size: 29px; font-weight: 700; color: #2388ff; padding: 0; margin: 0;")
-        brand.setMaximumHeight(38)
+        brand.hide()
+    version_label = sidebar.findChild(QLabel, "versionLabel")
+    if version_label is not None:
+        version_label.hide()
 
-    version = sidebar.findChild(QLabel, "versionLabel")
-    if version is not None:
-        version.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        version.setStyleSheet("font-size: 10px; font-weight: 600; color: #aeb6c1; padding: 0; margin: 0;")
-        version.setMaximumHeight(24)
+    # Quiet, explicit theme control matching the requested wording.
+    theme_btn = getattr(self, "theme_btn", None)
+    if theme_btn is not None:
+        is_dark = bool(getattr(self, "dark_mode", False))
+        theme_btn.setText(f"Theme - {'Dark' if is_dark else 'Light'}")
+        theme_btn.setMinimumHeight(30)
+        theme_btn.setMaximumHeight(30)
 
-    # The navigation list has exactly four fixed rows and never expands into
-    # the large empty region seen in the previous Qt layout.
     nav = getattr(self, "nav", None)
     if isinstance(nav, QListWidget):
+        # The final shell already uses direct buttons rather than nav here.
         nav.setSpacing(1)
-        nav.setFixedHeight(4 * 29 + 5)
         nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        nav.setUniformItemSizes(True)
 
-    # Compact section headers.
     for section in sidebar.findChildren(QLabel, "sidebarSection"):
-        section.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        section.setStyleSheet("font-size: 9px; font-weight: 700; color: #6d9ed1; padding: 0; margin: 0;")
-        section.setMaximumHeight(14)
+        # Section captions are intentionally hidden; the blank gaps provide
+        # the same grouping as the legacy sidebar without visual clutter.
+        section.hide()
 
-    # USB / How-to help stays at the bottom but remains readable.
     guide = sidebar.findChild(type(sidebar), "sidebarGuide")
     if guide is not None:
         guide.setMinimumHeight(116)
@@ -75,7 +104,31 @@ def _compact_sidebar(self) -> None:
             label.setWordWrap(True)
             label.setStyleSheet("font-size: 8px; padding: 0; margin: 0;")
 
-    # Never introduce a QScrollArea around the sidebar. The controls are sized
+    # Add small intentional gaps between the four logical action groups.
+    if layout is not None:
+        # Header, theme, 4 page buttons, 2 power, 2 connection, accounts,
+        # logout, guide. The separators are deliberately subtle.
+        # Avoid duplicate insertion if the function is called more than once.
+        if not sidebar.property("qt_sidebar_gaps_installed"):
+            # Find widgets by their visible text so this stays robust if a
+            # button is renamed elsewhere in the shell.
+            widgets = sidebar.findChildren(QPushButton)
+            text_to_widget = {w.text().strip(): w for w in widgets}
+            anchors = [
+                text_to_widget.get("DASHBOARD"),
+                text_to_widget.get("REBOOT TO RECOVERY"),
+                text_to_widget.get("RE-AUTHORIZE ADB"),
+                text_to_widget.get("ACCOUNTS"),
+            ]
+            for widget in anchors:
+                if widget is None:
+                    continue
+                idx = layout.indexOf(widget)
+                if idx >= 0:
+                    layout.insertSpacing(idx, 7)
+            sidebar.setProperty("qt_sidebar_gaps_installed", True)
+
+    # Never introduce a QScrollArea around the sidebar. Everything is sized
     # explicitly so the complete legacy-style sidebar remains visible.
 
 
@@ -84,6 +137,7 @@ def install_sidebar_compact(MainWindow) -> None:
 
     def init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
+        self._qt_sidebar_version = "1.7.8"
         _compact_sidebar(self)
 
     MainWindow.__init__ = init
