@@ -1,4 +1,4 @@
-"""Final Qt visual polish: monochrome surfaces, compact sidebar, app icon and button icons."""
+"""Reference-style Qt visual polish: gray surfaces, compact controls, icons."""
 from __future__ import annotations
 
 import os
@@ -24,6 +24,46 @@ def _set_app_icon() -> QIcon:
     if app is not None and not icon.isNull():
         app.setWindowIcon(icon)
     return icon
+
+
+def _set_sidebar_header(self) -> None:
+    sidebar = getattr(self, "sidebar", None)
+    if sidebar is None:
+        return
+    layout = sidebar.layout()
+    if layout is None:
+        return
+
+    header = sidebar.findChild(QLabel, "sidebarBrandHeader")
+    if header is None:
+        for label in sidebar.findChildren(QLabel):
+            if "GELOTECH" in label.text() and "Gsmcodeph.com" in label.text():
+                header = label
+                header.setObjectName("sidebarBrandHeader")
+                break
+
+    if header is None:
+        return
+
+    version = getattr(self, "_qt_sidebar_version", "1.7.8")
+    header.setText(
+        f'<span style="color:#2388ff; font-size:20pt; font-weight:800;">GELOTECH</span>'
+        f'<span style="color:#d6d6d6; font-size:9pt; font-weight:700;"> TOOL</span><br>'
+        f'<span style="color:#d0d0d0; font-size:8pt; font-weight:600;">v{version} - Angelo Estrada Espinosa</span><br>'
+        f'<span style="color:#9a9a9a; font-size:8pt;">© 2026 GeloTech</span><br>'
+        f'<a href="https://gsmcodeph.com" style="color:#7fb7ff; font-size:8pt;">Gsmcodeph.com</a><br>'
+        f'<a href="https://facebook.com/gelotechxyz" style="color:#7fb7ff; font-size:8pt;">facebook.com/gelotechxyz</a>'
+    )
+    header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    header.setOpenExternalLinks(True)
+    header.setTextInteractionFlags(Qt.TextBrowserInteraction)
+    header.setContentsMargins(0, 0, 0, 0)
+    header.setMaximumHeight(104)
+
+    for name in ("copyrightLabel", "brand", "versionLabel"):
+        label = sidebar.findChild(QLabel, name)
+        if label is not None and label is not header:
+            label.hide()
 
 
 def _apply_sidebar_icons(self) -> None:
@@ -54,16 +94,17 @@ def _apply_sidebar_icons(self) -> None:
             icon_name = ICONS.get(key)
             if icon_name:
                 button.setIcon(load_icon(icon_name))
-        button.setMinimumHeight(28)
-        button.setMaximumHeight(32)
-        button.setContentsMargins(4, 2, 4, 2)
+        button.setMinimumHeight(29)
+        button.setMaximumHeight(29)
+        button.setContentsMargins(4, 0, 4, 0)
 
     theme = getattr(self, "theme_btn", None)
     if isinstance(theme, QPushButton):
+        dark = bool(getattr(self, "dark_mode", True))
         theme.setCheckable(True)
-        theme.setChecked(bool(getattr(self, "dark_mode", True)))
-        theme.setText("Dark Mode" if getattr(self, "dark_mode", True) else "Light Mode")
-        theme.setIcon(load_icon("moon" if getattr(self, "dark_mode", True) else "sun"))
+        theme.setChecked(dark)
+        theme.setText("Theme - Dark" if dark else "Theme - Light")
+        theme.setIcon(load_icon("moon" if dark else "sun"))
 
 
 def _apply_all_button_icons(self) -> None:
@@ -108,29 +149,76 @@ def _wrap_apply_theme(self):
     def apply():
         original(self)
         dark = bool(getattr(self, "dark_mode", True))
-        bg = "#000000" if dark else "#ffffff"
-        fg = "#ffffff" if dark else "#000000"
-        border = "#222222" if dark else "#d0d0d0"
-        accent = "#1a8cff"
-        QApplication.instance().setStyleSheet(
-            QApplication.instance().styleSheet()
-            + f"""
+
+        # The supplied reference screenshot measures about RGB 71,71,71 for
+        # the main dark surface. Keep the whole dark UI in that restrained gray
+        # family instead of the previous near-black presentation.
+        if dark:
+            bg = "#474747"
+            panel = "#454545"
+            panel2 = "#3f3f3f"
+            button = "#3e3e3e"
+            button_hover = "#555555"
+            input_bg = "#3f3f3f"
+            fg = "#ffffff"
+            muted = "#bdbdbd"
+            border = "#646464"
+            grid = "#616161"
+            header_bg = "#d0d0d0"
+            log_text = "#7CFF00"
+        else:
+            bg = "#ffffff"
+            panel = "#f4f4f4"
+            panel2 = "#eeeeee"
+            button = "#f2f2f2"
+            button_hover = "#e2e2e2"
+            input_bg = "#ffffff"
+            fg = "#000000"
+            muted = "#666666"
+            border = "#c9c9c9"
+            grid = "#d0d0d0"
+            header_bg = "#d9d9d9"
+            log_text = "#1a7f37"
+        accent = "#2388ff"
+
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.setStyleSheet(
+            f"""
+            * {{ font-size: 10pt; }}
             QWidget, QMainWindow, QDialog {{ background: {bg}; color: {fg}; }}
             QFrame, QStackedWidget, QScrollArea, QAbstractScrollArea::viewport {{ background: {bg}; color: {fg}; }}
-            QPushButton {{ background: {bg}; color: {fg}; border: 1px solid {border}; border-radius: 4px; padding: 3px 8px; }}
-            QPushButton:hover, QPushButton:pressed, QPushButton:checked {{ background: {bg}; color: {accent}; border-color: {accent}; }}
-            QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {{ background: {bg}; color: {fg}; border: 1px solid {border}; }}
-            QTableWidget, QListWidget {{ background: {bg}; color: {fg}; alternate-background-color: {bg}; border: 1px solid {border}; }}
-            QHeaderView::section {{ background: {bg}; color: {fg}; border: 1px solid {border}; }}
-            QMenu {{ background: {bg}; color: {fg}; border: 1px solid {border}; }}
-            QMenu::item:selected {{ background: {bg}; color: {accent}; }}
-            QLabel#brandTitle {{ background: transparent; color: {accent}; font-size: 20px; font-weight: 800; }}
-            QLabel#brandVersion {{ background: transparent; color: {fg}; font-size: 10px; font-weight: 700; }}
-            QLabel#brandCopyright {{ background: transparent; color: {'#777777' if dark else '#666666'}; font-size: 9px; }}
-            QLabel#brandLink {{ background: transparent; color: {accent}; font-size: 9px; }}
             QFrame#sidebar {{ background: {bg}; border-right: 1px solid {border}; }}
+            QPushButton {{ background: {button}; color: {fg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 9px; min-height: 29px; font-weight: 700; margin: 0px; }}
+            QPushButton:hover {{ background: {button_hover}; color: {fg}; border-color: {accent}; }}
+            QPushButton:pressed, QPushButton:checked {{ background: {button_hover}; color: {accent}; border-color: {accent}; }}
+            QPushButton:disabled {{ background: {panel2}; color: #888888; border-color: {border}; }}
+            QLineEdit, QComboBox, QPlainTextEdit, QTextEdit {{ background: {input_bg}; color: {fg}; border: 1px solid {border}; border-radius: 2px; }}
+            QTableWidget, QListWidget {{ background: {panel2}; color: {fg}; alternate-background-color: {panel2}; border: 1px solid {border}; gridline-color: {grid}; selection-background-color: {accent}; selection-color: white; }}
+            QHeaderView::section {{ background: {header_bg}; color: #202020; border: 1px solid {grid}; padding: 6px 7px; font-weight: 800; }}
+            QPlainTextEdit#liveLog {{ background: {panel2}; color: {log_text}; border: 1px solid {border}; border-radius: 2px; }}
+            QFrame#guidePanel, QFrame#sidebarGuide {{ background: {panel}; color: {fg}; border: 1px solid {border}; border-radius: 2px; }}
+            QLabel#guideTitle {{ color: {fg}; font-weight: 800; }}
+            QLabel#guideText, QLabel#muted {{ color: {muted}; }}
+            QLabel#brandTitle, QLabel#sidebarBrandHeader {{ background: transparent; color: {accent}; }}
+            QLabel#brandVersion {{ background: transparent; color: {fg}; }}
+            QLabel#brandCopyright {{ background: transparent; color: {muted}; }}
+            QLabel#brandLink {{ background: transparent; color: #7fb7ff; }}
+            QListWidget#sidebarNav {{ background: transparent; border: 0; outline: 0; spacing: 0px; }}
+            QListWidget#sidebarNav::item {{ min-height: 29px; padding: 4px 9px; border: 1px solid {border}; border-radius: 2px; background: {button}; font-weight: 700; margin: 0px; }}
+            QListWidget#sidebarNav::item:hover {{ background: {button_hover}; color: {fg}; }}
+            QListWidget#sidebarNav::item:selected {{ background: {button_hover}; color: {accent}; border-color: {accent}; }}
+            QScrollBar:vertical {{ background: {bg}; width: 10px; margin: 0; }}
+            QScrollBar::handle:vertical {{ background: {border}; min-height: 24px; border-radius: 3px; }}
+            QScrollBar:horizontal {{ background: {bg}; height: 10px; margin: 0; }}
+            QScrollBar::handle:horizontal {{ background: {border}; min-width: 28px; border-radius: 3px; }}
+            QMenu {{ background: {panel}; color: {fg}; border: 1px solid {border}; }}
+            QMenu::item {{ padding: 6px 14px; }}
+            QMenu::item:selected {{ background: {button_hover}; color: {accent}; }}
             """
         )
+        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
 
@@ -146,6 +234,7 @@ def install_visual_polish(MainWindow, LoginDialog=None) -> None:
         original_init(self, *args, **kwargs)
         if not icon.isNull():
             self.setWindowIcon(icon)
+        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
         _wrap_apply_theme(self)
