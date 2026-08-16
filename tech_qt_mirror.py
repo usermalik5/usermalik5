@@ -1,15 +1,20 @@
-"""Qt scrcpy integration using the proven native-window + iPhone overlay model.
+"""Qt scrcpy integration using the legacy embedded child-window model.
 
-Ports the legacy GeloTech mirror behavior into the Qt shell:
-- native scrcpy top-level window positioned at the phone display opening
-- transparent iPhone bezel overlay above it (click-through)
-- rounded-corner clipping of the scrcpy surface so square corners do not
-  bleed through the frame's rounded opening
-- scrcpy + overlay become *owned* windows of the GeloTech main window, so
-  they minimize/hide with the app and never escape as independent windows
+Ports the legacy GeloTech mirror behavior into the Qt shell (see
+tech_phone_mirror_embedded.py in the legacy repo):
+- scrcpy is launched borderless, then reparented with SetParent into the
+  phone widget and restyled as WS_CHILD: the video lives INSIDE the mockup
+  as a real child window of the phone widget
+- the iPhone bezel stays a normal Qt-rendered widget: its transparent
+  display opening lets the native child show through, so the stream is
+  embedded in the Dashboard phone screen (docs/SCRCPY_GUIDE.md check #2)
+- rounded-corner clipping of the child window so the square native surface
+  cannot bleed through the frame's rounded opening
+- parent-relative coordinates only: no global screen math, so the mirror
+  can never drift outside the mockup
 - Screen Mirror button acts as a toggle (Screen Mirror <-> Stop Mirror)
-- 50ms monitor keeps both windows glued and raises them in the correct
-  order (scrcpy first, overlay on top)
+- 50ms monitor keeps the child glued to the display opening and re-applies
+  the rounded clip
 """
 from __future__ import annotations
 
@@ -18,28 +23,42 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QPushButton, QWidget
 
-from tech_qt_phone import DISPLAY_RECT, PHONE_NATIVE, PHONE_DISPLAY_SIZE
+from tech_qt_phone import DISPLAY_RECT, PHONE_NATIVE
+
+
+_DEBUG_LOG = os.path.join(
+    os.environ.get("TEMP") or ".", "gelotech_qt_mirror_debug.log")
+
+
+def _debug(msg: str) -> None:
+    try:
+        with open(_DEBUG_LOG, "a", encoding="utf-8") as fh:
+            fh.write(f"{time.time():.3f} {msg}\n")
+    except Exception:
+        pass
 
 
 # Win32 constants (same values as the legacy mirror subsystem).
+GWL_STYLE = -16
+GWL_EXSTYLE = -20
+WS_CHILD = 0x40000000
+WS_POPUP = 0x80000000
+WS_EX_TOPMOST = 0x00000008
+WS_EX_APPWINDOW = 0x00040000
+WS_EX_TOOLWINDOW = 0x00000080
+WS_EX_NOACTIVATE = 0x08000000
 HWND_TOP = 0
-HWND_TOPMOST = -1
-HWND_NOTOPMOST = -2
 SWP_NOACTIVATE = 0x0010
 SWP_SHOWWINDOW = 0x0040
 SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
-WS_EX_TOOLWINDOW = 0x00000080
-WS_EX_APPWINDOW = 0x00040000
-WS_EX_NOACTIVATE = 0x08000000
-GWL_EXSTYLE = -20
-GWLP_HWNDPARENT = -8
 
 # The transparent opening in the frame PNG is rounded; clip the square native
 # scrcpy window so its background cannot appear as four sharp corners inside.
@@ -61,71 +80,79 @@ def _find_window(title: str) -> int:
         return 0
 
 
-def _frame_geometry(host: QWidget) -> tuple[int, int, int, int]:
-    """Return the legacy display opening scaled to the Qt phone frame."""
+def _display_geometry(host: QWidget) -> tuple[int, int, int, int]:
+    """Return the legacy display opening in physical pixels, relative to the
+    phone widget.  Only the widget's own size matters - never its position -
+    so the result cannot go stale when the window moves."""
     width = max(1, host.width())
     height = max(1, host.height())
     sx = width / PHONE_NATIVE[0]
     sy = height / PHONE_NATIVE[1]
     scale = min(sx, sy)
-    return (
-        int(DISPLAY_RECT[0] * scale),
-        int(DISPLAY_RECT[1] * scale),
-        int(DISPLAY_RECT[2] * scale),
-        int(DISPLAY_RECT[3] * scale),
-    )
-
-
-def _set_native_window_geometry(hwnd: int, x: int, y: int, w: int, h: int) -> None:
-    """Position the real scrcpy top-level window without reparenting it."""
-    u = _user32()
-    ex = u.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    ex |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-    ex &= ~WS_EX_APPWINDOW
-    u.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
-    u.SetWindowPos(
-        hwnd,
-        HWND_TOP,
-        int(x), int(y), int(w), int(h),
-        SWP_NOACTIVATE | SWP_SHOWWINDOW,
-    )
-
-
-def _set_owner(hwnd: int, owner: int) -> None:
-    """Make hwnd an owned window of the GeloTech main window.
-
-    Ownership (not SetParent) keeps scrcpy a native top-level window so its
-    rendering/input behavior is preserved, while Windows now minimizes and
-    hides it together with the application and closes it when the app exits.
-    """
-    if not hwnd or not owner:
-        return
-    u = _user32()
+    dpr = 1.0
     try:
-        u.SetWindowLongPtrW.restype = ctypes.c_void_p
-        u.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int,
-                                        ctypes.c_void_p]
-        u.SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, ctypes.c_void_p(owner))
-        style = u.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        u.SetWindowLongW(hwnd, GWL_EXSTYLE, style & ~WS_EX_TOPMOST)
-        u.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+        dpr = float(host.devicePixelRatioF() or 1.0)
     except Exception:
         pass
+    return (
+        int(DISPLAY_RECT[0] * scale * dpr),
+        int(DISPLAY_RECT[1] * scale * dpr),
+        max(1, int(DISPLAY_RECT[2] * scale * dpr)),
+        max(1, int(DISPLAY_RECT[3] * scale * dpr)),
+    )
 
 
-def _clip_scrcpy_window(hwnd: int, width: int, height: int) -> None:
-    """Clip the native scrcpy window to the frame's rounded display opening.
+def _clip_radius(host: QWidget) -> int:
+    try:
+        scale = min(host.width() / PHONE_NATIVE[0],
+                    host.height() / PHONE_NATIVE[1])
+        return max(2, int(DISPLAY_CORNER_RADIUS * scale + 0.5))
+    except Exception:
+        return DISPLAY_CORNER_RADIUS
 
-    SetWindowRgn only changes the visible shape of the top-level window; it
-    does not alter the scrcpy rendering surface or mouse coordinates.
+
+def _embed(hwnd: int, parent: int, x: int, y: int, width: int, height: int) -> bool:
+    """Convert the top-level scrcpy window into a real child of the phone
+    widget and position it at the display opening (parent-relative)."""
+    if not hwnd or not parent:
+        return False
+    u = _user32()
+    try:
+        u.SetParent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        u.SetParent.restype = ctypes.c_void_p
+        u.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        u.GetWindowLongW.restype = ctypes.c_long
+        u.SetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_long]
+        u.SetWindowLongW.restype = ctypes.c_long
+        u.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                   ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                   ctypes.c_int, ctypes.c_uint]
+
+        style = u.GetWindowLongW(hwnd, GWL_STYLE)
+        u.SetWindowLongW(hwnd, GWL_STYLE, (style & ~WS_POPUP) | WS_CHILD)
+        ex = u.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        u.SetWindowLongW(hwnd, GWL_EXSTYLE,
+                         ex & ~(WS_EX_TOPMOST | WS_EX_APPWINDOW))
+        u.SetParent(hwnd, parent)
+        u.SetWindowPos(hwnd, HWND_TOP, int(x), int(y), int(width), int(height),
+                       SWP_NOACTIVATE | SWP_SHOWWINDOW)
+        return True
+    except Exception:
+        return False
+
+
+def _clip_scrcpy_window(hwnd: int, width: int, height: int, radius: int) -> None:
+    """Clip the native scrcpy child to the frame's rounded display opening.
+
+    SetWindowRgn affects only the visible shape of the window; it does not
+    alter the scrcpy rendering surface or mouse coordinates.
     """
     if not hwnd or width <= 0 or height <= 0:
         return
     try:
         gdi = _gdi32()
         u = _user32()
-        radius = max(2, int(DISPLAY_CORNER_RADIUS + 0.5))
+        radius = max(2, int(radius))
         radius = min(radius, width // 2, height // 2)
         gdi.CreateRoundRectRgn.restype = ctypes.c_void_p
         gdi.CreateRoundRectRgn.argtypes = [
@@ -137,33 +164,12 @@ def _clip_scrcpy_window(hwnd: int, width: int, height: int) -> None:
         region = gdi.CreateRoundRectRgn(0, 0, width + 1, height + 1,
                                         radius * 2, radius * 2)
         if region:
+            # Windows owns the region after SetWindowRgn succeeds.
             if not u.SetWindowRgn(hwnd, region, True):
                 gdi.DeleteObject(region)
     except Exception:
+        # Clipping is cosmetic. Never allow it to prevent the mirror itself.
         pass
-
-
-def _raise_mirror_windows(self) -> None:
-    """Raise scrcpy first, then the bezel overlay on top of it."""
-    u = _user32()
-    hwnd = getattr(self, "_qt_scrcpy_hwnd", 0)
-    if hwnd:
-        try:
-            u.SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
-                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-        except Exception:
-            pass
-    overlay = getattr(self, "_qt_scrcpy_overlay", None)
-    if overlay is not None:
-        try:
-            ohwnd = int(overlay.winId())
-            u.SetWindowPos(ohwnd, HWND_TOP, 0, 0, 0, 0,
-                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
-        except Exception:
-            try:
-                overlay.raise_()
-            except Exception:
-                pass
 
 
 def _find_mirror_buttons(self) -> list:
@@ -186,58 +192,8 @@ def _set_mirror_button_state(self, active: bool) -> None:
             pass
 
 
-def _make_overlay(self, phone_host: QWidget):
-    """Create a click-through translucent top-level iPhone bezel overlay."""
-    overlay = QWidget(None, Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint)
-    overlay.setAttribute(Qt.WA_TranslucentBackground, True)
-    overlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-    overlay.setAttribute(Qt.WA_ShowWithoutActivating, True)
-    overlay.setWindowFlag(Qt.WindowDoesNotAcceptFocus, True)
-    try:
-        overlay.setWindowFlag(Qt.WindowTransparentForInput, True)
-    except AttributeError:
-        pass
-    overlay.setFixedSize(*PHONE_DISPLAY_SIZE)
-
-    from PySide6.QtWidgets import QLabel
-    frame = QLabel(overlay)
-    frame.setGeometry(0, 0, *PHONE_DISPLAY_SIZE)
-    frame.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-    frame.setScaledContents(True)
-    image = Path(
-        getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    ) / "assets" / "phone_devices" / "iPhone17_P_PM_CosmicOrange@2x.png"
-    pixmap = QPixmap(str(image))
-    if not pixmap.isNull():
-        pixmap.setDevicePixelRatio(1.0)
-        frame.setPixmap(
-            pixmap.scaled(
-                *PHONE_DISPLAY_SIZE,
-                Qt.IgnoreAspectRatio,
-                Qt.SmoothTransformation,
-            )
-        )
-
-    def reposition() -> None:
-        if not phone_host.isVisible() or not overlay.isVisible():
-            return
-        pos = phone_host.mapToGlobal(phone_host.rect().topLeft())
-        overlay.move(pos)
-        x, y, w, h = _frame_geometry(phone_host)
-        hwnd = getattr(self, "_qt_scrcpy_hwnd", 0)
-        if hwnd:
-            _set_native_window_geometry(hwnd, pos.x() + x, pos.y() + y, w, h)
-            _clip_scrcpy_window(hwnd, w, h)
-        _raise_mirror_windows(self)
-
-    overlay._reposition = reposition
-    overlay.show()
-    reposition()
-    return overlay
-
-
 def install_scrcpy(MainWindow) -> None:
-    """Install reliable native scrcpy mirroring using the legacy overlay model."""
+    """Install reliable embedded scrcpy mirroring (legacy child-window model)."""
 
     def start_mirror(self) -> None:
         # Toggle: a running mirror is stopped by clicking again.
@@ -273,11 +229,22 @@ def install_scrcpy(MainWindow) -> None:
             self._log("[SCRCPY] Phone host unavailable; cannot fit mirror to frame.")
             return
 
-        x, y, w, h = _frame_geometry(host)
-        global_pos = host.mapToGlobal(host.rect().topLeft())
-        screen_x = global_pos.x() + x
-        screen_y = global_pos.y() + y
+        # Embed INTO the bezel image widget: a native child window always
+        # renders above its parent's content, so the video shows through the
+        # image's transparent screen opening while the bezel stays on top of
+        # the window edges.  phone_host sits BELOW phone_image in Qt's native
+        # stacking, so parenting there hides the stream behind the bezel.
+        host = getattr(self, "phone_image", None) or host
+
+        # Parent-relative size only; position is applied by the embed step.
+        dx, dy, dw, dh = _display_geometry(host)
         title = f"GeloTech Mirror - {self.serial}"
+        _debug(
+            f"launch host={type(host).__name__} obj={host.objectName()} "
+            f"vis={host.isVisible()} win_vis={self.isVisible()} "
+            f"geom={host.geometry().getRect()} dpr={host.devicePixelRatioF()} "
+            f"display=({dx},{dy},{dw},{dh})"
+        )
 
         try:
             process = subprocess.Popen(
@@ -285,12 +252,9 @@ def install_scrcpy(MainWindow) -> None:
                     exe,
                     "-s", self.serial,
                     "--window-title", title,
-                    "--window-width", str(w),
-                    "--window-height", str(h),
-                    "--window-x", str(screen_x),
-                    "--window-y", str(screen_y),
+                    "--window-width", str(dw),
+                    "--window-height", str(dh),
                     "--window-borderless",
-                    "--always-on-top",
                     "--no-audio",
                     "--max-size=1280",
                     "--no-power-on",
@@ -307,11 +271,9 @@ def install_scrcpy(MainWindow) -> None:
         self._qt_scrcpy_process = process
         self._qt_scrcpy_title = title
         self._qt_scrcpy_hwnd = 0
-        self._qt_scrcpy_overlay = None
         _set_mirror_button_state(self, True)
         self._log(
-            f"[SCRCPY] Target phone display: x={screen_x} y={screen_y} "
-            f"w={w} h={h}."
+            f"[SCRCPY] Target phone display: w={dw} h={dh}."
         )
         QTimer.singleShot(250, lambda: self._qt_embed_scrcpy(0))
 
@@ -332,61 +294,63 @@ def install_scrcpy(MainWindow) -> None:
             return
 
         try:
-            x, y, w, h = _frame_geometry(host)
-            pos = host.mapToGlobal(host.rect().topLeft())
+            # Same stacking rule as start_mirror: the video child must live
+            # inside the bezel image widget, not below it.
+            host = getattr(self, "phone_image", None) or host
+            # Force a real native window on the phone widget so the scrcpy
+            # window can become its child (Qt otherwise keeps it pure-Qt).
+            host.setAttribute(Qt.WA_NativeWindow, True)
+            parent = int(host.winId())
+            dx, dy, dw, dh = _display_geometry(host)
+            ok = _embed(hwnd, parent, dx, dy, dw, dh)
+            _clip_scrcpy_window(hwnd, dw, dh, _clip_radius(host))
             self._qt_scrcpy_hwnd = hwnd
-            _set_native_window_geometry(hwnd, pos.x() + x, pos.y() + y, w, h)
-            _clip_scrcpy_window(hwnd, w, h)
-            overlay = _make_overlay(self, host)
-            self._qt_scrcpy_overlay = overlay
             self._qt_scrcpy_host = host
-            # Own both native windows to the app so they hide/minimize/close
-            # together with GeloTech instead of floating as independent
-            # always-on-top windows.
-            owner = int(self.winId())
-            _set_owner(hwnd, owner)
-            try:
-                _set_owner(int(overlay.winId()), owner)
-            except Exception:
-                pass
-            self._log(
-                f"[SCRCPY] Video surface positioned inside iPhone frame: "
-                f"x={x} y={y} w={w} h={h}."
+            _debug(
+                f"embed hwnd={hwnd} parent={parent} ok={ok} "
+                f"rect=({dx},{dy},{dw},{dh}) host_size={host.width()}x{host.height()}"
             )
-            self._log("[SCRCPY] Live phone video active with iPhone bezel overlay.")
+            if not ok:
+                self._log("[SCRCPY] Embedding failed; leaving native scrcpy window active.")
+                return
+            self._log(
+                f"[SCRCPY] Video surface embedded inside iPhone frame: "
+                f"x={dx} y={dy} w={dw} h={dh}."
+            )
+            self._log("[SCRCPY] Live phone video active inside Dashboard phone screen.")
             self._qt_scrcpy_timer = QTimer(self)
             self._qt_scrcpy_timer.timeout.connect(self._qt_reposition_scrcpy)
             self._qt_scrcpy_timer.start(50)
         except Exception as exc:
             self._log(f"[SCRCPY] Native mirror positioning failed: {exc}")
+            _debug(f"embed EXC {exc!r}")
 
     def _reposition_scrcpy(self) -> None:
-        host = getattr(self, "_qt_scrcpy_host", None)
-        overlay = getattr(self, "_qt_scrcpy_overlay", None)
         hwnd = getattr(self, "_qt_scrcpy_hwnd", 0)
-        if host is None or overlay is None or not host.isVisible():
+        host = getattr(self, "_qt_scrcpy_host", None)
+        if not hwnd or host is None:
             return
-        if hwnd:
-            try:
-                from PySide6.QtCore import Qt as _Qt
-                if not host.isVisible():
-                    return
-            except Exception:
-                pass
-        overlay._reposition()
+        try:
+            dx, dy, dw, dh = _display_geometry(host)
+            u = _user32()
+            u.SetWindowPos(hwnd, HWND_TOP, int(dx), int(dy), int(dw), int(dh),
+                           SWP_NOACTIVATE | SWP_SHOWWINDOW)
+            _clip_scrcpy_window(hwnd, dw, dh, _clip_radius(host))
+            now = time.time()
+            if now - getattr(self, "_qt_mirror_last_debug", 0.0) > 0.5:
+                self._qt_mirror_last_debug = now
+                _debug(
+                    f"reposition host_vis={host.isVisible()} "
+                    f"rect=({dx},{dy},{dw},{dh}) host_size={host.width()}x{host.height()}"
+                )
+        except Exception:
+            pass
 
     def _stop_scrcpy(self) -> None:
         timer = getattr(self, "_qt_scrcpy_timer", None)
         if timer is not None:
             timer.stop()
             timer.deleteLater()
-        overlay = getattr(self, "_qt_scrcpy_overlay", None)
-        if overlay is not None:
-            try:
-                overlay.close()
-                overlay.deleteLater()
-            except Exception:
-                pass
         process = getattr(self, "_qt_scrcpy_process", None)
         if process is not None:
             try:
@@ -398,7 +362,6 @@ def install_scrcpy(MainWindow) -> None:
             except Exception:
                 pass
         self._qt_scrcpy_timer = None
-        self._qt_scrcpy_overlay = None
         self._qt_scrcpy_hwnd = 0
         self._qt_scrcpy_host = None
         self._qt_scrcpy_process = None
@@ -417,6 +380,6 @@ def install_scrcpy(MainWindow) -> None:
     MainWindow._qt_bundle_path = _bundle_path
     MainWindow._qt_scrcpy_process = None
     MainWindow._qt_scrcpy_hwnd = 0
-    MainWindow._qt_scrcpy_overlay = None
     MainWindow._qt_scrcpy_host = None
     MainWindow._qt_scrcpy_timer = None
+    MainWindow._qt_mirror_last_debug = 0.0

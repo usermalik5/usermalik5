@@ -38,11 +38,12 @@ Mirror** sit under the phone.
 After a successful login, the application always returns to the **Dashboard**
 page regardless of the page that was previously selected. When a single
 authorized device is connected, GeloTech automatically opens the screen mirror
-5 seconds later (it stays open until you stop it from the sidebar). The
-Dashboard phone mirror embeds the native scrcpy stream as a child window of
-the phone widget; the existing log console is temporarily hidden while
-mirroring and restored on Tk's UI thread (width/height configured first, then
-re-placed) when mirroring stops. The mirror never auto-stops.
+5 seconds later (it stays open until you stop it). The Dashboard phone mirror
+embeds the native scrcpy stream as a real child window of the phone widget
+(see `docs/SCRCPY_GUIDE.md`): the video is clipped to the rounded display
+opening of the transparent iPhone bezel, the **Screen Mirror** button toggles
+between starting and stopping the stream, and the mirror stops cleanly when
+the app exits. The mirror never auto-stops.
 
 Loading the app list is fast even without the phone plugged in: the first
 successful scan caches the package list locally on the PC, later loads render
