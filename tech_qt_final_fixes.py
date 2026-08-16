@@ -340,7 +340,7 @@ def _build_shell(self):
     root = QWidget(); root_layout = QHBoxLayout(root)
     root_layout.setContentsMargins(0, 0, 0, 0); root_layout.setSpacing(0)
     self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setFixedWidth(264)
-    side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(4)
+    side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(6)
     for text, obj in (("© 2026 GeloTech", "copyrightLabel"), ("GELOTECH", "brand"), (f"TECH TOOL\nv{APP_VERSION} - Angelo Estrada Espinosa", "versionLabel")):
         label = QLabel(text); label.setObjectName(obj); label.setAlignment(Qt.AlignCenter); side.addWidget(label)
     for text, url in (("Gsmcodeph.com", "https://gsmcodeph.com"), ("facebook.com/gelotechxyz", "https://facebook.com/gelotechxyz")):
@@ -374,7 +374,9 @@ def _build_shell(self):
 def _nav_changed(self, row):
     if 0 <= row < self.stack.count():
         self.stack.setCurrentIndex(row)
-        if row == 1:
+        if row == 0:
+            self.refresh_apps()
+        elif row == 1:
             self._refresh_monitor()
 
 

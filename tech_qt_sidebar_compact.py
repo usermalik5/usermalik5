@@ -16,14 +16,14 @@ def _compact_sidebar(self) -> None:
     layout = sidebar.layout()
     if layout is not None:
         layout.setContentsMargins(8, 5, 8, 6)
-        layout.setSpacing(2)
+        layout.setSpacing(4)
 
     # Every action button gets the same compact height. This is the primary
     # reason the complete Power / Connection / Session areas fit in 820px.
     for button in sidebar.findChildren(QPushButton):
-        button.setMinimumHeight(24)
-        button.setMaximumHeight(27)
-        button.setContentsMargins(4, 0, 4, 0)
+        button.setMinimumHeight(28)
+        button.setMaximumHeight(32)
+        button.setContentsMargins(4, 2, 4, 2)
 
     nav = getattr(self, "nav", None)
     if isinstance(nav, QListWidget):
