@@ -1,357 +1,192 @@
-# GeloTechTool — Process Tree Visual Guide
+# GeloTechTool Process Guide — Qt6
 
-Internal reference only. Shows how the app works step by step and how the
-code is organised. Updated on major code changes.
+This is the long-form process reference for the current application. The official desktop UI is **PySide6 / Qt6** and starts at `tech_qt_app.py`.
 
----
+## 1. Documentation authority
 
-## 1. App Architecture (Who Owns What)
+- `README.md` — current user-facing behavior and supported workflows.
+- `PROCESS_GUIDE.md` — architecture, execution flow, release and testing process.
+- `AGENTS.md` — mandatory agent rules and release/documentation gates.
+- `docs/README.md` — specialized subsystem guide index.
+- `QT6_MIGRATION_STATUS.md` — completed migration record.
+- `QT6_MIGRATION_TASK.md` — historical migration specification.
 
-```
-GeloTechTool (techtool.py)
-  └─ GeloTechTool(ctk.CTk, UiMixin, SettingsMixin, SecScanMixin,
-                  SecOpsMixin, BloatwareFilterMixin, SecOps3Mixin, SecOps2Mixin, SecOps4Mixin,
-                  DashboardMixin, VtOpsMixin, MiscMixin)
-  └─ apply_hardening(GeloTechTool)  ← tech_hardening.py (import-time patches)
-```
+If documentation conflicts with source, stop and resolve the conflict before coding.
 
-| File | Class / Role | Owns |
-|---|---|---|
-| `techtool.py` | `GeloTechTool` | entry point, window, sidebar (incl. palette/font dropdown + USB/How-to banners), page stack/navigation, log console, hint banner, ADB device monitor (auto mirror launch + auto icon sync triggers), scrcpy extraction, debloat safety checks, `_theme_walk` color apply |
-| `tech_themes.py` | helpers | theme & UI-font system: 18 bundled CTkThemesPack palettes (`themes/*.json`), `apply_ctk_theme`/`recolor_existing_widgets`/`_apply_log_palette`/`_apply_app_list_palette`, 22-font `_apply_ui_font`, sidebar `install_theme_dropdown` picker; themes GeloTech logs + ttk app list while preserving the phone display |
-| `tech_dash.py` | `DashboardMixin` | Dashboard page: iPhone mockup (left) + App Cleaner UI (right, built via `build_security_tab(parent=...)`), phone log-console placement, plus Refresh and screen-mirror buttons under the phone |
-| `tech_common.py` | helpers | `AUTH_WORKER_URL`, `UPDATE_SIGN_PUBLIC_KEY`, paths (bundle/app/settings/cache dirs), `load_package_database`, app-list cache helpers (`load_apps_cache`/`save_apps_cache`/`fmt_cache_time`), `Tooltip` (routes to hint banner), adb subprocess wrapper |
-| `tech_settings.py` | `SettingsMixin(AdminPanelMixin)` | settings JSON load/save (runtime state only), email-based login UI (two-step: email → password + admin secret phrase when email == `admin`), permissions, `_check_updates`, first-run migration + seeding |
-| `tech_reg.py` | helpers | auth proxy client + server fetching: `_worker_call`/`_worker_fetch` (via Worker `AUTH_WORKER_URL`, Bearer session for admin routes), `_login_user` (returns ok/reason/user/session; `phrase` sent only for admin), `_request_password`, `_set_user_blocked`, `_admin_set_password` (admin session → `POST /admin/password`), `_fetch_verified_users` (sanitized account list, admin session only), `_fetch_verified_sources` (signed manifest + DB via Worker `/files` + sha256), `_purge_session_database` |
-| `tech_admin.py` | `AdminPanelMixin` | Account management dialog (admin only): account list with Block/Unblock and Change password per account (via auth proxy Worker) |
-| `tech_ui.py` | `UiMixin` | tab/page UIs: cleaner header/toolbar/legend, four-column package list with a horizontal scrollbar (full description readable in place), monitor, DNS, VirusTotal |
-| `tech_secscan.py` | `SecScanMixin` | background threat scans |
-| `tech_secops.py` | `SecOpsMixin` | cleaner list and rendering (full descriptions kept in the table row) |
-| `tech_secops3.py` | `SecOps3Mixin` | right-click row menu, per-app actions, batch actions, scan/bloatware controls |
-| tech_bloatware.py | Bloatware filter/scan module: Scan Bloatware UAD-level filtering and row marking that backs the Dashboard App Cleaner UI |
-| `tech_secops2.py` | `SecOps2Mixin` | typed-YES confirmations, batch actions, APK Info, Restore/Backup dialog |
-| `tech_secops4.py` | `SecOps4Mixin` | icon generation, per-device icon cache/import (`action_sec_show_icons`, `icon_cache/<sha256(serial)[:32]>`), Restore/Backup dialog, device info strip |
-| `tech_vtop.py` | `VtOpsMixin` | Monitor Running Apps page |
-| `tech_misc.py` | `MiscMixin` | package-list loading/cache, scrcpy mirror entry, driver fixes, reboots, logout, ADB kill/restart |
-| `tech_phone_mirror/` | `PhoneMirrorManager` compatibility entry point | Routes the Dashboard mirror import to the embedded child-window implementation while retaining legacy scrcpy helpers |
-| `tech_phone_mirror_embedded.py` | `PhoneMirrorManager` | True Dashboard embedding: native scrcpy child window + transparent iPhone frame inside `dash_phone`; Dashboard log hide/restore |
-| `tech_phone_mirror_host.py` | host mirror manager | Captures Dashboard HWNDs, manages native mirror lifetime/visibility, alignment and clipping |
-| `tech_phone_mirror.py` | legacy native mirror implementation | Native scrcpy process/window and transparent iPhone-frame primitives used by the embedded manager |
-| `tech_phone_mirror_restore_patch.py` | mirror restore compatibility patch | Retries Dashboard log remapping on Tk's UI thread after native mirror shutdown |
-| `tech_hardening.py` | `apply_hardening()` | runtime safety/reliability patches |
-| `tech_dashboard_redesign.py` | helpers | 3uTools-style dashboard layout integration |
-| `sitecustomize.py` | compatibility hooks | Mirror compatibility and URL-tooltip behavior only; never owns login/navigation |
-| `runtime_hook_gelotech.py` | PyInstaller runtime hook | Explicitly loads `sitecustomize.py` for packaged compatibility behavior |
-| `bump_version.py` | helper script | bumps `version.json`, computes data-file SHA-256, signs into `version.json.sig`, pushes |
-
-**Bloatware subsystem ownership:** `tech_bloatware.py` owns `_sec_action_recommendation()` and the complete-device UAD-level scan. Do not duplicate `_sec_action_recommendation()` in another module. Release validation (`scripts/release.py`) requires exactly one definition.
-
----
-
-## 2. Startup Sequence (Program Flow)
-
-```
-python techtool.py
-  │
-  ├─ GeloTechTool.__init__()
-  │    ├─ create window/layout + sidebar/navigation shell
-  │    ├─ create lightweight page factories
-  │    └─ build login gate (withdraw main window) → wait for authentication
-  │
-  ├─ _login_gate()  → login window (DEFAULT VIEW = LOGIN: email + password)
-  │    └─ login success:
-  │         ├─ verify credentials (PBKDF2) server-side via auth proxy Worker
-  │         ├─ purge stale per-login database copy
-  │         ├─ fetch signed manifest + DB via Worker /files → verify DB hash
-  │         ├─ write verified DB to temp session cache
-  │         ├─ repoint the package DatabaseService to the verified session DB
-  │         ├─ clear stale lookups
-  │         ├─ re-seed
-  │         ├─ initialize runtime resources (scrcpy extraction, settings migration, DB defaults)
-  │         ├─ initialize Dashboard (phone mockup + App Cleaner, Monitor, DNS, VirusTotal pages)
-  │         ├─ apply permissions
-  │         ├─ show Dashboard through the normal navigation controller
-  │         └─ start background ADB monitoring
-  │
-  └─ on_close() → stop mirror, purge session database copy, destroy window
-```
-
-**Post-login default:** Dashboard is the intended first visible page after a
-successful login. The page-stack method is `_show_page("Dashboard")`; the
-normal navigation controller selects Dashboard after successful authentication.
-
----
-
-## 3. Dashboard Screen Mirror Flow
-
-```
-Dashboard → Screen Mirror (manual button, or AUTO: single device connects)
-  │
-  ├─ AUTO trigger (techtool._auto_launch_mirror): when the ADB monitor sees
-  │   exactly one authorized device and no mirror is running, logs a
-  │   "5 seconds" notice and schedules _delayed_auto_mirror; the mirror then
-  │   starts and STAYS OPEN (no auto-stop).
-  ├─ capture `dash_phone` HWND
-  ├─ hide the existing Dashboard log console with `place_forget()`
-  ├─ start native scrcpy process
-  ├─ find scrcpy HWND
-  ├─ embed scrcpy as a child of `dash_phone`
-  ├─ embed transparent iPhone frame as a child of `dash_phone`
-  └─ position stream at the frame display opening
-
-Stop / scrcpy exit / device loss
-  │
-  ├─ close overlay + terminate scrcpy
-  ├─ schedule console restoration on Tk's UI thread
-  ├─ reuse the existing Dashboard log widget
-  ├─ use the Dashboard's current `_dash_log_rect`
-  ├─ configure width/height on the console first (CTk rejects width/height
-  │   inside place()), then re-place, lift, and force Tk geometry update
-  ├─ verify `winfo_ismapped()` and retry briefly if necessary
-  └─ clear mirror state only after restoration succeeds
-```
-
-The native scrcpy stream remains the video renderer; the iPhone frame is a
-transparent Win32 overlay/child window. No screenshot-based video compositing
-is used. The mirror never auto-stops; the user stops it via the sidebar.
-
----
-
-## 4. Runtime Loop
-
-```
-UI events (clicks / right-click / keypress)
-  │
-  ├─   Sidebar: theme/font picker, mirror, reboots, ADB fix, accounts, logout
-  ├─ Dashboard: device info, quick actions, screen mirror (auto-open 5s after connect)
-  ├─ Cleaner page: Refresh → load packages → render/filter/check apps
-  ├─ Monitor page: live process/package tables
-  ├─ DNS page: pick DNS server → set via ADB
-  └─ VirusTotal page: scan APK files via API
-
-Background threads (all ADB calls, UI updated via after(0)):
-  ├─ scan_adb_devices() every 3s → on new single device: auto icon sync + auto mirror
-  ├─ security scans
-  └─ bulk operations: worker thread → subprocess adb → log line per package
-```
-
-Every action follows the same basic pattern:
-
-```
-ADB/subprocess operation → parse result → log_message() → update runtime state
-```
-
----
-
-## 5. Theming & UI Fonts
-
-```
-Sidebar theme button (install_theme_dropdown)
-  ├─ 18 bundled CTkThemesPack palettes (themes/*.json) — click to select
-  └─ "UI Font" submenu — 22 Windows font families, click to apply
-
-apply_ctk_theme(palette)  (tech_themes.py)
-  ├─ ctk.set_appearance_mode("Dark")
-  ├─ ctk.set_default_color_theme(themes/<palette>.json)
-  ├─ recolor_existing_widgets(): walk every widget, apply the matching
-  │   CTkThemesPack JSON section by widget class
-  ├─ _apply_log_palette(): recolor GeloTech log consoles + tag colors
-  ├─ _apply_app_list_palette(): recolor the ttk App Cleaner Treeview rows
-  ├─ install_theme_dropdown(): rebuild the sidebar picker
-  └─ _apply_ui_font(family): set the font on every CTk text surface + ttk
-      styles (family saved to settings["font"], applied on next launch)
-```
-
-The physical phone / mirror display is preserved: widgets tagged
-`_gelotech_theme_role == "phone_display"` are skipped by both the palette walk
-and the font walk. GeloTech logs and the ttk app list ARE themed. Theme and
-font choices persist in the runtime settings (`theme`, `font`).
-
----
-
-## 6. Automatic Device Icon Sync & Cache
-
-```
-ADB monitor sees exactly one authorized device (techtool._auto_prepare_new_device_icons)
-  ├─ serial remembered in _icon_sync_seen_serials for the session
-  ├─ clears stale in-memory icon state (_sec_icon_cache / _sec_tree_icon_cache)
-  └─ after(200, action_sec_show_icons)  → worker thread
-       ├─ adb get-state / get-serialno
-       ├─ package fingerprint (sha256 over sorted pm list packages)
-       ├─ cache hit? fingerprint matches icon_cache/<sha256(serial)[:32]>
-       │   → _icon_restore_device_cache(): copy cached PNGs into the local
-       │     icon cache, re-render rows, done (no re-export)
-       ├─ helper missing? install ApkIconHelper.apk once (com.drox.apkiconhelper)
-       ├─ launch helper with autoExport → wait for DONE.flag
-       ├─ pull export → map packages.jsonl → <pkg>.png in local cache
-       └─ _icon_store_device_cache(): copy manifest + PNGs into the per-device
-            settings folder with sync.json metadata (fingerprint, counts)
-```
-
-Icons are cached per device under `get_settings_dir()/icon_cache/<sha256(serial)[:32]>/`
-(sync.json + packages.jsonl + *.png). A serial is remembered for the current
-session so the 3-second ADB poll does not re-export; a full disconnect clears
-the seen-set so a reconnect syncs again. With more than one authorized device,
-automatic sync waits (the helper/export command is serial-agnostic). Manual
-icon sync remains available through the existing action.
-
----
-
-## 7. Update / Release Cycle
-
-```
-DATA update (no new exe needed):
-  edit gelotech_database_v3.json / banking_apps.json
-  → python bump_version.py        (bump + re-hash + SIGN; --no-commit to stage)
-  → git push
-  → user app: on EVERY login → fetch + verify
-       → verify version.json.sig with embedded Ed25519 public key
-       → login + signed files (manifest, DB, banking) via auth proxy Worker
-         (AUTH_WORKER_URL; /files public allowlist, /login, Bearer sessions)
-       → secret.json (LIVE accounts) fetched as-is (Worker-written)
-       → DB verified vs manifest → session cache in temp
-       → after login: _check_updates() → banking_apps.json only
-
-AUTH PROXY deploy (Worker in worker/, one-time):
-  cd worker
-  → npx wrangler secret put GITHUB_TOKEN / SMTP_PASSWORD / SESSION_SECRET / ADMIN_SECRET_PHRASE
-  → npx wrangler deploy
-  → copy printed URL into AUTH_WORKER_URL in tech_common.py
-  → rebuild + release the exe
-
-CODE update (needs new exe):
-  edit *.py
-  → update README.md + PROCESS_GUIDE.md for major changes
-  → verify SECURITY.md wording matches the current security model
-       (release.py enforces this in preflight — cannot be skipped)
-  → check PyArmor Trial module sizes before release
-       → 32 KB+: review/extract cohesive responsibilities
-       → 35 KB+: stop and split the module before obfuscation
-  → python scripts/release.py
-       → preflight + compile + tests
-       → PyArmor obfuscation of every required module
-       → verify obfuscated outputs exist
-       → PyInstaller GeloTechTool_obf.spec
-       → verify the packaged EXE contains required obfuscated modules
-  → dist\GeloTechTool.exe
-```
-
-### PyArmor Trial release constraint
-
-The current development environment uses the **PyArmor Trial** edition with an
-approximate **35 KB per-source-file limit**. This is a hard production-build
-constraint.
-
-- Treat **32 KB** as a warning threshold: review the module before adding more
-  code and extract a cohesive responsibility when practical.
-- Treat **35 KB** as a hard stop: split the module before attempting a
-  production obfuscated build.
-- `scripts/release.py` is the authoritative build entry point. It should fail
-  early with the exact oversized filename and byte size rather than relying on
-  PyArmor to fail later with a generic license/size error.
-- A PyArmor Trial limit failure is a release blocker. Never use the standard
-  non-obfuscated build as a workaround unless the user explicitly requests a
-  debug build.
-- After splitting a module, update the PyArmor `MODULES` list and the
-  `GeloTechTool_obf.spec` hidden imports, then rerun the full release checks.
-
-The supported production path is therefore:
+## 2. Qt architecture
 
 ```text
-source modules
-   ↓
-size gate (≈35 KB hard limit)
-   ↓
-PyArmor obfuscation
-   ↓
-obfuscated module verification
-   ↓
-PyInstaller obfuscated spec
-   ↓
-EXE verification
+tech_qt_app.py
+  ├─ QApplication / startup
+  ├─ MainWindow + LoginDialog
+  ├─ Qt compatibility installers
+  ├─ visual/theme/icon installers
+  ├─ device/app/icon automation
+  └─ feature installers
+        ├─ App Cleaner
+        ├─ Monitor Apps
+        ├─ DNS
+        ├─ VirusTotal
+        ├─ Backup/Restore
+        ├─ ADB Drivers
+        └─ scrcpy / phone frame
 ```
 
-A PyInstaller EXE built without successful PyArmor obfuscation is a debug
-artifact, not a production release.
+Shared authentication, data verification, database access and ADB helpers remain in the non-UI modules. The Cloudflare Worker remains the authority for account operations.
 
-### Release bookkeeping
+## 3. Startup flow
 
-Every release must also update the repo's user-facing release metadata in the
-same commit as the `APP_VERSION` bump:
-
-- `tech_common.py` `APP_VERSION` must match the release tag (`v<APP_VERSION>`).
-- README.md "Latest release" label `(vX.Y.Z)` in the Download section must be
-  bumped to the new version (the `releases/latest` URL redirects
-  automatically, but the static label does not).
-- The release notes must state the new version.
-
-A stale `(vX.Y.Z)` label in README.md after a release is a release defect.
-
-The release spec includes `runtime_hook_gelotech.py`, which explicitly loads
-`sitecustomize.py` for packaged compatibility behavior (mirror/restore and
-URL-tooltip). This avoids relying on CPython's normal `sitecustomize`
-auto-import behavior in frozen applications.
-
----
-
-## 8. Settings & Data Locations
-
-```
-AppData settings dir (get_settings_dir())  → persistent, writable runtime state:
-  exclusions.json
-  banking_apps.json
-  app_list_cache.json
-  icon_cache\<sha256(serial)[:32]>\   per-device app-icon cache (sync.json + packages.jsonl + *.png)
-  apk_backups\*.apk
-  sec_whitelist.txt
-
-Temp session cache (get_session_database_path(), %TEMP%\GeloTechTool\):
-  gelotech_database_v3.json
-  → downloaded and verified at login
-  → used by DatabaseService
-  → removed at session cleanup
-
-Bundled / repo build resources:
-  scrcpy-win64-v3.3.4.zip
-  ApkIconHelper.apk
-  gelotech_icon.ico
-  banking_apps.json
-
-Repo root / GitHub:
-  gelotech_database_v3.json
-  secret.json
-  version.json
-  version.json.sig
-  banking_apps.json
-
-EXE bundle:
-  NO package database
+```text
+python tech_qt_app.py
+   ↓
+QApplication
+   ↓
+load Qt themes/fonts/icons
+   ↓
+install feature/compatibility layers
+   ↓
+create MainWindow
+   ↓
+show LoginDialog
+   ↓
+auth proxy login / password request
+   ↓
+verified session database + permissions
+   ↓
+Dashboard selected
+   ↓
+ADB monitor starts
 ```
 
----
+The legacy `techtool.py` entry point is not the current Qt launch path. Use `python tech_qt_app.py` or the Qt PyInstaller spec.
 
-## 9. Security Notes
+## 4. Automatic device flow
 
-- Update manifests are signed with Ed25519 and downloaded data files are
-  checked against signed SHA-256 hashes.
-- `secret.json` is the live server-side account source and is not a local
-  runtime settings file.
-- Passwords are PBKDF2 hashes and are not stored as local login credentials.
-- Destructive package operations use typed-YES confirmation where required.
-- Release builds are PyArmor-obfuscated according to `AGENTS.md`.
-- GitHub write token, SMTP credentials and session-signing key live ONLY as
-  Cloudflare Worker secrets (`worker/`, `wrangler secret put`); the exe holds
-  only the Worker URL and the signing public key (both public). Rotate the
-  Worker secrets regularly.
+The existing ADB monitor detects connected authorized devices. A device transition triggers the full UI flow rather than only reporting detection:
 
-## Fast architecture workflow
+```text
+ADB device detected
+  ↓
+device status updated
+  ↓
+app/package list refresh
+  ↓
+icon fingerprint/cache check
+  ↓
+icon restore or ApkIconHelper export
+  ↓
+App Cleaner refresh
+```
 
-For normal code work, use this short path instead of repeating subsystem-wide setup:
+The same device is not repeatedly reloaded on every poll. Disconnect/reconnect resets the transition state.
 
-1. Run `python scripts/agent_preflight.py` and read `AGENTS.md` plus the relevant README/docs sections.
-2. Inspect and reproduce the actual execution path.
-3. Make the smallest root-cause fix. Avoid speculative retries, timing hacks, and global compatibility patches.
-4. Run `python scripts/agent_check.py` to verify the dev environment, then `python -m compileall -q .` and `python -m pytest -q`; add `python -m ruff check .` for lint.
-5. For login/navigation changes, run `python techtool.py`; for mirror work, also read `docs/SCRCPY_GUIDE.md` and record whether testing used a real device.
-6. For a release build, run `python scripts/release.py`. Do not manually repeat the PyArmor/PyInstaller sequence unless debugging the build itself.
-7. Review the diff before commit/push.
+## 5. App Cleaner
+
+The current table is:
+
+```text
+APP NAME | PACKAGE ID | UAD LEVEL | DESCRIPTION
+```
+
+Features include Search, Select All, filtering, Scan Bloatware, Advanced Filter, Restore/Backup, Load Apps, right-click actions and batch actions.
+
+Full descriptions remain in the table row and use a **horizontal scrollbar**. Do not introduce a permanent description panel below the table.
+
+## 6. Icon synchronization
+
+Ownership: `tech_qt_iconsync.py`.
+
+- Verify/install `ApkIconHelper.apk` when needed.
+- Launch helper automatic export.
+- Wait for completion.
+- Verify `adb pull` succeeded.
+- Accept legacy flat and nested output layouts.
+- Read `packages.jsonl` when available.
+- Recover package PNGs when helper output differs.
+- Store shared and per-device cache data.
+- Re-render App Cleaner after sync.
+
+See [`docs/ICON_SYNC.md`](docs/ICON_SYNC.md).
+
+## 7. scrcpy flow
+
+Ownership: `tech_qt_mirror.py`, `tech_qt_phone.py`, `tech_qt_bezel.py`.
+
+The mirror uses **one existing Dashboard phone mockup**. scrcpy remains the native video surface and is embedded into the phone display area. A second floating phone frame must never be created.
+
+A single authorized device can auto-start the mirror after the configured delay. The mirror stays open until stopped or until application shutdown. Shutdown must terminate the scrcpy process cleanly.
+
+See [`docs/SCRCPY_GUIDE.md`](docs/SCRCPY_GUIDE.md).
+
+## 8. Feature workspaces
+
+- **Monitor Apps:** App Watch status, monitoring controls, event/history view, row actions and guide.
+- **Block Ads DNS:** provider cards, meaningful provider descriptions, Apply/Disable status feedback and guide.
+- **VirusTotal:** package/phone/running scans, pull/upload action, progress/results and guide.
+- **Backup/Restore:** package-directory manifests; split APKs restore with `adb install-multiple -r`.
+- **ADB Drivers:** repair/restart and device re-detection.
+
+## 9. Appearance
+
+Qt appearance is owned by `tech_qt_themes.py` and visual installers.
+
+- 18 bundled **CTkThemesPack** palettes.
+- **UI Font** selector with 22 Windows font families.
+- Theme and font preferences persist.
+- Logs, tables, inputs, dialogs and controls are themed.
+- The phone display is treated as a physical/native surface and is not recolored by the generic theme pass.
+- Current reference dark surfaces use the restrained gray styling derived from the reference UI rather than an all-black application shell.
+
+## 10. Application icon and icons
+
+`gelotech_icon.ico` is applied to the application and Login window and is included by `GeloTechTool_qt.spec`. UI controls use the bundled Tabler SVG icon set via `tech_qt_icons.py`.
+
+## 11. Security/data flow
+
+Login and account administration use the Cloudflare Worker. The desktop client does not contain the Worker write token, SMTP password, session secret or admin phrase.
+
+Data updates use `version.json` plus `version.json.sig` and SHA-256 verification. Session database data is downloaded and verified at login.
+
+See [`SECURITY.md`](SECURITY.md) and [`worker/README.md`](worker/README.md).
+
+## 12. Verification
+
+Minimum source checks:
+
+```bash
+python scripts/agent_preflight.py
+python -m compileall -q .
+python -m pytest -q
+python tech_qt_app.py
+```
+
+For a device feature, use a real Android device and record the result separately from mocked/no-device validation.
+
+## 13. Release process
+
+The release workflow must be used rather than ad-hoc release builds. Before release:
+
+1. Review current source changes.
+2. Update `README.md`, `PROCESS_GUIDE.md` and `AGENTS.md` for user-visible or process changes.
+3. Update specialized docs when a subsystem changes.
+4. Run the documentation-sync gate through the release process.
+5. Run compile/tests and the supported Qt packaging path when a Qt release is being built.
+6. Respect the PyArmor Trial source-size limit; split oversized modules instead of using a non-obfuscated production workaround.
+
+## 14. Documentation synchronization rule
+
+Every major Qt change must update the smallest complete documentation set needed to keep all documents consistent:
+
+```text
+source behavior
+   ↓
+README.md
+   ↓
+PROCESS_GUIDE.md / AGENTS.md
+   ↓
+specialized docs under docs/
+   ↓
+QT6_MIGRATION_STATUS.md when migration status changes
+```
+
+A release is not ready while the documentation describes the old Tk UI, the old icon owner, a dead migration branch, or obsolete launch commands.
