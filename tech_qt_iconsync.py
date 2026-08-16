@@ -1,4 +1,8 @@
-"""Automatic per-device icon export/import for the Qt migration."""
+"""Automatic per-device icon export/import for the Qt migration.
+
+Mirrors the legacy ApkIconHelper workflow while accepting both the legacy
+flat icon_cache layout and nested adb-pulled export layouts.
+"""
 from __future__ import annotations
 
 import datetime
@@ -42,9 +46,8 @@ class _IconSyncWorker:
         return path
 
     def read_meta(self) -> dict:
-        path = self.cache_root() / "sync.json"
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads((self.cache_root() / "sync.json").read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):
             return {}
 
@@ -93,15 +96,17 @@ class _IconSyncWorker:
 
     def restore_cache(self, fingerprint: str) -> bool:
         meta = self.read_meta()
-        manifest = self.cache_root() / "packages.jsonl"
-        if meta.get("package_fingerprint") != fingerprint or not meta.get("icon_count") or not manifest.is_file():
+        cache = self.cache_root()
+        manifest = cache / "packages.jsonl"
+        expected = int(meta.get("icon_count") or 0)
+        if meta.get("package_fingerprint") != fingerprint or expected <= 0 or not manifest.is_file():
             return False
-        local = Path(get_cache_dir())
-        local.mkdir(parents=True, exist_ok=True)
+        shared = Path(get_cache_dir())
+        shared.mkdir(parents=True, exist_ok=True)
         copied = 0
-        for source in self.cache_root().glob("*.png"):
+        for source in cache.glob("*.png"):
             try:
-                shutil.copy2(source, local / source.name)
+                shutil.copy2(source, shared / source.name)
                 copied += 1
             except OSError:
                 pass
@@ -110,36 +115,69 @@ class _IconSyncWorker:
             return True
         return False
 
+    def _find_manifest(self, root: Path) -> Path | None:
+        direct = [root / "packages.jsonl", root / "apk_icon_export" / "packages.jsonl"]
+        for candidate in direct:
+            if candidate.is_file():
+                return candidate
+        try:
+            return next(root.rglob("packages.jsonl"))
+        except StopIteration:
+            return None
+
+    def _resolve_icon_source(self, manifest: Path, icon_value: str) -> Path | None:
+        if not icon_value:
+            return None
+        raw = Path(icon_value.replace("/", os.sep))
+        candidates: list[Path] = []
+        if raw.is_absolute():
+            candidates.append(raw)
+        else:
+            candidates.extend([
+                manifest.parent / raw,
+                manifest.parent.parent / raw,
+                Path(get_cache_dir()) / raw,
+            ])
+            candidates.append(manifest.parent / raw.name)
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        try:
+            return next(manifest.parent.rglob(raw.name))
+        except StopIteration:
+            return None
+
     def export_icons(self, fingerprint: str, package_count: int) -> bool:
         if not self.ensure_helper():
             return False
 
-        self.adb(["shell", "rm", "-f", DONE_FLAG], 15)
+        shared = Path(get_cache_dir())
+        shared.mkdir(parents=True, exist_ok=True)
+        pulled = shared / "apk_icon_export"
+        if pulled.exists():
+            shutil.rmtree(pulled, ignore_errors=True)
+
+        self.adb(["shell", "rm", "-rf", EXPORT_DIR], 20)
         self.adb(["shell", "svc", "power", "stayon", "true"], 15)
         self.adb(["shell", "input", "keyevent", "KEYCODE_WAKEUP"], 15)
         self.adb(["shell", "wm", "dismiss-keyguard"], 15)
 
         completed = False
         for attempt in range(2):
-            self.adb(
-                [
-                    "shell",
-                    "am",
-                    "start",
-                    "-n",
-                    f"{HELPER_PACKAGE}/.MainActivity",
-                    "--ez",
-                    "autoExport",
-                    "true",
-                ],
+            start = self.adb(
+                ["shell", "am", "start", "-n", f"{HELPER_PACKAGE}/.MainActivity", "--ez", "autoExport", "true"],
                 20,
             )
-            for _ in range(60):
+            if start.returncode != 0:
+                self.log(f"[GeloTech] Helper launch returned {start.returncode}: {(start.stderr or start.stdout).strip()[-220:]}")
+            for tick in range(60):
                 time.sleep(2)
                 flag = self.adb(["shell", "cat", DONE_FLAG], 10)
                 if flag.stdout.strip():
                     completed = True
                     break
+                if tick and tick % 15 == 0:
+                    self.log(f"[GeloTech] Exporting icons ({tick * 2}s)...")
             if completed:
                 break
             self.log("[GeloTech] Icon export timed out; retrying once...")
@@ -148,52 +186,70 @@ class _IconSyncWorker:
 
         self.adb(["shell", "svc", "power", "stayon", "false"], 15)
         if not completed:
-            self.log("[GeloTech ERROR] Icon export did not finish.")
+            self.log("[GeloTech ERROR] Icon export did not finish. Unlock the phone and retry.")
             return False
 
-        temp_root = Path(get_cache_dir())
-        temp_root.mkdir(parents=True, exist_ok=True)
-        self.adb(["pull", EXPORT_DIR, str(temp_root)], 120)
+        pull = self.adb(["pull", EXPORT_DIR, str(shared)], 180)
+        if pull.returncode != 0:
+            self.log(f"[GeloTech ERROR] Icon export pull failed: {(pull.stderr or pull.stdout).strip()[-400:]}")
+            return False
 
-        manifest = temp_root / "packages.jsonl"
-        if not manifest.is_file():
-            manifest = temp_root / "apk_icon_export" / "packages.jsonl"
-        if not manifest.is_file():
+        manifest = self._find_manifest(shared)
+        if manifest is None:
             self.log("[GeloTech ERROR] Icon export finished but packages.jsonl was not found.")
             return False
 
+        cache = self.cache_root()
         count = 0
+        seen_packages: set[str] = set()
         for line in manifest.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 item = json.loads(line)
-            except ValueError:
+            except (ValueError, TypeError):
                 continue
-            package = item.get("package", "")
-            icon = item.get("icon", "")
-            if not package or not icon:
+            package = str(item.get("package") or "").strip()
+            icon = str(item.get("icon") or "").strip()
+            if not package:
                 continue
-            source = manifest.parent / icon
-            if source.is_file():
-                shutil.copy2(source, temp_root / f"{package}.png")
-                count += 1
-
-        cache = self.cache_root()
-        shutil.copy2(manifest, cache / "packages.jsonl")
-        for source in temp_root.glob("*.png"):
+            source = self._resolve_icon_source(manifest, icon)
+            if source is None:
+                continue
+            target = shared / f"{package}.png"
             try:
-                shutil.copy2(source, cache / source.name)
+                shutil.copy2(source, target)
+                shutil.copy2(source, cache / target.name)
+                seen_packages.add(package)
             except OSError:
                 pass
-        self.write_meta(
-            {
-                "serial": self.serial,
-                "package_fingerprint": fingerprint,
-                "package_count": package_count,
-                "icon_count": count,
-                "helper_verified": True,
-                "synced_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }
-        )
+
+        # Recovery path for helper builds whose manifest points elsewhere but
+        # still produced the legacy flat package.png files.
+        if not seen_packages:
+            for source in shared.rglob("*.png"):
+                name = source.stem
+                if "." not in name or name in seen_packages:
+                    continue
+                try:
+                    shutil.copy2(source, shared / f"{name}.png")
+                    shutil.copy2(source, cache / f"{name}.png")
+                    seen_packages.add(name)
+                except OSError:
+                    pass
+
+        count = len(seen_packages)
+        try:
+            shutil.copy2(manifest, cache / "packages.jsonl")
+        except OSError:
+            pass
+
+        self.write_meta({
+            "serial": self.serial,
+            "package_fingerprint": fingerprint,
+            "package_count": package_count,
+            "icon_count": count,
+            "helper_verified": True,
+            "synced_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
         self.adb(["shell", "am", "force-stop", HELPER_PACKAGE], 15)
         self.log(f"[GeloTech] Icons synced: {count} apps; device cache updated.")
         return count > 0
@@ -220,8 +276,6 @@ class _IconSyncWorker:
 
 
 def install_icon_sync(MainWindow) -> None:
-    """Run the verified icon export/cache flow and refresh the table when ready."""
-
     def icon_sync_completed(self, serial: str, success: bool) -> None:
         if serial != getattr(self, "serial", None):
             return
@@ -234,11 +288,14 @@ def install_icon_sync(MainWindow) -> None:
     def prepare_icon_cache(self, serial: str) -> None:
         bridge = _IconLogBridge(self)
         bridge.message.connect(self._log)
-        bridge.finished.connect(lambda device_serial, success: icon_sync_completed(self, device_serial, success))
-        setattr(self, "_qt_icon_log_bridge", bridge)
+        bridge.finished.connect(lambda device_serial, ok: icon_sync_completed(self, device_serial, ok))
+        self._qt_icon_log_bridge = bridge
         import threading
-        worker = _IconSyncWorker(self, serial, bridge)
-        threading.Thread(target=worker.run, daemon=True, name=f"GeloTech-IconSync-{serial}").start()
+        threading.Thread(
+            target=_IconSyncWorker(self, serial, bridge).run,
+            daemon=True,
+            name=f"GeloTech-IconSync-{serial}",
+        ).start()
 
     MainWindow._prepare_icon_cache = prepare_icon_cache
     MainWindow._icon_sync_completed = icon_sync_completed
