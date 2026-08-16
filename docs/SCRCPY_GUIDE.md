@@ -1,74 +1,83 @@
-# GeloTech scrcpy / phone-mirror guide (Qt)
+# GeloTech scrcpy / Phone Mirror Guide — Qt6
 
-Read this file only when changing the phone-mirror subsystem.
+Read this file when changing the phone-mirror subsystem. The current desktop UI is PySide6 / Qt6 and the mirror is owned by the Qt mirror modules.
 
-## Scope
+## Scope and ownership
 
-The Dashboard owns the native scrcpy mirror host (`tech_qt_mirror.py`,
-installed by `install_scrcpy` in `tech_qt_app.py`). Mirror behavior stays
-isolated to the mirror module: do not use `sitecustomize.py`, import-time
-patches, or navigation hooks to fix ordinary Dashboard/page behavior.
+- `tech_qt_mirror.py` — scrcpy process/window ownership and positioning.
+- `tech_qt_phone.py` — existing Dashboard phone-frame integration.
+- `tech_qt_bezel.py` — bezel/frame aliasing and overlay support.
+- `tech_qt_app.py` — installs the mirror subsystem during Qt startup.
+- `tech_qt_mainwindow.py` — Dashboard actions and close lifecycle.
 
-## How the Qt mirror works
+Do not use a global runtime hook or create a second phone mockup to solve a mirror issue.
 
-1. **Launch** — `start_mirror` is a toggle (Screen Mirror <-> Stop Mirror).
-   scrcpy is started borderless with the device serial and a known window
-   title (`GeloTech Mirror - <serial>`); `--always-on-top` is NOT used.
-2. **Embed** — the scrcpy window is found by title and converted into a real
-   native *child window* of the phone bezel widget (`phone_image`) with
-   `SetParent` + `WS_CHILD` (same approach as the legacy
-   `tech_phone_mirror_embedded.py`). The child is positioned at the frame's
-   display opening with **parent-relative coordinates only**
-   (`_display_geometry`, derived from `DISPLAY_RECT`/`PHONE_NATIVE`) — no
-   global screen math, so the stream cannot drift outside the mockup.
-3. **Bezel over video** — the child window renders above the bezel's painted
-   content, so the video appears through the PNG's transparent screen opening
-   while the bezel edges stay visible. The square child surface is clipped to
-   the rounded opening with `SetWindowRgn`
-   (`DISPLAY_CORNER_RADIUS = 30`, scaled to the widget).
-4. **Monitor loop** — a 50 ms `QTimer` re-applies the parent-relative opening
-   rect and the rounded clip, keeping the stream glued during layout changes.
-5. **Stop** — `_qt_stop_scrcpy` stops the timer and terminates the process
-   (terminate, then kill after a 2 s grace) and resets the button state.
-   `closeEvent` in `tech_qt_mainwindow.py` also stops the mirror on app exit.
+## Current mirror model
 
-Because the child window is owned by the app, it minimizes/hides/closes with
-the application and can never float as an independent desktop window.
+The **existing single Dashboard iPhone mockup** is the host. scrcpy remains the real native video renderer. The Qt mirror positions the native scrcpy child window inside the phone display opening and keeps the bezel above it.
 
-## Development checks
+```text
+Dashboard phone mockup
+        │
+        ├─ native scrcpy video surface
+        │      ↓
+        │   display opening
+        │
+        └─ iPhone bezel/frame above the video
+```
 
-1. Test `python tech_qt_app.py` with a real supported Android device when
-   possible.
-2. Verify the mirror is embedded in the Dashboard phone screen (video inside
-   the mockup opening, bezel visible around it).
-3. Verify the toggle: Screen Mirror starts, Stop Mirror stops, process is
-   gone from Task Manager.
-4. Verify no scrcpy process survives closing the whole app.
-5. Test the packaged EXE separately when the build/spec changes.
+There is **no second floating phone frame** and no screenshot-based video compositing.
 
-## Failure reporting
+## Start flow
 
-Record whether a failure was observed with a real device, with scrcpy only,
-or in a mocked/no-device environment. Do not claim a real-device fix from a
-mocked test.
+- The user can start/stop the mirror from the Dashboard.
+- A single authorized Android device may trigger the automatic mirror flow after the configured connection delay.
+- The mirror remains open until the user stops it, the device is lost, or the application closes.
+- The application must clean up the scrcpy process on shutdown.
 
-## Known traps
+## Positioning rules
 
-- **Embed into `phone_image`, not `phone_host`.** Forcing `WA_NativeWindow`
-  on one sibling makes Qt promote overlapping siblings to native windows
-  too; `phone_host` stacks *below* the bezel, so a child embedded there is
-  hidden behind the painted PNG. The video child must live inside the bezel
-  widget itself.
-- **Parent-relative coordinates only.** `mapToGlobal` + `SetWindowPos`
-  breaks when the window is hidden or not yet laid out (e.g. auto-mirror
-  firing before login). The embedded child model is immune.
-- **DPI.** `_display_geometry` multiplies by `devicePixelRatioF` so the
-  physical child rect matches the parent's physical client area on scaled
-  displays.
+- Position the scrcpy child using **parent-relative coordinates** derived from the phone frame's display opening.
+- Keep the stream clipped to the screen opening and maintain the rounded display boundary.
+- Reapply the opening rectangle when the Dashboard is resized or moved.
+- Do not use fragile global-screen coordinates as the primary positioning model.
+- Do not create a new `QWidget` containing another full phone image just to host scrcpy.
 
-## Architecture rule
+## Common failure modes
 
-New mirror behavior belongs in the mirror subsystem. Do not add another
-global runtime hook just because the packaged build behaves differently;
-first trace the source execution path and the PyInstaller resource/spec path
-separately.
+### Video is invisible
+
+Check that scrcpy is parented to the **actual phone image/frame widget** and is not placed behind a sibling surface. The phone host must be the existing Dashboard mockup.
+
+### Two phone mockups appear
+
+A mirror adapter has created a second phone frame. Remove that extra frame and point the mirror at the existing Dashboard phone widget.
+
+### Video floats outside the mockup
+
+The mirror is probably using global coordinates or the wrong host. Return to parent-relative display geometry and the existing phone frame.
+
+### Bezel disappears
+
+The native scrcpy surface has been raised above the bezel. Keep the transparent frame above the video after each reposition.
+
+## Validation
+
+Source checks:
+
+```powershell
+python -m compileall -q .
+python -m pytest -q
+python tech_qt_app.py
+```
+
+Real-device checks:
+
+1. Connect an authorized Android device.
+2. Start Screen Mirror.
+3. Confirm the phone video is visible inside the **single** iPhone mockup.
+4. Resize/move the window and confirm the video stays glued to the display opening.
+5. Stop the mirror and confirm the process terminates.
+6. Close GeloTech and confirm no scrcpy process remains.
+
+Do not claim an embedding fix from a source-only or mocked test.
