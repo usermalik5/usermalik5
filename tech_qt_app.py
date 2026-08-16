@@ -16,6 +16,7 @@ from tech_qt_cleaner import install_cleaner_parity
 from tech_qt_compat import install_qt_compat
 from tech_qt_drivers import install_driver_workflow
 from tech_qt_final_fixes import install_final_qt_fixes
+from tech_qt_help_pages import install_help_pages
 from tech_qt_iconfix import install_icon_cache_lookup
 from tech_qt_iconsync import install_icon_sync
 from tech_qt_mainwindow import MainWindow
@@ -43,6 +44,7 @@ def main() -> int:
     install_phone_frame(MainWindow)
     install_qt_compat(MainWindow)
     install_final_qt_fixes(MainWindow)
+    install_help_pages(MainWindow)
     install_bezel_alias(MainWindow)
     install_sidebar_compact(MainWindow)
     install_auto_refresh(MainWindow)
