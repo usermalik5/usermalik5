@@ -41,6 +41,12 @@ def test_qt_modules_import_without_creating_a_window():
     assert callable(tech_qt_virustotal.install_virustotal)
 
 
+def test_icon_sync_has_completion_signal_for_ui_refresh():
+    from tech_qt_iconsync import _IconLogBridge
+
+    assert hasattr(_IconLogBridge, "finished")
+
+
 def test_qt_assets_have_tabler_and_dashboard_resources():
     root = Path(__file__).resolve().parents[1]
     tabler = root / "assets" / "icons" / "tabler" / "outline"
