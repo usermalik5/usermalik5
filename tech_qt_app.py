@@ -19,13 +19,14 @@ from tech_qt_final_fixes import install_final_qt_fixes
 from tech_qt_help_pages import install_help_pages
 from tech_qt_iconfix import install_icon_cache_lookup
 from tech_qt_iconsync import install_icon_sync
-from tech_qt_mainwindow import MainWindow
+from tech_qt_mainwindow import LoginDialog, MainWindow
 from tech_qt_mirror import install_scrcpy
 from tech_qt_phone import install_phone_frame
 from tech_qt_sidebar_compact import install_sidebar_compact
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 from tech_qt_ui import install_visual_parity
 from tech_qt_virustotal import install_virustotal
+from tech_qt_visual_polish import install_visual_polish
 
 
 def main() -> int:
@@ -48,6 +49,7 @@ def main() -> int:
     install_bezel_alias(MainWindow)
     install_sidebar_compact(MainWindow)
     install_auto_refresh(MainWindow)
+    install_visual_polish(MainWindow, LoginDialog)
     window = MainWindow()
     window.hide()
     return app.exec()
