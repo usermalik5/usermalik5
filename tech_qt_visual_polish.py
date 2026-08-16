@@ -34,7 +34,6 @@ def _set_sidebar_header(self) -> None:
     if layout is None:
         return
 
-    # Remove the old large composite branding label.
     if layout.count():
         first = layout.itemAt(0)
         old = first.widget() if first else None
@@ -96,8 +95,7 @@ def _apply_sidebar_icons(self) -> None:
         "VIRUSTOTAL": "VirusTotal",
     }
     for button in sidebar.findChildren(QPushButton):
-        text = button.text().strip()
-        key = mapping.get(text)
+        key = mapping.get(button.text().strip())
         if key:
             icon_name = ICONS.get(key)
             if icon_name:
@@ -123,7 +121,7 @@ def _apply_all_button_icons(self) -> None:
         "Restore/Backup": "restore",
         "Restore / Backup": "restore",
         "Load Apps": "apps",
-        "Advanced Filter": "filter",
+        "Advanced Filter": "adjustments-horizontal",
         "Select All": "check",
         "Apply DNS": "shield-check",
         "Disable": "x",
@@ -132,7 +130,7 @@ def _apply_all_button_icons(self) -> None:
         "Pull + Upload": "upload",
         "Scan Package": "scan",
         "Load Packages": "packages",
-        "Start monitoring": "play",
+        "Start monitoring": "antenna",
         "Stop": "x",
         "Clear History": "trash",
         "Refresh Accounts": "refresh",
@@ -141,7 +139,8 @@ def _apply_all_button_icons(self) -> None:
     for button in self.findChildren(QPushButton):
         if button is getattr(self, "theme_btn", None):
             continue
-        key = mapping.get(button.text().replace("…", "").strip())
+        text = button.text().replace("…", "").replace("▾", "").strip()
+        key = mapping.get(text)
         if key:
             button.setIcon(load_icon(key))
 
