@@ -9,6 +9,7 @@ enable_qt_mode()
 
 from PySide6.QtWidgets import QApplication
 
+from tech_qt_auto_refresh import install_auto_refresh
 from tech_qt_backup import install_backup_restore
 from tech_qt_bezel import install_bezel_alias
 from tech_qt_cleaner import install_cleaner_parity
@@ -40,6 +41,7 @@ def main() -> int:
     install_qt_compat(MainWindow)
     install_final_qt_fixes(MainWindow)
     install_bezel_alias(MainWindow)
+    install_auto_refresh(MainWindow)
     window = MainWindow()
     window.hide()
     return app.exec()
