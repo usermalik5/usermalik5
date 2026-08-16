@@ -345,35 +345,32 @@ def _build_shell(self):
     root = QWidget(); root_layout = QHBoxLayout(root)
     root_layout.setContentsMargins(0, 0, 0, 0); root_layout.setSpacing(0)
     self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setFixedWidth(264)
-    side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(6)
-    for text, obj in (("© 2026 GeloTech", "copyrightLabel"), ("GELOTECH", "brand"), (f"TECH TOOL\nv{APP_VERSION} - Angelo Estrada Espinosa", "versionLabel")):
-        label = QLabel(text); label.setObjectName(obj); label.setAlignment(Qt.AlignCenter); side.addWidget(label)
-    for text, url in (("Gsmcodeph.com", "https://gsmcodeph.com"), ("facebook.com/gelotechxyz", "https://facebook.com/gelotechxyz")):
-        link = QLabel(f'<a href="{url}">{text}</a>'); link.setAlignment(Qt.AlignCenter); link.setOpenExternalLinks(True); side.addWidget(link)
-    self.theme_btn = _button(self.theme_name.capitalize(), "settings"); self.theme_btn.clicked.connect(self._theme_dialog); side.addWidget(self.theme_btn)
-    self.nav = QListWidget(); self.nav.setObjectName("sidebarNav"); self.nav.setSelectionMode(QAbstractItemView.SingleSelection)
-    for title, key in (("Dashboard", "Dashboard"), ("Monitor Apps", "Monitor Apps"), ("Block Ads DNS", "Block Ads DNS"), ("VirusTotal", "VirusTotal")):
-        self.nav.addItem(QListWidgetItem(load_icon(ICONS.get(key, "info-circle")), title))
-    self.nav.currentRowChanged.connect(self._nav_changed)
-    side.addWidget(self.nav, 1)
-    for text, icon, args in (("Reboot to Recovery", "Reboot", ["reboot", "recovery"]), ("Reboot to Fastboot", "Power", ["reboot", "bootloader"])):
-        b = _button(text, icon); b.clicked.connect(lambda _=False, a=args: self._adb_simple(a)); side.addWidget(b)
-    for text, icon, slot in (("Re-authorize ADB", "Re-authorize ADB", self._reauthorize), ("Fix / DL ADB Drivers", "Fix Drivers", self._driver_help)):
-        b = _button(text, icon); b.clicked.connect(slot); side.addWidget(b)
-    accounts = _button("Accounts", "Accounts"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
-    logout = _button("Logout", "Logout"); logout.clicked.connect(self._logout); side.addWidget(logout)
-    guide = QFrame(); guide.setObjectName("sidebarGuide"); gv = QVBoxLayout(guide); gv.setContentsMargins(8, 7, 8, 7); gv.setSpacing(2)
-    title = QLabel("USB DEBUGGING"); title.setObjectName("guideTitle")
-    text = QLabel("Enable Developer Options → USB debugging, connect the phone, then tap Allow.\nGeloTech prepares app icons automatically."); text.setObjectName("guideText"); text.setWordWrap(True)
-    how_title = QLabel("HOW TO USE"); how_title.setObjectName("guideTitle")
-    how = QLabel("Refresh loads apps. Load Apps chooses All / User / System / Disabled.\nAdvanced Filter uses the database. Scan Bloatware filters by UAD level.\nRight-click a row for app actions."); how.setObjectName("guideText"); how.setWordWrap(True)
-    for w in (title, text, how_title, how): gv.addWidget(w)
-    side.addWidget(guide)
+    side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(0)
+
+    header = QLabel(
+        '<span style="color:#1a8cff; font-size:22pt; font-weight:800;">GELOTECH</span><br>'
+        '<span style="color:#555b63; font-size:8pt;">Angelo Estrada Espinosa © 2026 GeloTech</span><br>'
+        '<a href="https://gsmcodeph.com" style="color:#58a6ff; font-size:8pt;">Gsmcodeph.com</a><br>'
+        '<a href="https://facebook.com/gelotechxyz" style="color:#58a6ff; font-size:8pt;">facebook.com/gelotechxyz</a>'
+    )
+    header.setAlignment(Qt.AlignCenter); header.setOpenExternalLinks(True); side.addWidget(header)
+
+    self.theme_btn = _button("Dark" if self.dark_mode else "Light", "settings"); self.theme_btn.clicked.connect(self._toggle_theme); side.addWidget(self.theme_btn)
+
+    for title, idx, action in (("DASHBOARD", 0, lambda: (self.stack.setCurrentIndex(0), self.refresh_apps())), ("MONITOR APPS", 1, lambda: (self.stack.setCurrentIndex(1), self._refresh_monitor())), ("BLOCK ADS DNS", 2, lambda: self.stack.setCurrentIndex(2)), ("VIRUSTOTAL", 3, lambda: self.stack.setCurrentIndex(3))):
+        b = _button(title); b.clicked.connect(action); side.addWidget(b)
+
+    for text, args in (("REBOOT TO RECOVERY", ["reboot", "recovery"]), ("REBOOT TO FASTBOOT", ["reboot", "bootloader"])):
+        b = _button(text); b.clicked.connect(lambda _=False, a=args: self._adb_simple(a)); side.addWidget(b)
+    for text, slot in (("RE-AUTHORIZE ADB", self._reauthorize), ("FIX/DL ADB DRIVERS", self._driver_help)):
+        b = _button(text); b.clicked.connect(slot); side.addWidget(b)
+    accounts = _button("ACCOUNTS"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
+    logout = _button("LOGOUT"); logout.clicked.connect(self._logout); side.addWidget(logout)
 
     self.stack = QStackedWidget()
     self.pages = [_build_dashboard(self), _build_monitor(self), _build_dns(self), self._vt_page(), _build_accounts(self)]
     for page in self.pages: self.stack.addWidget(page)
-    root_layout.addWidget(self.sidebar); root_layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.nav.setCurrentRow(0)
+    root_layout.addWidget(self.sidebar); root_layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.stack.setCurrentIndex(0)
 
 
 def _nav_changed(self, row):

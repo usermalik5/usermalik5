@@ -27,7 +27,7 @@ from tech_reg import (
     _request_password, _set_user_blocked,
 )
 from tech_qt_icons import ICONS, load_icon
-from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, PALETTES, UI_FONTS, apply_theme
+from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 
 
 class LoginWorker(QObject):
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle(f"GeloTech Tool v{APP_VERSION}"); self.resize(1360, 820)
         self.current_user = {}; self.session = None; self.db = {}; self.serial = None; self._seen_serials = set(); self._auto_mirror_seen = set()
-        self.theme_name = DEFAULT_THEME; self.ui_font = DEFAULT_UI_FONT; self._load_preferences(); self._build_shell(); self._apply_theme()
+        self.theme_name = DEFAULT_THEME; self.dark_mode = True; self._load_preferences(); self._build_shell(); self._apply_theme()
         self._adb_timer = QTimer(self); self._adb_timer.timeout.connect(self._scan_devices); self._adb_timer.start(3000); QTimer.singleShot(250, self._open_login); self._scrcpy_proc = None
 
     def _build_shell(self):
@@ -93,7 +93,7 @@ class MainWindow(QMainWindow):
         self.brand = QLabel("GELOTECH"); self.brand.setObjectName("brand"); side.addWidget(self.brand)
         self.version = QLabel(f"TECH TOOL\nv{APP_VERSION}"); self.version.setAlignment(Qt.AlignCenter); side.addWidget(self.version)
         self.user_label = QLabel("Not signed in"); self.user_label.setObjectName("muted"); self.user_label.setAlignment(Qt.AlignCenter); side.addWidget(self.user_label)
-        theme_btn = QPushButton("Theme / Font"); theme_btn.setIcon(load_icon("settings")); theme_btn.clicked.connect(self._theme_dialog); side.addWidget(theme_btn)
+        self.theme_btn = QPushButton("Dark" if self.dark_mode else "Light"); self.theme_btn.setIcon(load_icon("settings")); self.theme_btn.clicked.connect(self._toggle_theme); side.addWidget(self.theme_btn)
         self.nav = QListWidget(); self.nav.setSelectionMode(QAbstractItemView.SingleSelection); side.addWidget(self.nav, 1)
         for title, key in [("Dashboard", "Dashboard"), ("App Cleaner", "Scan"), ("Monitor Apps", "Monitor Apps"), ("Block Ads DNS", "Block Ads DNS"), ("VirusTotal", "VirusTotal"), ("Task Manager", "database"), ("Accounts", "Accounts")]:
             self.nav.addItem(QListWidgetItem(load_icon(ICONS.get(key, "info-circle")), title))
@@ -167,15 +167,16 @@ class MainWindow(QMainWindow):
 
     def _load_preferences(self):
         try:
-            data = json.loads(self._preferences_path().read_text(encoding="utf-8")); self.theme_name = data.get("theme", DEFAULT_THEME); self.ui_font = data.get("font", DEFAULT_UI_FONT)
+            data = json.loads(self._preferences_path().read_text(encoding="utf-8")); mode = data.get("theme", "dark"); self.dark_mode = str(mode).lower() != "light"
         except Exception: pass
 
-    def _save_preferences(self): self._preferences_path().write_text(json.dumps({"theme": self.theme_name, "font": self.ui_font}, indent=2), encoding="utf-8")
-    def _apply_theme(self): apply_theme(QApplication.instance(), self.theme_name, True, self.ui_font)
+    def _save_preferences(self): self._preferences_path().write_text(json.dumps({"theme": "light" if not self.dark_mode else "dark"}, indent=2), encoding="utf-8")
+    def _apply_theme(self): apply_theme(QApplication.instance(), DEFAULT_THEME, self.dark_mode, DEFAULT_UI_FONT)
 
-    def _theme_dialog(self):
-        dlg = QDialog(self); dlg.setWindowTitle("Theme and UI Font"); form = QFormLayout(dlg); t = QComboBox(); f = QComboBox(); t.addItems([x.capitalize() for x in PALETTES]); f.addItems(UI_FONTS); t.setCurrentText(self.theme_name.capitalize()); f.setCurrentText(self.ui_font); form.addRow("Theme", t); form.addRow("UI Font", f); buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); form.addWidget(buttons); buttons.accepted.connect(dlg.accept); buttons.rejected.connect(dlg.reject)
-        if dlg.exec(): self.theme_name = t.currentText().lower(); self.ui_font = f.currentText(); self._save_preferences(); self._apply_theme()
+    def _toggle_theme(self):
+        self.dark_mode = not self.dark_mode
+        self.theme_btn.setText("Dark" if self.dark_mode else "Light")
+        self._save_preferences(); self._apply_theme()
 
     def _open_login(self):
         dlg = LoginDialog(self); dlg.logged_in.connect(self._login_success)

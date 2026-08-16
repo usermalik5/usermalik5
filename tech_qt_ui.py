@@ -235,108 +235,35 @@ def _search_table(window, text: str) -> None:
 def install_visual_parity(MainWindow: type[QMainWindow]) -> None:
     """Install a full legacy-style Qt shell without replacing feature logic."""
     def build_shell(self) -> None:
-        root = QWidget()
-        root_layout = QHBoxLayout(root)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
+        root = QWidget(); root_layout = QHBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0); root_layout.setSpacing(0)
+        self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setFixedWidth(264)
+        side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(0)
 
-        self.sidebar = QFrame()
-        self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(264)
-        side = QVBoxLayout(self.sidebar)
-        side.setContentsMargins(10, 7, 10, 8)
-        side.setSpacing(4)
+        header = QLabel(
+            '<span style="color:#1a8cff; font-size:22pt; font-weight:800;">GELOTECH</span><br>'
+            '<span style="color:#555b63; font-size:8pt;">Angelo Estrada Espinosa © 2026 GeloTech</span><br>'
+            '<a href="https://gsmcodeph.com" style="color:#58a6ff; font-size:8pt;">Gsmcodeph.com</a><br>'
+            '<a href="https://facebook.com/gelotechxyz" style="color:#58a6ff; font-size:8pt;">facebook.com/gelotechxyz</a>'
+        )
+        header.setAlignment(Qt.AlignCenter); header.setOpenExternalLinks(True); side.addWidget(header)
 
-        copyright_label = QLabel("© 2026 GeloTech")
-        copyright_label.setObjectName("copyrightLabel")
-        copyright_label.setAlignment(Qt.AlignCenter)
-        side.addWidget(copyright_label)
-        brand = QLabel("GELOTECH")
-        brand.setObjectName("brand")
-        brand.setAlignment(Qt.AlignCenter)
-        side.addWidget(brand)
-        version = QLabel(f"TECH TOOL\nv{self.windowTitle().split('v', 1)[-1]} - Angelo Estrada Espinosa")
-        version.setObjectName("versionLabel")
-        version.setAlignment(Qt.AlignCenter)
-        side.addWidget(version)
-        for text, url in (("Gsmcodeph.com", "https://gsmcodeph.com"), ("facebook.com/gelotechxyz", "https://www.facebook.com/gelotechxyz")):
-            link = QLabel(f'<a href="{url}">{text}</a>')
-            link.setObjectName("brandLink")
-            link.setAlignment(Qt.AlignCenter)
-            link.setOpenExternalLinks(True)
-            side.addWidget(link)
+        self.theme_btn = _button("Dark" if self.dark_mode else "Light"); self.theme_btn.clicked.connect(self._toggle_theme); side.addWidget(self.theme_btn)
 
-        self.theme_btn = _button(self.theme_name.capitalize(), "settings")
-        self.theme_btn.clicked.connect(self._theme_dialog)
-        side.addSpacing(2)
-        side.addWidget(self.theme_btn)
-        side.addSpacing(2)
-        side.addWidget(_section_label("PAGES"))
+        for title, idx, action in (("DASHBOARD", 0, lambda: (self.stack.setCurrentIndex(0), self.refresh_apps())), ("MONITOR APPS", 1, lambda: (self.stack.setCurrentIndex(1), self._refresh_monitor())), ("BLOCK ADS DNS", 2, lambda: self.stack.setCurrentIndex(2)), ("VIRUSTOTAL", 3, lambda: self.stack.setCurrentIndex(3))):
+            b = _button(title); b.clicked.connect(action); side.addWidget(b)
 
-        self.nav = QListWidget()
-        self.nav.setObjectName("sidebarNav")
-        self.nav.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.nav.setSpacing(1)
-        for title, key in (("Dashboard", "Dashboard"), ("Monitor Apps", "Monitor Apps"), ("Block Ads DNS", "Block Ads DNS"), ("VirusTotal", "VirusTotal")):
-            self.nav.addItem(QListWidgetItem(load_icon(ICONS.get(key, "info-circle")), title))
-        self.nav.currentRowChanged.connect(self._nav_changed)
-        side.addWidget(self.nav, 1)
-
-        mirror = _button("Screen Mirror", "device-mobile")
-        mirror.clicked.connect(self.start_mirror)
-        side.addWidget(mirror)
-
-        side.addWidget(_section_label("POWER"))
-        for text, icon, slot in (("Reboot to Recovery", "Reboot", lambda: self._adb_simple(["reboot", "recovery"])), ("Reboot to Fastboot", "Power", lambda: self._adb_simple(["reboot", "bootloader"]))):
-            button = _button(text, icon)
-            button.clicked.connect(slot)
-            side.addWidget(button)
-
-        side.addWidget(_section_label("CONNECTION"))
-        for text, icon, slot in (("Re-authorize ADB", "Re-authorize ADB", self._reauthorize), ("Fix / DL ADB Drivers", "Fix Drivers", self._driver_help)):
-            button = _button(text, icon)
-            button.clicked.connect(slot)
-            side.addWidget(button)
-
-        side.addWidget(_section_label("SESSION"))
-        accounts = _button("Accounts", "Accounts")
-        accounts.clicked.connect(lambda: (self.stack.setCurrentIndex(4), self.refresh_accounts()))
-        side.addWidget(accounts)
-        logout = _button("Logout", "Logout")
-        logout.clicked.connect(self._logout)
-        side.addWidget(logout)
-
-        guide = QFrame()
-        guide.setObjectName("sidebarGuide")
-        guide_layout = QVBoxLayout(guide)
-        guide_layout.setContentsMargins(8, 7, 8, 7)
-        guide_layout.setSpacing(2)
-        usb_title = QLabel("USB DEBUGGING")
-        usb_title.setObjectName("guideTitle")
-        usb_text = QLabel("Enable Developer Options → USB debugging, connect the phone, then tap Allow.\nGeloTech prepares app icons automatically.")
-        usb_text.setObjectName("guideText")
-        usb_text.setWordWrap(True)
-        how_title = QLabel("HOW TO USE")
-        how_title.setObjectName("guideTitle")
-        how_text = QLabel("Refresh loads apps. Load Apps chooses All / User / System / Disabled.\nAdvanced Filter uses the database. Scan Bloatware filters by UAD level.\nRight-click a row for app actions.")
-        how_text.setObjectName("guideText")
-        how_text.setWordWrap(True)
-        guide_layout.addWidget(usb_title)
-        guide_layout.addWidget(usb_text)
-        guide_layout.addSpacing(3)
-        guide_layout.addWidget(how_title)
-        guide_layout.addWidget(how_text)
-        side.addWidget(guide)
+        for text, slot in (("REBOOT TO RECOVERY", lambda: self._adb_simple(["reboot", "recovery"])), ("REBOOT TO FASTBOOT", lambda: self._adb_simple(["reboot", "bootloader"]))):
+            b = _button(text); b.clicked.connect(slot); side.addWidget(b)
+        for text, slot in (("RE-AUTHORIZE ADB", self._reauthorize), ("FIX/DL ADB DRIVERS", self._driver_help)):
+            b = _button(text); b.clicked.connect(slot); side.addWidget(b)
+        accounts = _button("ACCOUNTS"); accounts.clicked.connect(lambda: (self.stack.setCurrentIndex(4), self.refresh_accounts())); side.addWidget(accounts)
+        logout = _button("LOGOUT"); logout.clicked.connect(self._logout); side.addWidget(logout)
 
         self.stack = QStackedWidget()
         self.pages = [_build_dashboard(self), self._monitor_page(), self._dns_page(), self._vt_page(), self._accounts_page()]
-        for page in self.pages:
-            self.stack.addWidget(page)
-        root_layout.addWidget(self.sidebar)
-        root_layout.addWidget(self.stack, 1)
-        self.setCentralWidget(root)
-        self.nav.setCurrentRow(0)
-        self.search.textChanged.connect(lambda value: _search_table(self, value))
+        for page in self.pages: self.stack.addWidget(page)
+        root_layout.addWidget(self.sidebar); root_layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.stack.setCurrentIndex(0)
 
     def nav_changed(self, row: int) -> None:
         if row < 0 or row >= 4:

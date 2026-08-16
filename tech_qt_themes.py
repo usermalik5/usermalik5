@@ -24,14 +24,8 @@ PALETTES = [
 ]
 DEFAULT_THEME = "orange"
 
-UI_FONTS = [
-    "Segoe UI", "Arial", "Arial Black", "Calibri", "Cambria", "Candara",
-    "Comic Sans MS", "Consolas", "Constantia", "Corbel", "Courier New",
-    "Franklin Gothic Medium", "Garamond", "Georgia", "Impact",
-    "Lucida Console", "Microsoft Sans Serif", "Palatino Linotype", "Tahoma",
-    "Times New Roman", "Trebuchet MS", "Verdana",
-]
-DEFAULT_UI_FONT = "Segoe UI"
+UI_FONTS = ["Segoe UI Variable", "Segoe UI", "Aptos", "Bahnschrift", "Consolas"]
+DEFAULT_UI_FONT = "Segoe UI Variable"
 
 
 def _resolve(value, dark: bool = False, fallback: str = "#ffffff") -> str:
@@ -77,12 +71,20 @@ def palette_profile(name: str, dark: bool = True) -> dict[str, str]:
 
 def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: str = DEFAULT_UI_FONT) -> str:
     p = palette_profile(name, dark)
+    if dark:
+        c = dict(sidebar="#0d0f12", card="#171b20", card2="#15191e", border="#2c3340",
+                 disabled="#111419", log_bg="#1b222c", log_text="#7CFF00", panel="#1b222c",
+                 table_bg="#111a16", table_alt="#0e1813", table_grid="#17241d")
+    else:
+        c = dict(sidebar="#f2f3f5", card="#ffffff", card2="#eef0f2", border="#d0d7de",
+                 disabled="#e9ecef", log_bg="#f6f8fa", log_text="#1a7f37", panel="#f6f8fa",
+                 table_bg="#ffffff", table_alt="#f3f6f4", table_grid="#dfe7df")
     return f"""
-    * {{ font-family: \"{font_family}\"; font-size: 10pt; }}
+    * {{ font-family: \"{font_family}\", \"Segoe UI\", sans-serif; font-size: 10pt; }}
     QWidget {{ color: {p['text']}; background: {p['bg']}; }}
     QMainWindow, QDialog {{ background: {p['bg']}; }}
 
-    QFrame#sidebar {{ background: #0d0f12; border-right: 1px solid {p['border']}; }}
+    QFrame#sidebar {{ background: {c['sidebar']}; border-right: 1px solid {c['border']}; }}
     QLabel#brand {{ color: #1a8cff; font-size: 22pt; font-weight: 800; }}
     QLabel#copyrightLabel {{ color: #555b63; font-size: 8pt; }}
     QLabel#versionLabel {{ color: #a6a6a6; font-size: 9pt; font-weight: 700; }}
@@ -91,22 +93,22 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QLabel#muted {{ color: {p['muted']}; }}
 
     QListWidget#sidebarNav {{ background: transparent; border: 0; outline: 0; }}
-    QListWidget#sidebarNav::item {{ min-height: 27px; padding: 5px 9px; border: 1px solid #2c3340; border-radius: 8px; background: #171b20; font-weight: 700; }}
+    QListWidget#sidebarNav::item {{ min-height: 27px; padding: 5px 9px; border: 1px solid {c['border']}; border-radius: 8px; background: {c['card']}; font-weight: 700; }}
     QListWidget#sidebarNav::item:hover {{ background: {p['accent_hover']}; color: white; }}
     QListWidget#sidebarNav::item:selected {{ background: {p['accent']}; color: white; border-color: {p['accent']}; }}
 
-    QPushButton {{ background: #171b20; color: {p['text']}; border: 1px solid #2c3340; border-radius: 8px; padding: 5px 10px; min-height: 28px; font-weight: 700; }}
+    QPushButton {{ background: {c['card']}; color: {p['text']}; border: 1px solid {c['border']}; border-radius: 8px; padding: 5px 10px; min-height: 28px; font-weight: 700; }}
     QPushButton:hover {{ background: {p['accent_hover']}; color: white; }}
     QPushButton:pressed, QPushButton:checked {{ background: {p['accent']}; color: white; }}
-    QPushButton:disabled {{ color: #666c74; background: #111419; }}
+    QPushButton:disabled {{ color: #666c74; background: {c['disabled']}; }}
 
     QLineEdit, QComboBox {{ background: {p['input']}; color: {p['text']}; border: 1px solid {p['border']}; border-radius: 7px; padding: 6px 9px; min-height: 28px; }}
     QLineEdit:focus, QComboBox:focus {{ border-color: {p['accent']}; }}
 
     QFrame#phonePanel, QFrame#contentPanel {{ background: transparent; }}
-    QPlainTextEdit#liveLog {{ background: #1b222c; color: #7CFF00; border: 1px solid #2c3340; border-radius: 7px; padding: 7px; font-family: Consolas, \"Courier New\", monospace; font-size: 9pt; }}
-    QFrame#guidePanel {{ background: #1b222c; border: 1px solid #2c3340; border-radius: 8px; }}
-    QFrame#sidebarGuide {{ background: #15191e; border: 1px solid #2c3340; border-radius: 8px; }}
+    QPlainTextEdit#liveLog {{ background: {c['log_bg']}; color: {c['log_text']}; border: 1px solid {c['border']}; border-radius: 7px; padding: 7px; font-family: Consolas, \"Courier New\", monospace; font-size: 9pt; }}
+    QFrame#guidePanel {{ background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 8px; }}
+    QFrame#sidebarGuide {{ background: {c['card2']}; border: 1px solid {c['border']}; border-radius: 8px; }}
     QLabel#guideTitle {{ color: {p['text']}; font-size: 8pt; font-weight: 800; }}
     QLabel#guideText {{ color: {p['muted']}; font-size: 8pt; }}
     QLabel#statusText {{ font-style: italic; color: {p['accent']}; }}
@@ -115,7 +117,7 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QLabel#legendText {{ color: {p['muted']}; font-size: 8pt; }}
     QLabel#subHeading {{ font-weight: 800; font-size: 9pt; }}
 
-    QTableWidget#packageTable {{ background: #111a16; alternate-background-color: #0e1813; color: {p['text']}; border: 1px solid #2c3340; gridline-color: #17241d; selection-background-color: {p['accent']}; selection-color: white; outline: 0; }}
+    QTableWidget#packageTable {{ background: {c['table_bg']}; alternate-background-color: {c['table_alt']}; color: {p['text']}; border: 1px solid {c['border']}; gridline-color: {c['table_grid']}; selection-background-color: {p['accent']}; selection-color: white; outline: 0; }}
     QTableWidget#packageTable::item {{ padding: 4px 7px; }}
     QHeaderView::section {{ background: #d9d9d9; color: #202020; padding: 6px 7px; border: 0; border-right: 1px solid #a7a7a7; border-bottom: 1px solid #a7a7a7; font-weight: 800; font-size: 9pt; }}
 
