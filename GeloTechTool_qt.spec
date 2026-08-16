@@ -21,7 +21,6 @@ hiddenimports = [
     "tech_qt_final_fixes",
     "tech_qt_help_pages",
     "tech_qt_visual_polish",
-    "tech_qt_user_finish",
     "tech_qt_bezel",
     "tech_qt_iconsync",
     "shiboken6",
