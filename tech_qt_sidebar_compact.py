@@ -1,7 +1,8 @@
 """Compact the Qt sidebar so all legacy-style controls fit without scrolling."""
 from __future__ import annotations
 
-from PySide6.QtWidgets import QAbstractItemView, QListWidget, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QAbstractItemView, QListWidget, QPushButton
 
 
 def _compact_sidebar(self) -> None:
@@ -29,8 +30,8 @@ def _compact_sidebar(self) -> None:
         nav.setSpacing(0)
         nav.setMinimumHeight(96)
         nav.setMaximumHeight(104)
-        nav.setVerticalScrollBarPolicy(QAbstractItemView.ScrollBarAlwaysOff)
-        nav.setHorizontalScrollBarPolicy(QAbstractItemView.ScrollBarAlwaysOff)
+        nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
     guide = sidebar.findChild(type(sidebar), "sidebarGuide")
     if guide is not None:
@@ -39,7 +40,7 @@ def _compact_sidebar(self) -> None:
         if guide_layout is not None:
             guide_layout.setContentsMargins(6, 4, 6, 4)
             guide_layout.setSpacing(1)
-        for label in guide.findChildren(type(self.brand)):
+        for label in guide.findChildren(QLabel):
             label.setStyleSheet("font-size: 8px;")
 
 
