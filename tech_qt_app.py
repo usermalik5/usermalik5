@@ -21,6 +21,7 @@ from tech_qt_iconsync import install_icon_sync
 from tech_qt_mainwindow import MainWindow
 from tech_qt_mirror import install_scrcpy
 from tech_qt_phone import install_phone_frame
+from tech_qt_sidebar_compact import install_sidebar_compact
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 from tech_qt_ui import install_visual_parity
 from tech_qt_virustotal import install_virustotal
@@ -43,6 +44,7 @@ def main() -> int:
     install_qt_compat(MainWindow)
     install_final_qt_fixes(MainWindow)
     install_bezel_alias(MainWindow)
+    install_sidebar_compact(MainWindow)
     install_auto_refresh(MainWindow)
     window = MainWindow()
     window.hide()
