@@ -1,11 +1,45 @@
-# Automatic device icon synchronization
+# Automatic Device Icon Synchronization
 
-GeloTech automatically prepares app icons when the existing ADB device monitor detects a single newly connected authorized device.
+The Qt6 icon pipeline is owned by `tech_qt_iconsync.py` and is triggered by the existing ADB device monitor.
 
-The detection path uses the existing ADB polling loop; no second device polling loop is created.
+## Automatic flow
 
-For a new serial, the app clears stale in-memory icon state and invokes the existing `action_sec_show_icons()` workflow in the background. That workflow installs `ApkIconHelper.apk` only when `com.drox.apkiconhelper` is missing, exports icons, pulls them into the local cache, and refreshes the Cleaner rows.
+```text
+authorized device detected
+        ↓
+package list/device fingerprint
+        ↓
+valid per-device cache?
+   ├─ yes → restore cached PNGs → refresh App Cleaner
+   └─ no  → verify/install ApkIconHelper.apk
+              ↓
+           launch automatic export
+              ↓
+           wait for export completion
+              ↓
+           adb pull export
+              ↓
+           locate packages.jsonl / icon files
+              ↓
+           store package PNGs in cache
+              ↓
+           refresh App Cleaner
+```
 
-A serial is remembered for the current application session so the same device does not trigger a full export on every three-second ADB poll. A full disconnect clears the seen-serial state so a reconnect can prepare the device again.
+The importer accepts both the legacy flat `icon_cache` layout and nested ADB-pulled export layouts. `adb pull` failures are treated as failures; a successful helper launch alone is not reported as a successful icon sync.
 
-Automatic sync currently waits when more than one authorized ADB device is connected because the existing helper/export command does not select a serial-specific target. Manual icon synchronization remains available through the existing action.
+## Cache
+
+Per-device data is stored under the user settings area using a hash of the device serial. The cache records the package fingerprint, icon count, manifest and PNG files. If the same device reconnects and its fingerprint still matches, GeloTech restores the cache instead of exporting again.
+
+A disconnect clears the in-session seen-device state so a reconnect can trigger synchronization. Automatic icon synchronization waits when multiple authorized devices make the target ambiguous.
+
+## Important UI rule
+
+Icon synchronization is not complete until the visible App Cleaner rows are refreshed. A populated cache without a table refresh is considered an integration bug.
+
+## Related
+
+- [`DASHBOARD_LAYOUT.md`](DASHBOARD_LAYOUT.md)
+- [`SCRCPY_GUIDE.md`](SCRCPY_GUIDE.md)
+- [`../PROCESS_GUIDE.md`](../PROCESS_GUIDE.md)
