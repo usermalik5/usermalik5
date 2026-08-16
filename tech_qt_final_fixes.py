@@ -81,6 +81,11 @@ def _fixed_login_success(self, user, session, db_bytes):
     self._log(f"[GeloTech] Logged in as {self.current_user.get('email', 'user')} ({role.upper()}).")
     self._log(f"[GeloTech] Package database loaded: {len(self.db)} entries.")
     self._scan_devices()
+    # The auto-refresh hook only fires on serial *transitions*. If the phone
+    # was already connected while the login dialog was open, the table would
+    # stay empty (or show "No description available.") until a manual Refresh.
+    # Populate it here with the freshly loaded database.
+    QTimer.singleShot(250, lambda: self.refresh_apps("all"))
 
 
 def _refresh_monitor(self):

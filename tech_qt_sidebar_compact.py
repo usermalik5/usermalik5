@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QAbstractItemView, QListWidget, QPushButton
+from PySide6.QtWidgets import QAbstractItemView, QLabel, QListWidget, QPushButton, QScrollArea
 
 
 def _compact_sidebar(self) -> None:
@@ -28,20 +28,40 @@ def _compact_sidebar(self) -> None:
     nav = getattr(self, "nav", None)
     if isinstance(nav, QListWidget):
         nav.setSpacing(0)
-        nav.setMinimumHeight(96)
-        nav.setMaximumHeight(104)
+        nav.setMinimumHeight(88)
+        nav.setMaximumHeight(96)
         nav.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         nav.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
     guide = sidebar.findChild(type(sidebar), "sidebarGuide")
     if guide is not None:
-        guide.setMaximumHeight(122)
+        guide.setMaximumHeight(110)
         guide_layout = guide.layout()
         if guide_layout is not None:
             guide_layout.setContentsMargins(6, 4, 6, 4)
             guide_layout.setSpacing(1)
         for label in guide.findChildren(QLabel):
             label.setStyleSheet("font-size: 8px;")
+
+    # Safety net: if the window is ever too short for every sidebar control,
+    # scroll instead of silently cutting the buttons off.
+    try:
+        central = self.centralWidget()
+        if central is not None and central.layout() is not None:
+            for i in range(central.layout().count()):
+                item = central.layout().itemAt(i)
+                if item.widget() is sidebar:
+                    central.layout().removeItem(item)
+                    scroll = QScrollArea()
+                    scroll.setWidgetResizable(True)
+                    scroll.setFrameShape(QScrollArea.NoFrame)
+                    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                    scroll.setWidget(sidebar)
+                    central.layout().insertWidget(i, scroll)
+                    break
+    except Exception:
+        pass
 
 
 def install_sidebar_compact(MainWindow) -> None:
