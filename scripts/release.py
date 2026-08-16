@@ -17,10 +17,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = [
-    "tech_common.py", "tech_reg.py", "tech_database.py", "tech_task_manager.py",
-    "tech_phone_mirror.py", "tech_phone_mirror_embedded.py",
-    "tech_phone_mirror_host.py", "tech_phone_mirror_fix.py", "tech_phone_mirror_restore_patch.py",
-    "tech_navigation.py", "tech_themes.py", "tech_phone_mirror/__init__.py", "runtime_hook_gelotech.py", "sitecustomize.py",
+    "tech_bloatware.py", "tech_common.py", "tech_reg.py", "tech_database.py", "tech_task_manager.py",
+    "tech_phone_mirror.py", "tech_phone_mirror_embedded.py", "tech_phone_mirror_host.py",
+    "tech_phone_mirror_fix.py", "tech_phone_mirror_restore_patch.py", "tech_navigation.py",
+    "tech_themes.py", "tech_phone_mirror/__init__.py", "runtime_hook_gelotech.py", "sitecustomize.py",
     "tech_qt_app.py", "tech_qt_auto_refresh.py", "tech_qt_backup.py", "tech_qt_bezel.py",
     "tech_qt_bootstrap.py", "tech_qt_cleaner.py", "tech_qt_compat.py", "tech_qt_drivers.py",
     "tech_qt_final_fixes.py", "tech_qt_iconfix.py", "tech_qt_icons.py", "tech_qt_iconsync.py",
