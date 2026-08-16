@@ -26,7 +26,7 @@ from tech_qt_sidebar_compact import install_sidebar_compact
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 from tech_qt_ui import install_visual_parity
 from tech_qt_virustotal import install_virustotal
-from tech_qt_visual_polish import install_visual_polish
+from tech_qt_visual_polish import install_user_finish
 
 
 def main() -> int:
@@ -49,7 +49,7 @@ def main() -> int:
     install_bezel_alias(MainWindow)
     install_sidebar_compact(MainWindow)
     install_auto_refresh(MainWindow)
-    install_visual_polish(MainWindow, LoginDialog)
+    install_user_finish(MainWindow, LoginDialog)
     window = MainWindow()
     window.hide()
     return app.exec()
