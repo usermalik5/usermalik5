@@ -1,47 +1,46 @@
-# GeloTech-Tool auth proxy (Cloudflare Worker)
+# GeloTech-Tool Auth Proxy (Cloudflare Worker)
 
-The login/account flow no longer talks to GitHub directly from the client.
-This Worker is the single component that holds the GitHub token, the SMTP
-credentials, the session-signing key and the admin secret phrase (as
-Cloudflare secrets), verifies passwords server-side (PBKDF2-SHA256,
-compatible with the app's `secret.json` format), issues short-lived signed
-admin sessions, and emails generated passwords to users. The app contains
-no credentials of any kind.
+The login/account flow is server-side. The current desktop client is the
+**PySide6 / Qt6** application launched by `tech_qt_app.py`; the Qt6 migration
+changed the UI layer but does not change the Worker API or the security model.
+
+The Worker is the single component that holds the GitHub token, SMTP
+credentials, session-signing key and admin secret phrase as Cloudflare
+secrets. It verifies passwords server-side, issues short-lived signed admin
+sessions, serves verified update files, and emails generated passwords.
+
+## Qt6 client integration
+
+The Qt desktop client uses the same routes and contracts as the previous UI:
+
+- `POST /login` — sign in and receive the signed session/user response.
+- `POST /register` — request/create/reset an account password.
+- `GET /accounts` — admin-only sanitized account list.
+- `POST /admin/block` — admin block/unblock.
+- `POST /admin/password` — admin password change.
+- `POST /admin/role` — admin role change.
+- `GET /files/<name>` — verified update/data files.
+
+The Qt6 client must never receive, embed or persist the Worker secrets. Changes
+to these routes must update the desktop client, `SECURITY.md`, `README.md` and
+relevant tests together.
 
 ## Routes
 
-| Method | Path             | Auth                              | Body                        | Purpose                              |
-|--------|------------------|-----------------------------------|-----------------------------|--------------------------------------|
-| GET    | `/health`        | –                                 | –                           | Liveness                             |
-| GET    | `/files/<name>`  | – (public update files only)      | –                           | version.json, version.json.sig, gelotech_database_v3.json, banking_apps.json |
-| POST   | `/login`         | –                                 | `{email, password, phrase?}`| Server-side PBKDF2 verify + blocked check; admin additionally REQUIRES the secret phrase; returns `{ok, user{role,...}, session}` |
-| POST   | `/register`      | – (rate limited)                  | `{email}`                   | Create/reset account, email the new password |
-| GET    | `/accounts`      | `Authorization: Bearer <session>` | –                           | Sanitized account list (admin role only; no hashes) |
-| POST   | `/admin/block`   | `Authorization: Bearer <session>` | `{email, blocked}`          | Block/unblock (admin role only; no phrase) |
-| POST   | `/admin/password`| `Authorization: Bearer <session>` | `{email, password}`         | Set a new password for an account; hashed server-side, never logged |
-| POST   | `/admin/role`    | `Authorization: Bearer <session>` | `{email, role}`             | Set an account role to `admin` or `user` (admin role only; no phrase) |
+| Method | Path | Auth | Body | Purpose |
+|---|---|---|---|---|
+| GET | `/health` | – | – | Liveness |
+| GET | `/files/<name>` | public update files only | – | `version.json`, signature, package database, banking list |
+| POST | `/login` | – | `{email, password, phrase?}` | Server-side password/blocked verification; admin also requires the Worker secret phrase |
+| POST | `/register` | rate limited | `{email}` | Create/reset account and email password |
+| GET | `/accounts` | admin session | – | Sanitized account list |
+| POST | `/admin/block` | admin session | `{email, blocked}` | Block/unblock account |
+| POST | `/admin/password` | admin session | `{email, password}` | Change account password |
+| POST | `/admin/role` | admin session | `{email, role}` | Set `admin` or `user` role |
 
-Sessions are signed with HMAC-SHA256 using the `SESSION_SECRET` Worker
-secret, carry `{sub, role, iat, exp, jti}` and expire after 12 hours. The
-client keeps the token in memory only.
-
-**Admin login is two-step server-side**: the admin account's password
-(PBKDF2) AND the admin secret phrase, which exists ONLY as the
-`ADMIN_SECRET_PHRASE` Worker secret — never embedded in the client. Both are
-knowledge-based credentials (not a hardware/app second factor). Missing or
-wrong phrase yields the same generic `invalid-credentials` and no session;
-if the secret is not configured, admin login fails closed.
-
-**Session revocation**: every privileged call (`/accounts`,
-`/admin/block`, `/admin/password`) revalidates the session against the
-live account registry — the account must still exist and must not be
-blocked. Blocking an account therefore invalidates all of its sessions
-immediately, regardless of the 12 h TTL.
-
-All responses are JSON. Writes are structurally path-allowlisted to
-`secret.json` only (`fetchSecret`/`putSecret` take no path), and retried on
-concurrent-write (422) conflicts. Errors are generic: no stack traces, no
-GitHub API details, no secret material ever reaches clients.
+Sessions are HMAC-SHA256 signed with `SESSION_SECRET`, contain `{sub, role,
+iat, exp, jti}` and expire after 12 hours. The desktop client keeps the
+session token in memory only.
 
 ## Deploy
 
@@ -49,57 +48,35 @@ GitHub API details, no secret material ever reaches clients.
 cd worker
 npm install
 
-# secrets (one command each — these never appear in code):
-npx wrangler secret put GITHUB_TOKEN      # fine-grained PAT, Contents read/write, this repo only
-npx wrangler secret put SMTP_PASSWORD     # Gmail app password
-npx wrangler secret put SESSION_SECRET    # random key for signing login sessions
-npx wrangler secret put ADMIN_SECRET_PHRASE  # admin second factor; WITHOUT it admin login fails closed
+npx wrangler secret put GITHUB_TOKEN
+npx wrangler secret put SMTP_PASSWORD
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put ADMIN_SECRET_PHRASE
 
 npx wrangler deploy
 ```
 
-The deploy output prints the Worker URL, e.g.
-`https://gelotech-auth-proxy.angeloespinosa985.workers.dev`. Put that exact
-URL in `AUTH_WORKER_URL` in `tech_common.py` and rebuild/release the app.
-
-Live deployment: <https://gelotech-auth-proxy.angeloespinosa985.workers.dev>
+Put the deployed Worker URL into `AUTH_WORKER_URL` in the shared client
+configuration and rebuild the desktop application when the URL itself changes.
 
 ## Rate limiting
 
-The Worker keeps an in-memory sliding-window limiter (per IP, per route) as
-a first line of defense, but Workers isolates do not share state, so that is
-NOT a global counter. `handlers.js` supports the Cloudflare-native
-`ratelimit` binding (`AUTH_RATE`): when bound, it becomes the global,
-platform-level limiter (keys are per route + IP, sanitized to
-`[a-zA-Z0-9_-]`) and the in-memory Map is bypassed.
-
-To activate it (one-time, dashboard):
-
-1. Cloudflare dashboard -> Workers & Pages -> `gelotech-auth-proxy` ->
-   **Settings -> Rate limiting** -> create a namespace.
-2. Uncomment the `ratelimit` block in `wrangler.jsonc` and paste the
-   namespace id into it.
-3. Redeploy (`npx wrangler deploy`). Done — no code changes needed.
-
-Per-route in-Worker limits can still be tuned with vars
-(`LOGIN_RATE_LIMIT`, `REGISTER_IP_RATE_LIMIT`, `REGISTER_EMAIL_RATE_LIMIT`,
-`ACCOUNTS_RATE_LIMIT`, `ADMIN_BLOCK_RATE_LIMIT`, `FILES_RATE_LIMIT`).
+The Worker has an in-memory per-isolate limiter and supports the Cloudflare
+native `AUTH_RATE` binding for global/platform-level limiting. Follow the
+Cloudflare setup in `wrangler.jsonc` before relying on the native binding.
 
 ## Local tests
 
-`node --test src/` runs crypto (incl. vectors generated with the same Python
-code the app uses), session signing/verification (expiry, tamper, malformed
-tokens), the route handlers against a fake GitHub + fake SMTP (401/403
-authz matrix, sanitized `/accounts`, rate limits, no secret leaks), the
-GitHub contents mutation path (path allowlist, blob fallback) and the full
-SMTP conversation (scripted fake socket).
+```bash
+node --test src/
+```
 
-## Caveats
+Tests cover cryptographic verification, sessions, authz, rate limits, account
+sanitization, GitHub contents access, and SMTP behavior.
 
-- The in-memory rate limiter is per-isolate: a deterrent, not a hard limit.
-  Configure the Cloudflare-native rate limiting binding (above) for hard
-  guarantees.
-- A new Gmail password is generated and sent by the Worker; the app never
-  sees it and cannot send email anymore.
-- Sessions are validated by signature + expiry server-side on every
-  privileged call; there is no client-side trust.
+## Security coordination
+
+Keep [`../SECURITY.md`](../SECURITY.md), [`../README.md`](../README.md),
+[`../AGENTS.md`](../AGENTS.md), and this file synchronized. The desktop Qt6
+migration should not move server-side credentials into the client or weaken
+route/session verification.
