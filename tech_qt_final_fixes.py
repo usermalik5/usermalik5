@@ -346,19 +346,15 @@ def _build_shell(self):
     for text, url in (("Gsmcodeph.com", "https://gsmcodeph.com"), ("facebook.com/gelotechxyz", "https://facebook.com/gelotechxyz")):
         link = QLabel(f'<a href="{url}">{text}</a>'); link.setAlignment(Qt.AlignCenter); link.setOpenExternalLinks(True); side.addWidget(link)
     self.theme_btn = _button(self.theme_name.capitalize(), "settings"); self.theme_btn.clicked.connect(self._theme_dialog); side.addWidget(self.theme_btn)
-    side.addWidget(_section("PAGES"))
     self.nav = QListWidget(); self.nav.setObjectName("sidebarNav"); self.nav.setSelectionMode(QAbstractItemView.SingleSelection)
     for title, key in (("Dashboard", "Dashboard"), ("Monitor Apps", "Monitor Apps"), ("Block Ads DNS", "Block Ads DNS"), ("VirusTotal", "VirusTotal")):
         self.nav.addItem(QListWidgetItem(load_icon(ICONS.get(key, "info-circle")), title))
     self.nav.currentRowChanged.connect(self._nav_changed)
     side.addWidget(self.nav, 1)
-    side.addWidget(_section("POWER"))
     for text, icon, args in (("Reboot to Recovery", "Reboot", ["reboot", "recovery"]), ("Reboot to Fastboot", "Power", ["reboot", "bootloader"])):
         b = _button(text, icon); b.clicked.connect(lambda _=False, a=args: self._adb_simple(a)); side.addWidget(b)
-    side.addWidget(_section("CONNECTION"))
     for text, icon, slot in (("Re-authorize ADB", "Re-authorize ADB", self._reauthorize), ("Fix / DL ADB Drivers", "Fix Drivers", self._driver_help)):
         b = _button(text, icon); b.clicked.connect(slot); side.addWidget(b)
-    side.addWidget(_section("SESSION"))
     accounts = _button("Accounts", "Accounts"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
     logout = _button("Logout", "Logout"); logout.clicked.connect(self._logout); side.addWidget(logout)
     guide = QFrame(); guide.setObjectName("sidebarGuide"); gv = QVBoxLayout(guide); gv.setContentsMargins(8, 7, 8, 7); gv.setSpacing(2)
