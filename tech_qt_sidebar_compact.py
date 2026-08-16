@@ -10,8 +10,8 @@ def _compact_sidebar(self) -> None:
     if sidebar is None:
         return
 
-    sidebar.setMinimumWidth(240)
-    sidebar.setFixedWidth(264)
+    sidebar.setMinimumWidth(190)
+    sidebar.setFixedWidth(200)
 
     layout = sidebar.layout()
     if layout is not None:
@@ -24,10 +24,8 @@ def _compact_sidebar(self) -> None:
         button.setMaximumHeight(29)
         button.setContentsMargins(4, 0, 4, 0)
         button.setStyleSheet(
-            ""
             "QPushButton { margin: 0; padding: 4px 9px; border-radius: 2px; }"
             "QPushButton + QPushButton { margin-top: 0px; }"
-            """
         )
 
     header = sidebar.findChild(QLabel, "sidebarBrandHeader")
@@ -75,8 +73,7 @@ def _compact_sidebar(self) -> None:
     for section in sidebar.findChildren(QLabel, "sidebarSection"):
         section.hide()
 
-    guide = sidebar.findChild(type(sidebar), "sidebarGuide")
-    if guide is not None:
+    for guide in sidebar.findChildren(type(sidebar), "sidebarGuide"):
         guide.setMinimumHeight(116)
         guide.setMaximumHeight(122)
         guide_layout = guide.layout()
@@ -85,7 +82,7 @@ def _compact_sidebar(self) -> None:
             guide_layout.setSpacing(1)
         for label in guide.findChildren(QLabel):
             label.setWordWrap(True)
-            label.setStyleSheet("font-size: 8px; padding: 0; margin: 0;")
+            label.setStyleSheet("font-size: 9pt; padding: 0; margin: 0;")
 
     # Deliberately no spacer widgets between logical groups. The dense button
     # placement is part of the requested reference style.

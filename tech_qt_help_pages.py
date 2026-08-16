@@ -239,67 +239,229 @@ def _clear_monitor(self) -> None:
     self.monitor_table.setRowCount(0)
 
 
+DNS_PROVIDERS = [
+    {
+        "name": "AdGuard DNS",
+        "host": "dns.adguard-dns.com",
+        "accent": "#2FA8FF",
+        "summary": "Cloud DNS that blocks ads, trackers, and phishing at the network level.",
+        "blocks": "Ads, trackers, phishing, web annoyances",
+        "privacy": "No personal data shared or sold; privacy-focused operator.",
+        "protocols": "DoH, DoT, DoQ",
+        "portal": "https://adguard-dns.io",
+        "portal_label": "adguard-dns.io",
+    },
+    {
+        "name": "Cloudflare 1.1.1.1",
+        "host": "one.one.one.one",
+        "accent": "#F38020",
+        "summary": "Fast, free public resolver. 1.1.1.1 blocks nothing by default; use 1.1.1.3 for malware + adult filtering.",
+        "blocks": "None by default (neutral); 1.1.1.3 adds malware + adult",
+        "privacy": "No selling of user data; logs wiped within ~25 hours; KPMG-audited; IP not written to disk.",
+        "protocols": "DoH, DoT, ODoH",
+        "portal": "https://one.one.one.one",
+        "portal_label": "one.one.one.one",
+    },
+    {
+        "name": "Google Public DNS",
+        "host": "dns.google",
+        "accent": "#4285F4",
+        "summary": "Free global resolver focused on speed, security, and accuracy rather than content filtering.",
+        "blocks": "Nothing by default (neutral, minimal filtering)",
+        "privacy": "Temporary logs (full IP) deleted in 24-48h; permanent logs keep only city-level, sampled; not linked to other Google data.",
+        "protocols": "DoH, DoT, DNSSEC",
+        "portal": "https://dns.google",
+        "portal_label": "dns.google",
+    },
+    {
+        "name": "Quad9",
+        "host": "dns.quad9.net",
+        "accent": "#7B1FA2",
+        "summary": "Swiss non-profit resolver that blocks malware and phishing using 20+ threat-intelligence feeds.",
+        "blocks": "Malware, phishing, botnets, C2 infrastructure",
+        "privacy": "No IP logging; Swiss privacy law; no personal data retained.",
+        "protocols": "DoT, DoH, DNSCrypt, DNSSEC",
+        "portal": "https://quad9.net",
+        "portal_label": "quad9.net",
+    },
+    {
+        "name": "NextDNS",
+        "host": "dns.nextdns.io",
+        "accent": "#00C9A7",
+        "summary": "Configurable resolver with blocklists, parental controls, and analytics. Free tier: 300k queries/month.",
+        "blocks": "Ads, trackers, malware, and categories (fully configurable)",
+        "privacy": "Strict no-logs by default; optional logging is user-controlled.",
+        "protocols": "DoH, DoT, DNSSEC",
+        "portal": "https://nextdns.io",
+        "portal_label": "nextdns.io",
+    },
+    {
+        "name": "Control D",
+        "host": "p2.freedns.controld.com",
+        "accent": "#E50914",
+        "summary": "Customizable resolver with ready presets. p2 blocks ads + trackers + malware. No account needed for presets.",
+        "blocks": "Ads, trackers, malware (preset p2); other presets add family/social",
+        "privacy": "No logging of queries on free resolvers; operated by Windscribe (privacy-focused).",
+        "protocols": "DoH, DoT, DoQ",
+        "portal": "https://controld.com/free-dns",
+        "portal_label": "controld.com",
+    },
+    {
+        "name": "CleanBrowsing Family",
+        "host": "family-filter-dns.cleanbrowsing.org",
+        "accent": "#2E7D32",
+        "summary": "Family filter that blocks adult content, enforces SafeSearch, and blocks mixed-content + security threats.",
+        "blocks": "Adult content, enforces SafeSearch, malware/phishing",
+        "privacy": "Encrypted DNS by default (DoH/DoT/DNSCrypt); filtering-focused operator.",
+        "protocols": "DoH, DoT, DNSCrypt",
+        "portal": "https://cleanbrowsing.org",
+        "portal_label": "cleanbrowsing.org",
+    },
+    {
+        "name": "Mullvad (Base)",
+        "host": "base.dns.mullvad.net",
+        "accent": "#294D73",
+        "summary": "Swedish VPN company's free no-log resolver. 'base' blocks ads, trackers, and malware.",
+        "blocks": "Ads, trackers, malware (base profile)",
+        "privacy": "Strict no-logs; resolvers run in RAM; no advertising business.",
+        "protocols": "DoH, DoT",
+        "portal": "https://mullvad.net/en/help/dns-over-https-and-dns-over-tls",
+        "portal_label": "mullvad.net",
+    },
+    {
+        "name": "Tiarap",
+        "host": "dot.tiar.app",
+        "accent": "#9C27B0",
+        "summary": "Open, privacy-first community resolver blocking 3M+ ads, trackers, malware, scam, and phishing domains.",
+        "blocks": "Ads, trackers, malware, scam, phishing",
+        "privacy": "No IP/query logging; no ECS; DNSSEC; community-operated.",
+        "protocols": "DoH, DoT, DoQ, DNSCrypt",
+        "portal": "https://tiarap.org",
+        "portal_label": "tiarap.org",
+    },
+]
+
+
 def _build_dns(self) -> QWidget:
     page = QWidget()
     layout = QVBoxLayout(page)
     layout.setContentsMargins(10, 10, 10, 10)
     layout.setSpacing(8)
 
-    header = _header("BLOCK MOST APPS POPUP ADS", "Choose a Private DNS service. Filtering happens at the DNS level, before many ad or tracking domains can be reached.")
+    header = _header("BLOCK MOST APPS POPUP ADS", "Choose a Private DNS provider. Tap a card to expand its details, then Apply it to the connected phone. Information is sourced from each provider's official portal.")
     header_layout = header.layout()
     if header_layout is not None:
-        status = QLabel("Private DNS: checking")
+        status = QLabel("Private DNS: connect a device to apply")
         status.setObjectName("securityText")
         header_layout.addWidget(status)
         self.dns_status = status
     layout.addWidget(header)
 
-    panel = QFrame()
-    panel.setObjectName("contentPanel")
-    pv = QVBoxLayout(panel)
-    intro = QLabel("Select a provider below. Use Apply DNS to set it on the connected phone, or Disable to return to normal Android DNS behavior.")
-    intro.setWordWrap(True)
-    intro.setObjectName("helpText")
-    pv.addWidget(intro)
+    actions = QHBoxLayout()
+    disable = _button("Disable DNS")
+    disable.clicked.connect(self.disable_dns)
+    guide = _button("DNS Guide")
+    guide.clicked.connect(lambda: _dns_help(self))
+    actions.addWidget(disable)
+    actions.addWidget(guide)
+    actions.addStretch(1)
+    layout.addLayout(actions)
 
-    row = QHBoxLayout()
-    self.dns = QComboBox()
-    providers = [
-        ("AdGuard DNS — blocks ads & trackers", "dns.adguard-dns.com"),
-        ("Cloudflare 1.1.1.1 — fast & private", "one.one.one.one"),
-        ("Google DNS — reliable", "dns.google"),
-        ("Quad9 — blocks malware & phishing", "dns.quad9.net"),
-        ("CleanBrowsing Family — safe for kids", "family-filter-dns.cleanbrowsing.org"),
-        ("CleanBrowsing Adult — blocks adult content", "adult-filter-dns.cleanbrowsing.org"),
-        ("CleanBrowsing Security — blocks malware", "security-filter-dns.cleanbrowsing.org"),
-        ("Control D — custom rules", "p0.freedns.controld.com"),
-        ("NextDNS — advanced filtering", "dns.nextdns.io"),
-    ]
-    for label, value in providers:
-        self.dns.addItem(label, value)
-    self.dns_apply = _button("Apply DNS")
-    self.dns_disable = _button("Disable")
-    self.dns_help_button = _button("DNS Guide")
-    self.dns_apply.clicked.connect(self.apply_dns)
-    self.dns_disable.clicked.connect(self.disable_dns)
-    self.dns_help_button.clicked.connect(lambda: _dns_help(self))
-    row.addWidget(self.dns, 1)
-    row.addWidget(self.dns_apply)
-    row.addWidget(self.dns_disable)
-    row.addWidget(self.dns_help_button)
-    pv.addLayout(row)
-
-    explanation = QHBoxLayout()
-    for title, text in (
-        ("Ad & tracker blocking", "AdGuard is a simple starting point."),
-        ("Security", "Quad9 and CleanBrowsing Security focus on malicious domains."),
-        ("Family / content", "CleanBrowsing profiles filter categories of content."),
-    ):
-        explanation.addWidget(_card(title, text), 1)
-    pv.addLayout(explanation)
-    pv.addStretch(1)
-    layout.addWidget(panel, 1)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QFrame.NoFrame)
+    content = QWidget()
+    cv = QVBoxLayout(content)
+    cv.setContentsMargins(0, 0, 0, 0)
+    cv.setSpacing(8)
+    for provider in DNS_PROVIDERS:
+        cv.addWidget(_build_dns_card(self, provider))
+    cv.addStretch(1)
+    scroll.setWidget(content)
+    layout.addWidget(scroll, 1)
     return page
+
+
+def _build_dns_card(self, provider: dict) -> QFrame:
+    card = QFrame()
+    card.setObjectName("providerCard")
+    cv = QVBoxLayout(card)
+    cv.setContentsMargins(0, 0, 0, 0)
+    cv.setSpacing(0)
+
+    header = QPushButton()
+    header.setObjectName("providerHeader")
+    hl = QHBoxLayout(header)
+    hl.setContentsMargins(12, 10, 12, 10)
+    hl.setSpacing(10)
+    dot = QLabel()
+    dot.setFixedSize(10, 10)
+    dot.setStyleSheet(f"background: {provider['accent']}; border-radius: 5px;")
+    name = QLabel(provider["name"])
+    name.setObjectName("providerName")
+    host = QLabel(provider["host"])
+    host.setObjectName("providerHost")
+    chevron = QLabel("▸")
+    chevron.setObjectName("providerChevron")
+    hl.addWidget(dot)
+    hl.addWidget(name)
+    hl.addWidget(host)
+    hl.addStretch(1)
+    hl.addWidget(chevron)
+
+    detail = QWidget()
+    dv = QVBoxLayout(detail)
+    dv.setContentsMargins(12, 2, 12, 12)
+    dv.setSpacing(6)
+
+    summary = QLabel(provider["summary"])
+    summary.setObjectName("providerDesc")
+    summary.setWordWrap(True)
+    dv.addWidget(summary)
+    dv.addLayout(_dns_info_row("Blocks", provider["blocks"]))
+    dv.addLayout(_dns_info_row("Privacy", provider["privacy"]))
+    dv.addLayout(_dns_info_row("Protocols", provider["protocols"]))
+
+    portal = QLabel(f'<a href="{provider["portal"]}">{provider["portal_label"]}</a>')
+    portal.setObjectName("providerLink")
+    portal.setOpenExternalLinks(True)
+    dv.addLayout(_dns_info_row("Portal", None, portal))
+
+    use = _button("Use this server")
+    use.setObjectName("providerUse")
+    use.clicked.connect(lambda _=False, h=provider["host"]: self.apply_dns(h))
+    dv.addWidget(use)
+
+    detail.setVisible(False)
+    header.clicked.connect(lambda _=False: _toggle_dns_card(detail, chevron))
+
+    cv.addWidget(header)
+    cv.addWidget(detail)
+    return card
+
+
+def _dns_info_row(key: str, value: str | None = None, widget: QLabel | None = None) -> QHBoxLayout:
+    row = QHBoxLayout()
+    row.setSpacing(8)
+    k = QLabel(key)
+    k.setObjectName("providerKey")
+    k.setFixedWidth(64)
+    if widget is not None:
+        row.addWidget(k)
+        row.addWidget(widget, 1)
+    else:
+        v = QLabel(value)
+        v.setObjectName("providerValue")
+        v.setWordWrap(True)
+        row.addWidget(k)
+        row.addWidget(v, 1)
+    return row
+
+
+def _toggle_dns_card(detail: QWidget, chevron: QLabel) -> None:
+    visible = not detail.isVisible()
+    detail.setVisible(visible)
+    chevron.setText("▾" if visible else "▸")
 
 
 def _build_vt(self) -> QWidget:
@@ -361,6 +523,8 @@ def _build_vt(self) -> QWidget:
     self.vt_stop.clicked.connect(self._qt_vt_stop)
     self.vt_upload.clicked.connect(self._qt_vt_pull_upload)
     self.vt_help_button.clicked.connect(lambda: _vt_help(self))
+    self._vt_worker = None
+    self._vt_worker_kind = None
     return page
 
 

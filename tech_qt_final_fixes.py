@@ -13,6 +13,8 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
+    QComboBox,
     QDialog,
     QFormLayout,
     QFrame,
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -32,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from tech_common import APP_VERSION, get_bundle_dir, get_session_database_path, load_package_database
-from tech_qt_icons import ICONS, load_icon
+from tech_qt_icons import ICONS, load_icon, tinted_icon
 
 
 def _button(text: str, icon_key: str | None = None) -> QPushButton:
@@ -41,6 +44,53 @@ def _button(text: str, icon_key: str | None = None) -> QPushButton:
         button.setIcon(load_icon(ICONS.get(icon_key, icon_key)))
     button.setMinimumHeight(30)
     return button
+
+
+class ActionConfirmDialog(QDialog):
+    """A detailed, themed confirmation dialog used for device-state-changing
+    actions. Shows what the action does, its consequences, then Confirm/Cancel."""
+
+    def __init__(self, parent, title, icon_name, color, description, bullets, confirm_text="Confirm"):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setMinimumWidth(480)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(22, 22, 22, 22)
+        root.setSpacing(18)
+        icon = QLabel()
+        icon.setPixmap(tinted_icon(icon_name, color, 44).pixmap(44, 44))
+        icon.setFixedSize(48, 48)
+        root.addWidget(icon, 0, Qt.AlignTop)
+        right = QVBoxLayout()
+        right.setSpacing(10)
+        t = QLabel(title)
+        t.setObjectName("dialogTitle")
+        right.addWidget(t)
+        desc = QLabel(description)
+        desc.setWordWrap(True)
+        desc.setObjectName("dialogDesc")
+        right.addWidget(desc)
+        bl = QLabel("• " + "\n• ".join(bullets))
+        bl.setWordWrap(True)
+        bl.setObjectName("dialogBullets")
+        right.addWidget(bl)
+        btns = QHBoxLayout()
+        btns.addStretch(1)
+        cancel = QPushButton("Cancel")
+        cancel.setObjectName("linkButton")
+        cancel.clicked.connect(self.reject)
+        ok = QPushButton(confirm_text)
+        ok.setStyleSheet(
+            f"QPushButton{{background:{color};border:1px solid {color};color:white;border-radius:8px;"
+            f"padding:7px 16px;min-height:30px;font-weight:800;}}"
+            f"QPushButton:hover{{background:{color};border:1px solid {color};}}"
+        )
+        ok.clicked.connect(self.accept)
+        btns.addWidget(cancel)
+        btns.addWidget(ok)
+        right.addLayout(btns)
+        root.addLayout(right, 1)
 
 
 def _section(text: str) -> QLabel:
@@ -123,9 +173,16 @@ def _refresh_monitor(self):
 
 def _build_dashboard(self) -> QWidget:
     page = QWidget()
-    outer = QHBoxLayout(page)
+    page_layout = QVBoxLayout(page)
+    page_layout.setContentsMargins(0, 0, 0, 0)
+    page_layout.setSpacing(0)
+    title = QLabel("DASHBOARD")
+    title.setObjectName("pageTitle")
+    page_layout.addWidget(title)
+    outer = QHBoxLayout()
     outer.setContentsMargins(10, 10, 10, 8)
     outer.setSpacing(10)
+    page_layout.addLayout(outer, 1)
 
     phone_panel = QFrame()
     phone_panel.setObjectName("phonePanel")
@@ -285,14 +342,109 @@ def _build_monitor(self) -> QWidget:
     row.addWidget(refresh)
     row.addStretch(1)
     layout.addLayout(row)
+    actions = QHBoxLayout()
+    self._monitor_action_btns = []
+    for label, icon, fn in (
+        ("Force Stop", "power", _monitor_force_stop),
+        ("Disable", "x", _monitor_disable),
+        ("Uninstall", "trash", _monitor_uninstall),
+        ("Clear Data", "database", _monitor_clear_data),
+        ("Open", "device-mobile", _monitor_open),
+        ("Copy Name", "copy", _monitor_copy),
+    ):
+        b = _button(label, icon)
+        b.clicked.connect(lambda _=False, f=fn: f(self))
+        b.setEnabled(False)
+        actions.addWidget(b)
+        self._monitor_action_btns.append(b)
+    actions.addStretch(1)
+    layout.addLayout(actions)
     self.monitor_table = QTableWidget(0, 2)
     self.monitor_table.setHorizontalHeaderLabels(["PACKAGE", "STATE"])
     self.monitor_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     self.monitor_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+    self.monitor_table.setSelectionMode(QAbstractItemView.SingleSelection)
     self.monitor_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
     self.monitor_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+    self.monitor_table.setContextMenuPolicy(Qt.CustomContextMenu)
+    self.monitor_table.customContextMenuRequested.connect(lambda pos: _monitor_menu(self, pos))
+    self.monitor_table.itemSelectionChanged.connect(lambda: _monitor_selection_changed(self))
     layout.addWidget(self.monitor_table, 1)
     return page
+
+
+def _monitor_selected(self):
+    rows = self.monitor_table.selectionModel().selectedRows()
+    if not rows:
+        return None
+    item = self.monitor_table.item(rows[0].row(), 0)
+    return item.text() if item else None
+
+
+def _monitor_selection_changed(self):
+    has = _monitor_selected(self) is not None
+    for b in getattr(self, "_monitor_action_btns", []):
+        b.setEnabled(has)
+
+
+def _monitor_force_stop(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    self._adb_simple(["shell", "am", "force-stop", pkg]); self._log(f"[Monitor] Force-stop {pkg}"); self._refresh_monitor()
+
+
+def _monitor_disable(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    self._adb_simple(["shell", "pm", "disable-user", "--user", "0", pkg]); self._log(f"[Monitor] Disable {pkg}"); self._refresh_monitor()
+
+
+def _monitor_uninstall(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    self._adb_simple(["shell", "pm", "uninstall", "-k", "--user", "0", pkg]); self._log(f"[Monitor] Uninstall {pkg}"); self._refresh_monitor()
+
+
+def _monitor_clear_data(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    self._adb_simple(["shell", "pm", "clear", pkg]); self._log(f"[Monitor] Clear data {pkg}"); self._refresh_monitor()
+
+
+def _monitor_open(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    self._adb_simple(["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"]); self._log(f"[Monitor] Open {pkg}")
+
+
+def _monitor_copy(self):
+    pkg = _monitor_selected(self)
+    if not pkg:
+        return
+    QApplication.clipboard().setText(pkg); self._log(f"[Monitor] Copied package name: {pkg}")
+
+
+def _monitor_menu(self, pos):
+    row = self.monitor_table.rowAt(pos.y())
+    if row < 0:
+        return
+    item = self.monitor_table.item(row, 0)
+    if item is None:
+        return
+    package = item.text()
+    menu = QMenu(self)
+    menu.addAction(load_icon("power"), "Force Stop", lambda: self._adb_simple(["shell", "am", "force-stop", package]))
+    menu.addAction(load_icon("device-mobile"), "Open", lambda: self._adb_simple(["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"]))
+    menu.addAction(load_icon("x"), "Disable", lambda: self._package_action(package, "disable-user"))
+    menu.addAction(load_icon("trash"), "Uninstall", lambda: self._package_action(package, "uninstall", "--user", "0"))
+    menu.addAction(load_icon("database"), "Clear Data", lambda: self._adb_simple(["shell", "pm", "clear", package]))
+    menu.addAction(load_icon("copy"), "Copy Name", lambda: (QApplication.clipboard().setText(package), self._log(f"[Monitor] Copied {package}")))
+    menu.exec(self.monitor_table.viewport().mapToGlobal(pos))
 
 
 def _build_dns(self) -> QWidget:
@@ -307,7 +459,7 @@ def _build_dns(self) -> QWidget:
     row = QHBoxLayout()
     from PySide6.QtWidgets import QComboBox
     self.dns = QComboBox()
-    self.dns.addItems(["dns.adguard-dns.com", "one.one.one.one", "dns.google", "dns.quad9.net"])
+    self.dns.addItems(["dns.adguard-dns.com", "one.one.one.one", "dns.google", "dns.quad9.net", "dns.nextdns.io"])
     apply_button = _button("Apply DNS")
     apply_button.clicked.connect(self.apply_dns)
     disable = _button("Disable")
@@ -322,13 +474,13 @@ def _build_dns(self) -> QWidget:
 def _build_accounts(self) -> QWidget:
     page = QWidget()
     layout = QVBoxLayout(page)
+    title = QLabel("ADMIN PANEL")
+    title.setObjectName("pageTitle")
+    layout.addWidget(title)
     top = QHBoxLayout()
     refresh = _button("Refresh Accounts", "refresh")
     refresh.clicked.connect(self.refresh_accounts)
-    change = _button("Change password")
-    change.setToolTip("Password changes are managed by the account/authentication service.")
-    change.clicked.connect(lambda: QMessageBox.information(self, "Change password", "Password changes are managed by the account authentication service. Use the account recovery flow to change it."))
-    top.addWidget(refresh); top.addWidget(change); top.addStretch(1)
+    top.addWidget(refresh); top.addStretch(1)
     layout.addLayout(top)
     self.accounts = QTableWidget(0, 4)
     self.accounts.setHorizontalHeaderLabels(["EMAIL", "ROLE", "BLOCKED", "ACTION"])
@@ -344,7 +496,7 @@ def _build_accounts(self) -> QWidget:
 def _build_shell(self):
     root = QWidget(); root_layout = QHBoxLayout(root)
     root_layout.setContentsMargins(0, 0, 0, 0); root_layout.setSpacing(0)
-    self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setFixedWidth(264)
+    self.sidebar = QFrame(); self.sidebar.setObjectName("sidebar"); self.sidebar.setFixedWidth(200)
     side = QVBoxLayout(self.sidebar); side.setContentsMargins(10, 7, 10, 8); side.setSpacing(0)
 
     header = QLabel(
@@ -357,15 +509,36 @@ def _build_shell(self):
 
     self.theme_btn = _button("Dark" if self.dark_mode else "Light", "settings"); self.theme_btn.clicked.connect(self._toggle_theme); side.addWidget(self.theme_btn)
 
-    for title, idx, action in (("DASHBOARD", 0, lambda: (self.stack.setCurrentIndex(0), self.refresh_apps())), ("MONITOR APPS", 1, lambda: (self.stack.setCurrentIndex(1), self._refresh_monitor())), ("BLOCK ADS DNS", 2, lambda: self.stack.setCurrentIndex(2)), ("VIRUSTOTAL", 3, lambda: self.stack.setCurrentIndex(3))):
+    for title, idx, action in (("DASHBOARD", 0, lambda: (self.stack.setCurrentIndex(0), self.refresh_apps())), ("MONITOR", 1, lambda: (self.stack.setCurrentIndex(1), self._refresh_monitor())), ("AD BLOCK", 2, lambda: self.stack.setCurrentIndex(2)), ("VT SCAN", 3, lambda: self.stack.setCurrentIndex(3))):
         b = _button(title); b.clicked.connect(action); side.addWidget(b)
 
-    for text, args in (("REBOOT TO RECOVERY", ["reboot", "recovery"]), ("REBOOT TO FASTBOOT", ["reboot", "bootloader"])):
-        b = _button(text); b.clicked.connect(lambda _=False, a=args: self._adb_simple(a)); side.addWidget(b)
-    for text, slot in (("RE-AUTHORIZE ADB", self._reauthorize), ("FIX/DL ADB DRIVERS", self._driver_help)):
-        b = _button(text); b.clicked.connect(slot); side.addWidget(b)
-    accounts = _button("ACCOUNTS"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
+    for text, mode, icon, color in (("RECOVERY", "recovery", "refresh", "#f97316"), ("FASTBOOT", "bootloader", "power", "#fb923c")):
+        b = _button(text, icon); b.clicked.connect(lambda _=False, m=mode: _confirm_reboot(self, m)); side.addWidget(b)
+    auth = _button("AUTH ADB", "plug-connected"); auth.clicked.connect(lambda: _confirm_adb_auth(self)); side.addWidget(auth)
+    drivers = _button("ADB DRIVERS", "tool"); drivers.clicked.connect(lambda: _confirm_drivers(self)); side.addWidget(drivers)
+    accounts = _button("ADMIN"); accounts.clicked.connect(self._show_accounts); side.addWidget(accounts)
     logout = _button("LOGOUT"); logout.clicked.connect(self._logout); side.addWidget(logout)
+
+    side.addSpacing(10)
+    usb = QFrame(); usb.setObjectName("sidebarGuide")
+    ul = QVBoxLayout(usb); ul.setContentsMargins(8, 8, 8, 8)
+    usb_label = QLabel(
+        "\U0001f4f1 USB debugging:\n"
+        "Enable Developer Options \u2192 USB debugging, connect the phone, then tap Allow.\n"
+        "GeloTech automatically prepares app icons for new devices."
+    )
+    usb_label.setWordWrap(True); usb_label.setObjectName("guideText"); ul.addWidget(usb_label)
+    side.addWidget(usb)
+    howto = QFrame(); howto.setObjectName("sidebarGuide")
+    hl = QVBoxLayout(howto); hl.setContentsMargins(8, 8, 8, 8)
+    howto_label = QLabel(
+        "\U0001f4a1 How to use:\n"
+        "Refresh loads user apps. Load Apps chooses All / User / System / Disabled.\n"
+        "Advanced Filter uses the database. Scan Bloatware filters by UAD level.\n"
+        "Right-click a row for app actions."
+    )
+    howto_label.setWordWrap(True); howto_label.setObjectName("guideText"); hl.addWidget(howto_label)
+    side.addWidget(howto)
 
     self.stack = QStackedWidget()
     self.pages = [_build_dashboard(self), _build_monitor(self), _build_dns(self), self._vt_page(), _build_accounts(self)]
@@ -385,6 +558,61 @@ def _nav_changed(self, row):
 def _show_accounts(self):
     self.stack.setCurrentIndex(4)
     self.refresh_accounts()
+
+
+def _confirm_reboot(self, mode):
+    if mode == "recovery":
+        title, icon, color = "Reboot to Recovery", "refresh", "#f97316"
+        description = "This restarts the connected phone into Android <b>recovery mode</b>."
+        bullets = [
+            "The device leaves the normal Android environment and boots the recovery image.",
+            "Use this to flash, wipe, or repair the device from recovery.",
+            "The screen mirror and ADB session disconnect until the phone is rebooted back to Android.",
+        ]
+    else:
+        title, icon, color = "Reboot to Fastboot", "power", "#fb923c"
+        description = "This restarts the connected phone into the <b>bootloader (fastboot)</b> mode."
+        bullets = [
+            "The device leaves Android and shows the bootloader screen.",
+            "Use this to unlock the bootloader or flash images via fastboot.",
+            "The screen mirror and ADB session disconnect until the phone is rebooted back to Android.",
+        ]
+    dlg = ActionConfirmDialog(self, title, icon, color, description, bullets, confirm_text="Reboot now")
+    if dlg.exec() == QDialog.Accepted:
+        self._adb_simple(["reboot", mode])
+
+
+def _confirm_adb_auth(self):
+    dlg = ActionConfirmDialog(
+        self, "Re-authorize ADB", "plug-connected", "#14b8a6",
+        "This refreshes the ADB host authorization for this computer.",
+        [
+            "The phone may show an \u201cAllow USB debugging?\u201d prompt \u2014 tap Allow there.",
+            "Use this when the device appears as <i>unauthorized</i> or the connection is stale.",
+            "GeloTech re-scans for devices after re-authorizing.",
+        ],
+        confirm_text="Re-authorize",
+    )
+    if dlg.exec() == QDialog.Accepted:
+        self._reauthorize()
+
+
+def _confirm_drivers(self):
+    dlg = ActionConfirmDialog(
+        self, "Fix / Install ADB Drivers", "tool", "#06b6d4",
+        "This runs the ADB connection-repair workflow to fix driver and authorization problems.",
+        [
+            "Stops the current ADB server and starts a fresh one.",
+            "Re-scans for connected devices and reports their authorization state.",
+            "Resolves most \u201cdevice not found\u201d / unauthorized issues without manual steps.",
+        ],
+        confirm_text="Run repair",
+    )
+    if dlg.exec() == QDialog.Accepted:
+        if hasattr(self, "action_fix_drivers"):
+            self.action_fix_drivers()
+        else:
+            self._driver_help()
 
 
 def install_final_qt_fixes(MainWindow):

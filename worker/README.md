@@ -19,6 +19,7 @@ no credentials of any kind.
 | GET    | `/accounts`      | `Authorization: Bearer <session>` | –                           | Sanitized account list (admin role only; no hashes) |
 | POST   | `/admin/block`   | `Authorization: Bearer <session>` | `{email, blocked}`          | Block/unblock (admin role only; no phrase) |
 | POST   | `/admin/password`| `Authorization: Bearer <session>` | `{email, password}`         | Set a new password for an account; hashed server-side, never logged |
+| POST   | `/admin/role`    | `Authorization: Bearer <session>` | `{email, role}`             | Set an account role to `admin` or `user` (admin role only; no phrase) |
 
 Sessions are signed with HMAC-SHA256 using the `SESSION_SECRET` Worker
 secret, carry `{sub, role, iat, exp, jti}` and expire after 12 hours. The

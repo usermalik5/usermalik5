@@ -9,8 +9,9 @@ import os
 import sys
 from functools import lru_cache
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 
 
 def icon_dir() -> str:
@@ -34,6 +35,34 @@ def load_icon(name: str, size: int = 20, weight: str = "outline") -> QIcon:
     # Keep the requested size in the cache key; QIcon remains vector-backed.
     _ = QSize(int(size), int(size))
     return icon
+
+
+@lru_cache(maxsize=2048)
+def tinted_icon(name: str, color: str, size: int = 18) -> QIcon:
+    """Load a Tabler SVG and recolour it to ``color`` (hex string).
+
+    Renders the vector to a transparent image, then repaints it with the
+    requested colour using a SourceIn composition so the original alpha shape
+    is preserved. This lets every button carry its own accent-coloured icon
+    without rasterisation dependencies.
+    """
+    path = os.path.join(icon_dir(), "outline", f"{name}.svg")
+    if not os.path.isfile(path):
+        return QIcon()
+    renderer = QSvgRenderer(path)
+    if not renderer.isValid():
+        return QIcon()
+    img = QImage(QSize(int(size), int(size)), QImage.Format_ARGB32)
+    img.fill(Qt.transparent)
+    painter = QPainter(img)
+    renderer.render(painter)
+    painter.end()
+    pix = QPixmap.fromImage(img)
+    tint = QPainter(pix)
+    tint.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    tint.fillRect(pix.rect(), QColor(color))
+    tint.end()
+    return QIcon(pix)
 
 
 ICONS = {

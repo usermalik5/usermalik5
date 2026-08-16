@@ -111,6 +111,7 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QFrame#sidebarGuide {{ background: {c['card2']}; border: 1px solid {c['border']}; border-radius: 8px; }}
     QLabel#guideTitle {{ color: {p['text']}; font-size: 8pt; font-weight: 800; }}
     QLabel#guideText {{ color: {p['muted']}; font-size: 8pt; }}
+    QLabel#pageTitle {{ color: #1a8cff; font-size: 15pt; font-weight: 800; padding: 2px 0 10px 12px; border-left: 4px solid #1a8cff; border-bottom: 1px solid {p['border']}; margin-bottom: 6px; }}
     QLabel#statusText {{ font-style: italic; color: {p['accent']}; }}
     QLabel#securityText {{ color: {p['amber']}; font-weight: 800; }}
     QLabel#deviceText {{ color: {p['green']}; font-weight: 800; }}
@@ -126,9 +127,45 @@ def build_stylesheet(name: str = DEFAULT_THEME, dark: bool = True, font_family: 
     QScrollBar::handle:vertical {{ background: {p['border']}; min-height: 24px; border-radius: 5px; }}
     QScrollBar:horizontal {{ background: {p['bg']}; height: 11px; margin: 0; }}
     QScrollBar::handle:horizontal {{ background: {p['border']}; min-width: 28px; border-radius: 5px; }}
-    QMenu {{ background: {p['panel']}; border: 1px solid {p['border']}; padding: 4px; }}
-    QMenu::item {{ padding: 6px 14px; }}
+    QMenu {{ background: {p['panel']}; border: 1px solid {p['border']}; padding: 4px; border-radius: 8px; }}
+    QMenu::item {{ padding: 6px 14px; border-radius: 5px; }}
     QMenu::item:selected {{ background: {p['accent']}; color: white; }}
+    QComboBox QAbstractItemView {{ background: {p['panel']}; color: {p['text']}; selection-background-color: {p['accent']}; selection-color: white; border: 1px solid {p['border']}; outline: 0; }}
+
+    QDialog {{ border-radius: 12px; }}
+    QLabel#dialogTitle {{ color: {p['text']}; font-size: 14pt; font-weight: 800; }}
+    QLabel#dialogDesc {{ color: {p['text']}; font-size: 10pt; }}
+    QLabel#dialogBullets {{ color: {p['muted']}; font-size: 9.5pt; }}
+
+    QPushButton#accentButton {{ background: {p['accent']}; color: white; border: 1px solid {p['accent']}; border-radius: 8px; padding: 7px 16px; min-height: 30px; font-weight: 800; }}
+    QPushButton#accentButton:hover {{ background: {p['accent_hover']}; }}
+    QPushButton#accentButton:disabled {{ color: #666c74; background: {c['disabled']}; border-color: {c['disabled']}; }}
+    QPushButton#linkButton {{ background: transparent; color: {p['accent']}; border: 0; padding: 6px 4px; min-height: 26px; font-weight: 700; }}
+    QPushButton#linkButton:hover {{ color: {p['accent_hover']}; text-decoration: underline; }}
+
+    QFrame#providerCard {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: 10px; }}
+    QPushButton#providerHeader {{ background: transparent; border: 0; border-radius: 10px; text-align: left; padding: 0; }}
+    QPushButton#providerHeader:hover {{ background: {c['card2']}; }}
+    QPushButton#providerHeader:pressed {{ background: {c['card2']}; color: {p['text']}; }}
+    QLabel#providerName {{ font-weight: 800; font-size: 11pt; }}
+    QLabel#providerHost {{ font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; color: {p['muted']}; }}
+    QLabel#providerChevron {{ font-size: 12pt; color: {p['muted']}; padding: 0 4px; }}
+    QLabel#providerDesc {{ font-size: 9pt; color: {p['text']}; }}
+    QLabel#providerKey {{ font-weight: 800; font-size: 8.5pt; color: {p['muted']}; }}
+    QLabel#providerValue {{ font-size: 9pt; color: {p['text']}; }}
+    QLabel#providerLink {{ font-size: 8.5pt; color: {p['accent']}; }}
+    QLabel#providerLink:hover {{ color: {p['accent_hover']}; }}
+    QPushButton#providerUse {{ background: {p['accent']}; color: white; border: 1px solid {p['accent']}; border-radius: 8px; padding: 6px 14px; min-height: 30px; font-weight: 800; }}
+    QPushButton#providerUse:hover {{ background: {p['accent_hover']}; }}
+
+    QFrame#loginBrand {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1a8cff, stop:1 #6366f1); }}
+    QLabel#loginTitle {{ color: white; font-size: 26pt; font-weight: 900; }}
+    QLabel#loginTag {{ color: rgba(255,255,255,0.85); font-size: 10pt; }}
+    QLabel#loginFeat {{ color: rgba(255,255,255,0.92); font-size: 9.5pt; }}
+    QLabel#loginWelcome {{ color: {p['text']}; font-size: 19pt; font-weight: 800; }}
+    QLabel#loginSub {{ color: {p['muted']}; font-size: 9.5pt; }}
+    QLabel#fieldLabel {{ color: {p['muted']}; font-size: 8.5pt; font-weight: 700; }}
+    QLabel#loginStatus {{ color: {p['amber']}; font-size: 9pt; }}
     """
 
 

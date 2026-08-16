@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer, Qt, QObject, Signal
-from PySide6.QtGui import QCloseEvent, QPixmap
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
@@ -24,22 +24,25 @@ from tech_common import (
 )
 from tech_reg import (
     _fetch_verified_sources, _fetch_verified_users, _login_user,
-    _request_password, _set_user_blocked,
+    _request_password, _set_user_blocked, _admin_set_role, _admin_set_password,
 )
-from tech_qt_icons import ICONS, load_icon
+from tech_qt_icons import ICONS, load_icon, tinted_icon
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 
 
 class LoginWorker(QObject):
     finished = Signal(bool, str, object, object, object)
+    status = Signal(str)
 
     def __init__(self, email, password, phrase):
         super().__init__(); self.email = email; self.password = password; self.phrase = phrase
 
     def run(self):
+        self.status.emit("Verifying credentials…")
         ok, reason, user, session = _login_user(self.email, self.password, self.phrase or None)
         if not ok:
             self.finished.emit(False, reason, None, None, None); return
+        self.status.emit("Credentials accepted — loading app database…")
         self.finished.emit(True, "", user, session, _fetch_verified_sources())
 
 
@@ -47,17 +50,37 @@ class LoginDialog(QDialog):
     logged_in = Signal(object, object, object)
 
     def __init__(self, parent=None):
-        super().__init__(parent); self.setWindowTitle(f"GeloTech Tool v{APP_VERSION} - Sign in"); self.setMinimumWidth(420)
-        layout = QVBoxLayout(self)
-        title = QLabel("GELOTECH"); title.setObjectName("brand"); title.setAlignment(Qt.AlignCenter); layout.addWidget(title)
-        sub = QLabel("Sign in to continue"); sub.setAlignment(Qt.AlignCenter); layout.addWidget(sub)
-        form = QFormLayout(); self.email = QLineEdit(); self.password = QLineEdit(); self.phrase = QLineEdit()
-        self.email.setPlaceholderText("Email"); self.password.setPlaceholderText("Password"); self.phrase.setPlaceholderText("Admin secret phrase")
-        self.password.setEchoMode(QLineEdit.Password); self.phrase.setEchoMode(QLineEdit.Password); self.phrase.hide()
-        form.addRow("Email", self.email); form.addRow("Password", self.password); form.addRow("Admin phrase", self.phrase); layout.addLayout(form)
-        self.status = QLabel(""); self.status.setWordWrap(True); layout.addWidget(self.status)
-        row = QHBoxLayout(); self.signin = QPushButton("Sign in"); self.signin.setIcon(load_icon("login")); self.register = QPushButton("Create an account")
-        row.addWidget(self.signin); row.addWidget(self.register); layout.addLayout(row)
+        super().__init__(parent)
+        self.setWindowTitle(f"GeloTech Tool v{APP_VERSION} - Sign in")
+        self.setMinimumWidth(660)
+        self.setMinimumHeight(460)
+        root = QHBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
+
+        brand = QFrame(); brand.setObjectName("loginBrand"); brand.setFixedWidth(250)
+        bl = QVBoxLayout(brand); bl.setContentsMargins(24, 30, 24, 30); bl.setSpacing(12)
+        logo = QLabel(); logo.setPixmap(tinted_icon("shield-check", "#ffffff", 54).pixmap(54, 54)); bl.addWidget(logo)
+        btitle = QLabel("GELOTECH"); btitle.setObjectName("loginTitle"); bl.addWidget(btitle)
+        btag = QLabel("Android Debloat & Control"); btag.setObjectName("loginTag"); bl.addWidget(btag)
+        bl.addStretch(1)
+        feat = QLabel("• Debloat apps safely\n• Block ads via DNS\n• VirusTotal threat scans\n• Live screen mirror")
+        feat.setObjectName("loginFeat"); feat.setWordWrap(True); bl.addWidget(feat)
+
+        formwrap = QFrame(); fr = QVBoxLayout(formwrap); fr.setContentsMargins(36, 32, 36, 32); fr.setSpacing(10)
+        welcome = QLabel("Welcome back"); welcome.setObjectName("loginWelcome"); fr.addWidget(welcome)
+        sub = QLabel("Sign in to your account to continue"); sub.setObjectName("loginSub"); fr.addWidget(sub)
+        fr.addSpacing(6)
+        self.email = QLineEdit(); self.email.setPlaceholderText("Email address")
+        self.password = QLineEdit(); self.password.setPlaceholderText("Password"); self.password.setEchoMode(QLineEdit.Password)
+        self.phrase = QLineEdit(); self.phrase.setPlaceholderText("Admin secret phrase"); self.phrase.setEchoMode(QLineEdit.Password); self.phrase.hide()
+        for label_text, field in (("Email", self.email), ("Password", self.password), ("Admin phrase", self.phrase)):
+            lab = QLabel(label_text); lab.setObjectName("fieldLabel"); fr.addWidget(lab); fr.addWidget(field)
+        self.status = QLabel(""); self.status.setWordWrap(True); self.status.setObjectName("loginStatus"); fr.addWidget(self.status)
+        self.signin = QPushButton("Sign in"); self.signin.setObjectName("accentButton"); self.signin.setIcon(tinted_icon("login", "#ffffff", 18))
+        self.register = QPushButton("Create an account"); self.register.setObjectName("linkButton")
+        row = QHBoxLayout(); row.addWidget(self.signin); row.addStretch(1); row.addWidget(self.register); fr.addLayout(row)
+        fr.addStretch(1)
+
+        root.addWidget(brand); root.addWidget(formwrap, 1)
         self.email.textChanged.connect(lambda s: self.phrase.setVisible(s.strip().lower() == "admin"))
         self.signin.clicked.connect(self._sign_in); self.register.clicked.connect(self._register)
         self._thread = None; self._worker = None
@@ -71,13 +94,42 @@ class LoginDialog(QDialog):
             self.status.setText("Enter your email and password."); return
         self.signin.setEnabled(False); self.status.setText("Signing in…")
         self._thread = QThread(self); self._worker = LoginWorker(self.email.text().strip(), self.password.text(), self.phrase.text())
-        self._worker.moveToThread(self._thread); self._thread.started.connect(self._worker.run); self._worker.finished.connect(self._finished); self._worker.finished.connect(self._thread.quit)
+        self._worker.moveToThread(self._thread); self._worker.status.connect(self.status.setText)
+        self._thread.started.connect(self._worker.run); self._worker.finished.connect(self._finished); self._worker.finished.connect(self._thread.quit)
         self._thread.finished.connect(self._thread.deleteLater); self._thread.start()
 
     def _finished(self, ok, reason, user, session, db_bytes):
         self.signin.setEnabled(True); self._thread = None; self._worker = None
         if not ok: self.status.setText(reason); return
         self.logged_in.emit(user, session, db_bytes); self.accept()
+
+
+class _PasswordChangeDialog(QDialog):
+    def __init__(self, parent, email):
+        super().__init__(parent)
+        self.setWindowTitle(f"Change password — {email}")
+        self.setMinimumWidth(420)
+        layout = QVBoxLayout(self); layout.setContentsMargins(24, 22, 24, 22); layout.setSpacing(10)
+        title = QLabel("Set a new password"); title.setObjectName("dialogTitle"); layout.addWidget(title)
+        desc = QLabel(f"Choose a new password for {email}. It is sent securely to the auth server and replaces the current one immediately.")
+        desc.setWordWrap(True); desc.setObjectName("dialogDesc"); layout.addWidget(desc)
+        self.pw1 = QLineEdit(); self.pw1.setPlaceholderText("New password (min 8 characters)"); self.pw1.setEchoMode(QLineEdit.Password)
+        self.pw2 = QLineEdit(); self.pw2.setPlaceholderText("Confirm new password"); self.pw2.setEchoMode(QLineEdit.Password)
+        layout.addWidget(self.pw1); layout.addWidget(self.pw2)
+        self.status = QLabel(""); self.status.setWordWrap(True); self.status.setObjectName("loginStatus"); layout.addWidget(self.status)
+        row = QHBoxLayout(); row.addStretch(1)
+        cancel = QPushButton("Cancel"); cancel.setObjectName("linkButton"); cancel.clicked.connect(self.reject)
+        ok = QPushButton("Update password"); ok.setObjectName("accentButton"); ok.clicked.connect(self._accept)
+        row.addWidget(cancel); row.addWidget(ok); layout.addLayout(row)
+
+    def _accept(self):
+        a, b = self.pw1.text(), self.pw2.text()
+        if len(a) < 8: self.status.setText("Password must be at least 8 characters."); return
+        if a != b: self.status.setText("Passwords do not match."); return
+        self._value = a; self.accept()
+
+    def password(self):
+        return getattr(self, "_value", "")
 
 
 class MainWindow(QMainWindow):
@@ -234,11 +286,15 @@ class MainWindow(QMainWindow):
         for pkg in packages:
             rec = self.db.get(pkg, {}) if isinstance(self.db, dict) else {}; label = rec.get("label") or pkg; rows.append((label, pkg, rec.get("removal", "Unknown"), rec.get("description", "No description available.")))
         rows.sort(key=lambda x: x[0].lower()); self.table.setRowCount(len(rows))
+        level_colors = {"Recommended": "#22c55e", "Advanced": "#f59e0b", "Expert": "#fb923c", "Unsafe": "#ef4444"}
         for r, (label, pkg, level, desc) in enumerate(rows):
             icon = self._cached_icon(pkg)
             for c, value in enumerate((label, pkg, level, desc)):
                 item = QTableWidgetItem(str(value));
                 if c == 0 and not icon.isNull(): item.setIcon(icon)
+                if c == 2:
+                    item.setForeground(QColor(level_colors.get(str(value), "#9aa4b2")))
+                    item.setFont(QFont("Segoe UI Variable", 10, QFont.Bold))
                 self.table.setItem(r, c, item)
         self.cleaner_status.setText(f"{len(rows)} packages loaded. Horizontal scrollbar reads full descriptions.")
 
@@ -289,8 +345,17 @@ class MainWindow(QMainWindow):
         try: self.task_text.setPlainText(self._adb(["-s", self.serial, "shell", "ps", "-A"], 12).stdout[-16000:])
         except Exception as exc: self.task_text.setPlainText(str(exc))
 
-    def apply_dns(self):
-        if self.serial: self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "hostname"]); self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_specifier", self.dns.currentText()])
+    def apply_dns(self, host=None):
+        if host is None:
+            dns_widget = getattr(self, "dns", None)
+            if isinstance(dns_widget, QComboBox):
+                host = dns_widget.currentData() or dns_widget.currentText()
+        if not host:
+            self._log("[DNS] Select a provider before applying.")
+            return
+        if self.serial:
+            self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "hostname"])
+            self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_specifier", host])
 
     def disable_dns(self):
         if self.serial: self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "off"])
@@ -342,23 +407,39 @@ class MainWindow(QMainWindow):
     def refresh_accounts(self):
         if self.current_user.get("role") != "admin": self.accounts.setRowCount(0); return
         users, error = _fetch_verified_users(self.session)
-        if error: self._log(error); return
+        if error: self._log(error); QMessageBox.warning(self, "Accounts", error); return
         items = list((users or {}).items()); self.accounts.setRowCount(len(items))
         for r, (email, info) in enumerate(items):
-            blocked = bool(info.get("blocked")); self.accounts.setItem(r, 0, QTableWidgetItem(email)); self.accounts.setItem(r, 1, QTableWidgetItem(str(info.get("role", "user")))); self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No"))
-            button = QPushButton("Unblock" if blocked else "Block"); button.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b))
-            # Change password (managed via admin phrase / external system)
-            change_pw = QPushButton("Change password"); change_pw.setEnabled(False); change_pw.setToolTip("Password change managed via admin phrase / external system")
-            self.accounts.setCellWidget(r, 3, button)
-            # Insert change password widget after the block button
-            layout = QVBoxLayout(); layout.addWidget(button); layout.addWidget(change_pw)
-            w = QWidget(); w.setLayout(layout)
-            self.accounts.setCellWidget(r, 3, w)
+            blocked = bool(info.get("blocked")); role = str(info.get("role", "user"))
+            self.accounts.setItem(r, 0, QTableWidgetItem(email))
+            role_combo = QComboBox(); role_combo.addItems(["user", "admin"]); role_combo.setCurrentText(role if role in ("user", "admin") else "user")
+            if role not in ("user", "admin"): role_combo.addItem(role); role_combo.setCurrentText(role)
+            role_combo.currentTextChanged.connect(lambda _=False, e=email: self._set_account_role(e, role_combo.currentText()))
+            self.accounts.setCellWidget(r, 1, role_combo)
+            self.accounts.setItem(r, 2, QTableWidgetItem("Yes" if blocked else "No"))
+            block_btn = QPushButton("Unblock" if blocked else "Block")
+            block_btn.setObjectName("accentButton"); block_btn.clicked.connect(lambda _=False, e=email, b=not blocked: self._block_account(e, b))
+            pw_btn = QPushButton("Change password"); pw_btn.clicked.connect(lambda _=False, e=email: self._change_account_password(e))
+            action = QWidget(); al = QHBoxLayout(action); al.setContentsMargins(4, 2, 4, 2); al.setSpacing(6); al.addWidget(block_btn); al.addWidget(pw_btn)
+            self.accounts.setCellWidget(r, 3, action)
 
     def _block_account(self, email, blocked):
         error = _set_user_blocked(email, blocked, self.session)
         if error: QMessageBox.warning(self, "Accounts", error)
         else: self.refresh_accounts()
+
+    def _set_account_role(self, email, role):
+        error = _admin_set_role(email, role, self.session)
+        if error: QMessageBox.warning(self, "Accounts", error)
+        self.refresh_accounts()
+
+    def _change_account_password(self, email):
+        dlg = _PasswordChangeDialog(self, email)
+        if dlg.exec() == QDialog.Accepted:
+            new_pw = dlg.password()
+            error = _admin_set_password(email, new_pw, self.session)
+            if error: QMessageBox.warning(self, "Accounts", error)
+            else: QMessageBox.information(self, "Accounts", f"Password updated for {email}. The new password is now active on the server.")
 
     def _logout(self): self.session = None; self.current_user = {}; self.user_label.setText("Not signed in"); self._open_login()
     def _log(self, text): self.log.appendPlainText(str(text))

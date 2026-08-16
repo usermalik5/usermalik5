@@ -249,7 +249,7 @@ def install_virustotal(MainWindow) -> None:
             self.vt_status.setText(str(exc))
 
     def _start_vt_worker(self, mode: str) -> None:
-        if self._vt_worker and self._vt_worker.isRunning():
+        if getattr(self, "_vt_worker", None) and self._vt_worker.isRunning():
             return
         if not self.serial:
             self._scan_devices()
@@ -364,4 +364,5 @@ def install_virustotal(MainWindow) -> None:
     MainWindow._qt_vt_worker_result = _qt_vt_worker_result
     MainWindow._qt_vt_worker_finished = _qt_vt_worker_finished
     MainWindow._qt_vt_pull_upload = _qt_vt_pull_upload
+    MainWindow._render_vt_items = _render_vt_items
     MainWindow._legacy_vt_page = original_vt_page

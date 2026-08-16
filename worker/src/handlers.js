@@ -377,6 +377,34 @@ async function handleAdminPassword(env, request, deps, body) {
   return json({ ok: true });
 }
 
+// Maintainer role change: an admin session may set an account's role to
+// "admin" or "user". Persisted server-side in secret.json; it never appears
+// in any response.
+async function handleAdminRole(env, request, deps, body) {
+  const rl = await rateLimit(env, `admin-role|${clientIp(request)}`, lim(env, "ADMIN_BLOCK_RATE_LIMIT", 30), 60000);
+  if (!rl.ok) return json({ ok: false, error: "Too many requests" }, 429);
+  const auth = await requireAdminSession(env, request, deps);
+  if (!auth.ok) return auth.response;
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  if (!email || email.length > MAX_EMAIL_LEN) return json({ ok: false, error: "Missing email." }, 400);
+  const role = typeof body.role === "string" ? body.role : "";
+  if (role !== "admin" && role !== "user") return json({ ok: false, error: "role must be 'admin' or 'user'." }, 400);
+  const result = await mutateSecret(
+    env,
+    (data) => {
+      const users = data.users ?? {};
+      if (!users[email]) return data;
+      users[email] = { ...users[email], role };
+      data.users = users;
+      return data;
+    },
+    `Role update for ${email} -> ${role} (maintainer)`,
+    deps.fetchImpl
+  );
+  if (!result.ok) return json({ ok: false, error: "Registry write failed." }, 502);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- router
 
 export async function handleRequest(request, env, deps) {
@@ -391,14 +419,15 @@ export async function handleRequest(request, env, deps) {
       if (request.method !== "GET") return json({ ok: false, error: "Method not allowed" }, 405);
       return handleAccounts(env, request, deps);
     }
-    if (path === "/login" || path === "/register" || path === "/admin/block" || path === "/admin/password") {
+    if (path === "/login" || path === "/register" || path === "/admin/block" || path === "/admin/password" || path === "/admin/role") {
       if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
       const parsed = await readJsonBody(request);
       if (!parsed.ok) return json({ ok: false, error: parsed.error }, parsed.status);
       if (path === "/login") return handleLogin(env, parsed.body, request, deps);
       if (path === "/register") return handleRegister(env, parsed.body, request, deps);
       if (path === "/admin/block") return handleAdminBlock(env, request, deps, parsed.body);
-      return handleAdminPassword(env, request, deps, parsed.body);
+      if (path === "/admin/password") return handleAdminPassword(env, request, deps, parsed.body);
+      return handleAdminRole(env, request, deps, parsed.body);
     }
     const fileMatch = /^\/files\/([^/]+)$/.exec(path);
     if (fileMatch) {

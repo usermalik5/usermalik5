@@ -9,7 +9,24 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
-from tech_qt_icons import ICONS, load_icon
+from tech_qt_icons import ICONS, load_icon, tinted_icon
+
+
+# (tabler icon name, accent colour) per sidebar action. Short labels keep the
+# sidebar compact while the colour + tinted icon make each action lively.
+SIDEBAR_STYLE = {
+    "DASHBOARD": ("dashboard", "#1a8cff"),
+    "MONITOR": ("search", "#22d3ee"),
+    "AD BLOCK": ("globe", "#22c55e"),
+    "VT SCAN": ("virus", "#a855f7"),
+    "RECOVERY": ("refresh", "#f97316"),
+    "FASTBOOT": ("power", "#fb923c"),
+    "AUTH ADB": ("plug-connected", "#14b8a6"),
+    "ADB DRIVERS": ("tool", "#06b6d4"),
+    "ADMIN": ("key", "#6366f1"),
+    "LOGOUT": ("logout", "#ef4444"),
+}
+THEME_STYLE = ("settings", "#eab308")
 
 
 def _asset_path(name: str) -> Path:
@@ -26,85 +43,38 @@ def _set_app_icon() -> QIcon:
     return icon
 
 
-def _set_sidebar_header(self) -> None:
-    sidebar = getattr(self, "sidebar", None)
-    if sidebar is None:
-        return
-    layout = sidebar.layout()
-    if layout is None:
-        return
-
-    header = sidebar.findChild(QLabel, "sidebarBrandHeader")
-    if header is None:
-        for label in sidebar.findChildren(QLabel):
-            if "GELOTECH" in label.text() and "Gsmcodeph.com" in label.text():
-                header = label
-                header.setObjectName("sidebarBrandHeader")
-                break
-
-    if header is None:
-        return
-
-    version = getattr(self, "_qt_sidebar_version", "1.7.8")
-    header.setText(
-        f'<span style="color:#2388ff; font-size:20pt; font-weight:800;">GELOTECH</span>'
-        f'<span style="color:#d6d6d6; font-size:9pt; font-weight:700;"> TOOL</span><br>'
-        f'<span style="color:#d0d0d0; font-size:8pt; font-weight:600;">v{version} - Angelo Estrada Espinosa</span><br>'
-        f'<span style="color:#9a9a9a; font-size:8pt;">© 2026 GeloTech</span><br>'
-        f'<a href="https://gsmcodeph.com" style="color:#7fb7ff; font-size:8pt;">Gsmcodeph.com</a><br>'
-        f'<a href="https://facebook.com/gelotechxyz" style="color:#7fb7ff; font-size:8pt;">facebook.com/gelotechxyz</a>'
-    )
-    header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-    header.setOpenExternalLinks(True)
-    header.setTextInteractionFlags(Qt.TextBrowserInteraction)
-    header.setContentsMargins(0, 0, 0, 0)
-    header.setMaximumHeight(104)
-
-    for name in ("copyrightLabel", "brand", "versionLabel"):
-        label = sidebar.findChild(QLabel, name)
-        if label is not None and label is not header:
-            label.hide()
-
-
 def _apply_sidebar_icons(self) -> None:
     sidebar = getattr(self, "sidebar", None)
     if sidebar is None:
         return
-    mapping = {
-        "Dashboard": "Dashboard",
-        "Monitor Apps": "Monitor Apps",
-        "Block Ads DNS": "Block Ads DNS",
-        "VirusTotal": "VirusTotal",
-        "Reboot to Recovery": "Reboot",
-        "Reboot to Fastboot": "Power",
-        "Re-authorize ADB": "Re-authorize ADB",
-        "Fix / DL ADB Drivers": "Fix Drivers",
-        "Fix/DL ADB Drivers": "Fix Drivers",
-        "Accounts": "Accounts",
-        "Logout": "Logout",
-        "LOGOUT": "Logout",
-        "DASHBOARD": "Dashboard",
-        "MONITOR APPS": "Monitor Apps",
-        "BLOCK ADS DNS": "Block Ads DNS",
-        "VIRUSTOTAL": "VirusTotal",
-    }
-    for button in sidebar.findChildren(QPushButton):
-        key = mapping.get(button.text().strip())
-        if key:
-            icon_name = ICONS.get(key)
-            if icon_name:
-                button.setIcon(load_icon(icon_name))
-        button.setMinimumHeight(29)
-        button.setMaximumHeight(29)
-        button.setContentsMargins(4, 0, 4, 0)
-
     theme = getattr(self, "theme_btn", None)
-    if isinstance(theme, QPushButton):
-        dark = bool(getattr(self, "dark_mode", True))
-        theme.setCheckable(True)
-        theme.setChecked(dark)
-        theme.setText("Theme - Dark" if dark else "Theme - Light")
-        theme.setIcon(load_icon("moon" if dark else "sun"))
+    for button in sidebar.findChildren(QPushButton):
+        if button is theme:
+            icon_name, color = THEME_STYLE
+            button.setIcon(tinted_icon(icon_name, color, 18))
+            is_dark = bool(getattr(self, "dark_mode", True))
+            button.setCheckable(True)
+            button.setChecked(is_dark)
+            button.setText("Dark Mode" if is_dark else "Light Mode")
+        else:
+            spec = SIDEBAR_STYLE.get(button.text().strip().upper())
+            if spec is None:
+                button.setMinimumHeight(28)
+                button.setMaximumHeight(32)
+                button.setContentsMargins(4, 2, 4, 2)
+                continue
+            icon_name, color = spec
+            button.setIcon(tinted_icon(icon_name, color, 18))
+        button.setMinimumHeight(28)
+        button.setMaximumHeight(32)
+        button.setContentsMargins(4, 2, 4, 2)
+        button.setStyleSheet(
+            "QPushButton { background:#171b20; color:#e6edf3; border:1px solid #2c3340; "
+            f"border-left:3px solid {color}; border-radius:8px; padding:6px 10px 6px 13px; "
+            "min-height:30px; font-weight:700; text-align:left; }"
+            f"QPushButton:hover {{ background:{color}24; color:#ffffff; border-color:{color}; }}"
+            f"QPushButton:pressed, QPushButton:checked {{ background:{color}; color:#ffffff; }}"
+        )
 
 
 def _apply_all_button_icons(self) -> None:
@@ -218,7 +188,6 @@ def _wrap_apply_theme(self):
             QMenu::item:selected {{ background: {button_hover}; color: {accent}; }}
             """
         )
-        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
 
@@ -234,7 +203,6 @@ def install_visual_polish(MainWindow, LoginDialog=None) -> None:
         original_init(self, *args, **kwargs)
         if not icon.isNull():
             self.setWindowIcon(icon)
-        _set_sidebar_header(self)
         _apply_sidebar_icons(self)
         _apply_all_button_icons(self)
         _wrap_apply_theme(self)

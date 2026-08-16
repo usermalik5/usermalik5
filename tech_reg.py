@@ -198,6 +198,23 @@ def _set_user_blocked(email, blocked, session):
     return None
 
 
+def _admin_set_role(email, role, session):
+    """Set the role for an account (maintainer action, admin session required).
+    The Worker validates the role and writes it into secret.json server-side.
+    Returns None on success or an error string."""
+    try:
+        resp = _worker_call("admin/role", {"email": email, "role": role}, session=session)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code in (401, 403):
+            return "Admin session expired or not authorized. Sign out and sign back in."
+        return f"Could not reach the auth server: {type(e).__name__}: {e}"
+    except Exception as e:
+        return f"Could not reach the auth server: {type(e).__name__}: {e}"
+    if not resp.get("ok"):
+        return resp.get("error") or "Role change failed."
+    return None
+
+
 def _admin_set_password(email, new_password, session):
     """Set a new password for an account (maintainer action, admin session
     required). The Worker hashes it server-side; the client only sends the
