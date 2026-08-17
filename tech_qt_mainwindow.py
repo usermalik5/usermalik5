@@ -30,6 +30,10 @@ from tech_qt_icons import ICONS, load_icon, tinted_icon
 from tech_qt_themes import DEFAULT_THEME, DEFAULT_UI_FONT, apply_theme
 
 
+def _is_secure_settings_denial(detail: str) -> bool:
+    return "WRITE_SECURE_SETTINGS" in detail or "Permission Denial" in detail or "SecurityException" in detail
+
+
 class LoginWorker(QObject):
     finished = Signal(bool, str, object, object, object)
     status = Signal(str)
@@ -375,15 +379,81 @@ class MainWindow(QMainWindow):
         failures = [result for result in (mode_result, host_result) if getattr(result, "returncode", 0) != 0]
         if failures:
             detail = (getattr(failures[0], "stderr", "") or getattr(failures[0], "stdout", "") or "ADB rejected the setting").strip()
+            self._log(f"[DNS] settings rejected: {detail}")
+            if _is_secure_settings_denial(detail):
+                if self._retry_dns_with_grant([
+                    ["settings", "put", "global", "private_dns_mode", "hostname"],
+                    ["settings", "put", "global", "private_dns_specifier", host],
+                ]):
+                    self._dns_applied(host, "after granting WRITE_SECURE_SETTINGS")
+                    return
+                self._dns_permission_prompt("apply", host, detail)
+                return
             message = f"Private DNS could not be applied: {detail}"
             self._log(f"[DNS] {message}")
             if hasattr(self, "dns_status"):
                 self.dns_status.setText(message)
             return
-        message = f"Private DNS active: {host}"
+        self._dns_applied(host, None)
+
+    def _retry_dns_with_grant(self, commands):
+        """Non-root workaround: grant WRITE_SECURE_SETTINGS to the shell package,
+        then re-run the settings commands. True if every command succeeded."""
+        if not self.serial:
+            return False
+        grant = self._adb(["-s", self.serial, "shell", "pm", "grant", "com.android.shell", "android.permission.WRITE_SECURE_SETTINGS"])
+        if getattr(grant, "returncode", 0) != 0:
+            self._log(f"[DNS] pm grant workaround failed: {(getattr(grant, 'stderr', '') or getattr(grant, 'stdout', '') or 'grant rejected').strip()}")
+            return False
+        for command in commands:
+            result = self._adb(["-s", self.serial, "shell", *command])
+            if getattr(result, "returncode", 0) != 0:
+                return False
+        return True
+
+    def _dns_applied(self, host, note):
+        message = f"Private DNS active: {host}" + (f" ({note})" if note else "")
         self._log(f"[DNS] {message}")
         if hasattr(self, "dns_status"):
             self.dns_status.setText(message)
+
+    def _dns_permission_prompt(self, action, host=None, detail=""):
+        if action == "apply":
+            guidance = (
+                "The phone blocks ADB from changing Private DNS "
+                "(WRITE_SECURE_SETTINGS).\n\n"
+                "To fix it on Xiaomi / MIUI / HyperOS:\n"
+                "1. Open Settings > My Device > All specs.\n"
+                "2. Tap the MIUI/HyperOS version 7 times to unlock Developer options.\n"
+                "3. Go to Settings > Additional settings > Developer options.\n"
+                "4. Enable \u201cUSB debugging\u201d and \u201cUSB debugging (Security settings)\u201d.\n"
+                "5. Reconnect the phone and tap Retry.\n\n"
+                "Other brands may use a similar toggle (e.g. \u201cAllow modifying "
+                "system settings via USB\u201d) in their Developer options.\n\n"
+                "Details: " + detail
+            )
+            title = "Private DNS Permission"
+        else:
+            guidance = (
+                "The phone blocks ADB from disabling Private DNS "
+                "(WRITE_SECURE_SETTINGS).\n\n"
+                "To fix it on Xiaomi / MIUI / HyperOS:\n"
+                "1. Open Settings > My Device > All specs.\n"
+                "2. Tap the MIUI/HyperOS version 7 times to unlock Developer options.\n"
+                "3. Go to Settings > Additional settings > Developer options.\n"
+                "4. Enable \u201cUSB debugging\u201d and \u201cUSB debugging (Security settings)\u201d.\n"
+                "5. Reconnect the phone and tap Retry.\n\n"
+                "Details: " + detail
+            )
+            title = "Private DNS Permission"
+        if hasattr(self, "dns_status"):
+            self.dns_status.setText("Private DNS blocked by phone security settings.")
+        retry = QMessageBox.warning(self, title, guidance, QMessageBox.Retry | QMessageBox.Cancel, QMessageBox.Retry)
+        if retry == QMessageBox.Retry:
+            if action == "apply":
+                self.apply_dns(host)
+            else:
+                self.disable_dns()
 
     def disable_dns(self):
         if not self.serial:
@@ -397,9 +467,21 @@ class MainWindow(QMainWindow):
         result = self._adb(["-s", self.serial, "shell", "settings", "put", "global", "private_dns_mode", "off"])
         if getattr(result, "returncode", 0) != 0:
             detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "ADB rejected the setting").strip()
+            self._log(f"[DNS] disable rejected: {detail}")
+            if _is_secure_settings_denial(detail):
+                if self._retry_dns_with_grant([["settings", "put", "global", "private_dns_mode", "off"]]):
+                    self._log("[DNS] Private DNS disabled after granting WRITE_SECURE_SETTINGS.")
+                    if hasattr(self, "dns_status"):
+                        self.dns_status.setText("Private DNS disabled on the connected device.")
+                    return
+                self._dns_permission_prompt("disable", None, detail)
+                return
             message = f"Private DNS could not be disabled: {detail}"
-        else:
-            message = "Private DNS disabled on the connected device."
+            self._log(f"[DNS] {message}")
+            if hasattr(self, "dns_status"):
+                self.dns_status.setText(message)
+            return
+        message = "Private DNS disabled on the connected device."
         self._log(f"[DNS] {message}")
         if hasattr(self, "dns_status"):
             self.dns_status.setText(message)
