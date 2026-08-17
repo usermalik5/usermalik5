@@ -152,8 +152,7 @@ class _MirrorOverlay(QWidget):
     """
 
     def __init__(self, pixmap: QPixmap | None = None) -> None:
-        super().__init__(None,
-                         Qt.FramelessWindowHint | Qt.Window | Qt.Tool)
+        super().__init__(None, Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setWindowFlag(Qt.WindowTransparentForInput, True)
@@ -395,9 +394,14 @@ def install_scrcpy(MainWindow) -> None:
             overlay = self._qt_scrcpy_overlay
             if overlay is None or not overlay.isVisible():
                 try:
-                    pixmap = host.pixmap() if hasattr(host, "pixmap") else None
+                    pixmap = host.grab()
                 except Exception:
                     pixmap = None
+                if pixmap is None or pixmap.isNull():
+                    try:
+                        pixmap = host.pixmap() if hasattr(host, "pixmap") else None
+                    except Exception:
+                        pixmap = None
                 overlay = _MirrorOverlay(pixmap)
                 overlay.resize(host.width(), host.height())
                 overlay.move(host.mapToGlobal(QPoint(0, 0)))
