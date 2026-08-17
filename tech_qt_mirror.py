@@ -28,7 +28,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtCore import Qt, QTimer, QPoint, QRect
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QPushButton, QWidget
 
@@ -168,31 +168,33 @@ class _MirrorOverlay(QWidget):
         if self._pixmap is None or self._pixmap.isNull():
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        if self._hole is None:
-            painter.drawPixmap(self.rect(), self._pixmap)
-        else:
-            # Draw only the bezel margins around the video opening so the
-            # live video always shows through the hole.
-            hx, hy, hw, hh = self._hole
-            w, h = self.width(), self.height()
-            sw, sh = self._pixmap.width(), self._pixmap.height()
-            strips = [
-                (0, 0, w, hy),           # top
-                (0, hy + hh, w, h - hy - hh),  # bottom
-                (0, hy, hx, hh),         # left
-                (hx + hw, hy, w - hx - hw, hh),  # right
-            ]
-            for rx, ry, rw, rh in strips:
-                if rw <= 0 or rh <= 0:
-                    continue
-                painter.drawPixmap(
-                    QRect(rx, ry, rw, rh),
-                    self._pixmap,
-                    QRect(int(rx * sw / w), int(ry * sh / h),
-                          max(1, int(rw * sw / w)), max(1, int(rh * sh / h))),
-                )
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            if self._hole is None:
+                painter.drawPixmap(self.rect(), self._pixmap)
+            else:
+                # Draw only the bezel margins around the video opening so the
+                # live video always shows through the hole.
+                hx, hy, hw, hh = self._hole
+                w, h = self.width(), self.height()
+                sw, sh = self._pixmap.width(), self._pixmap.height()
+                strips = [
+                    (0, 0, w, hy),           # top
+                    (0, hy + hh, w, h - hy - hh),  # bottom
+                    (0, hy, hx, hh),         # left
+                    (hx + hw, hy, w - hx - hw, hh),  # right
+                ]
+                for rx, ry, rw, rh in strips:
+                    if rw <= 0 or rh <= 0:
+                        continue
+                    painter.drawPixmap(
+                        QRect(rx, ry, rw, rh),
+                        self._pixmap,
+                        QRect(int(rx * sw / w), int(ry * sh / h),
+                              max(1, int(rw * sw / w)), max(1, int(rh * sh / h))),
+                    )
+        finally:
+            painter.end()
 
 
 def _global_opening(host: QWidget):
