@@ -253,7 +253,12 @@ def _show_appearance_dialog(window) -> None:
 
     buttons = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Apply)
     buttons.rejected.connect(dialog.reject)
-    buttons.accepted.connect(dialog.accept)
+
+    def on_button_clicked(btn):
+        if buttons.buttonRole(btn) == QDialogButtonBox.ApplyRole:
+            dialog.accept()
+
+    buttons.clicked.connect(on_button_clicked)
     layout.addWidget(buttons)
     if dialog.exec() != QDialog.Accepted:
         return
