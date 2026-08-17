@@ -575,6 +575,14 @@ def _build_shell(self):
     self.pages = [_build_dashboard(self), self._monitor_page(), self._dns_page(), self._vt_page(), _build_accounts(self)]
     for page in self.pages: self.stack.addWidget(page)
     root_layout.addWidget(self.sidebar); root_layout.addWidget(self.stack, 1); self.setCentralWidget(root); self.stack.setCurrentIndex(0)
+    # Keep the live mirror glued to the Dashboard page: hide it whenever the
+    # user navigates to another page, restore it on return.
+    self.stack.currentChanged.connect(self._qt_dashboard_page_changed)
+
+
+def _qt_dashboard_page_changed(self, index: int) -> None:
+    if hasattr(self, "_qt_dashboard_active"):
+        self._qt_dashboard_active = index == 0
 
 
 def _nav_changed(self, row):
