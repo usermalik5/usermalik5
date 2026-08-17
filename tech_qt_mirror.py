@@ -19,6 +19,7 @@ tech_phone_mirror_embedded.py in the legacy repo):
 from __future__ import annotations
 
 import ctypes
+from ctypes import wintypes
 import os
 import shutil
 import subprocess
@@ -170,6 +171,46 @@ def _clip_scrcpy_window(hwnd: int, width: int, height: int, radius: int) -> None
     except Exception:
         # Clipping is cosmetic. Never allow it to prevent the mirror itself.
         pass
+
+
+class _POINT(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+class _GUITHREADINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_uint32),
+        ("flags", ctypes.c_uint32),
+        ("hwndActive", ctypes.c_void_p),
+        ("hwndFocus", ctypes.c_void_p),
+        ("hwndCapture", ctypes.c_void_p),
+        ("hwndMenuOwner", ctypes.c_void_p),
+        ("hwndMoveSize", ctypes.c_void_p),
+        ("hwndCaret", ctypes.c_void_p),
+        ("rcCaret", _RECT),
+    ]
+
+
+def _mirror_user32_setup() -> None:
+    u = _user32()
+    u.GetWindowThreadProcessId.argtypes = [wintypes.HWND,
+                                           ctypes.POINTER(wintypes.DWORD)]
+    u.GetWindowThreadProcessId.restype = wintypes.DWORD
+    u.GetGUIThreadInfo.argtypes = [wintypes.DWORD,
+                                   ctypes.POINTER(_GUITHREADINFO)]
+    u.GetGUIThreadInfo.restype = wintypes.BOOL
+    u.GetCursorPos.argtypes = [ctypes.POINTER(_POINT)]
+    u.GetCursorPos.restype = wintypes.BOOL
+    u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(_RECT)]
+    u.GetWindowRect.restype = wintypes.BOOL
+    u.GetForegroundWindow.restype = wintypes.HWND
+    u.SetFocus.argtypes = [wintypes.HWND]
+    u.SetFocus.restype = wintypes.HWND
 
 
 def _find_mirror_buttons(self) -> list:
@@ -336,6 +377,7 @@ def install_scrcpy(MainWindow) -> None:
             u.SetWindowPos(hwnd, HWND_TOP, int(dx), int(dy), int(dw), int(dh),
                            SWP_NOACTIVATE | SWP_SHOWWINDOW)
             _clip_scrcpy_window(hwnd, dw, dh, _clip_radius(host))
+            self._qt_ensure_mirror_focus()
             now = time.time()
             if now - getattr(self, "_qt_mirror_last_debug", 0.0) > 0.5:
                 self._qt_mirror_last_debug = now
@@ -343,6 +385,57 @@ def install_scrcpy(MainWindow) -> None:
                     f"reposition host_vis={host.isVisible()} "
                     f"rect=({dx},{dy},{dw},{dh}) host_size={host.width()}x{host.height()}"
                 )
+        except Exception:
+            pass
+
+    def _ensure_mirror_focus(self) -> None:
+        """Keep keyboard focus on the embedded scrcpy child while the user
+        interacts with the phone screen.
+
+        Clicking a native child of another process activates the parent
+        top-level window, and the host app can then move focus back to one
+        of its own widgets, so the scrcpy (SDL) window never receives
+        WM_SETFOCUS and scrcpy drops keyboard input.  Re-apply focus only
+        when the user's cursor is over the mirror and the mirror's thread
+        has lost it (its active window is the child, or it has no focus at
+        all).  Never steals focus from other apps or other widgets, and
+        never touches scrcpy's window styles, size, or process state.
+        """
+        hwnd = getattr(self, "_qt_scrcpy_hwnd", 0)
+        if not hwnd:
+            return
+        try:
+            u = _user32()
+            _mirror_user32_setup()
+            if u.GetForegroundWindow() != int(self.winId()):
+                return
+            tid = wintypes.DWORD()
+            u.GetWindowThreadProcessId(hwnd, ctypes.byref(tid))
+            if not tid.value:
+                return
+            info = _GUITHREADINFO()
+            info.cbSize = ctypes.sizeof(_GUITHREADINFO)
+            if not u.GetGUIThreadInfo(tid.value, ctypes.byref(info)):
+                return
+            if int(info.hwndFocus or 0) == hwnd:
+                return
+            active = int(info.hwndActive or 0)
+            if active != hwnd and int(info.hwndFocus or 0) != 0:
+                return
+            pt = _POINT()
+            if not u.GetCursorPos(ctypes.byref(pt)):
+                return
+            rect = _RECT()
+            if not u.GetWindowRect(hwnd, ctypes.byref(rect)):
+                return
+            if not (rect.left <= pt.x <= rect.right
+                    and rect.top <= pt.y <= rect.bottom):
+                return
+            u.SetFocus(hwnd)
+            now = time.time()
+            if now - getattr(self, "_qt_mirror_focus_log", 0.0) > 2.0:
+                self._qt_mirror_focus_log = now
+                _debug(f"focus restored to {hwnd}")
         except Exception:
             pass
 
@@ -376,6 +469,7 @@ def install_scrcpy(MainWindow) -> None:
     MainWindow.start_mirror = start_mirror
     MainWindow._qt_embed_scrcpy = _embed_scrcpy
     MainWindow._qt_reposition_scrcpy = _reposition_scrcpy
+    MainWindow._qt_ensure_mirror_focus = _ensure_mirror_focus
     MainWindow._qt_stop_scrcpy = _stop_scrcpy
     MainWindow._qt_bundle_path = _bundle_path
     MainWindow._qt_scrcpy_process = None
@@ -383,3 +477,4 @@ def install_scrcpy(MainWindow) -> None:
     MainWindow._qt_scrcpy_host = None
     MainWindow._qt_scrcpy_timer = None
     MainWindow._qt_mirror_last_debug = 0.0
+    MainWindow._qt_mirror_focus_log = 0.0
