@@ -454,6 +454,7 @@ def install_scrcpy(MainWindow) -> None:
             self._qt_scrcpy_timer = QTimer(self)
             self._qt_scrcpy_timer.timeout.connect(self._qt_reposition_scrcpy)
             self._qt_scrcpy_timer.start(50)
+            self._qt_scrcpy_settle_until = time.time() + 1.5
         except Exception as exc:
             self._log(f"[SCRCPY] Native mirror positioning failed: {exc}")
             _debug(f"embed EXC {exc!r}")
@@ -480,17 +481,38 @@ def install_scrcpy(MainWindow) -> None:
         try:
             if overlay is not None and not overlay.isVisible():
                 overlay.show()
+            # Let SDL settle its window first: fighting it during startup
+            # causes flicker/glitches.
+            if time.time() < getattr(self, "_qt_scrcpy_settle_until", 0.0):
+                return
             gx, gy, dw, dh = _global_opening(host)
-            u.SetWindowPos(hwnd, HWND_TOP, int(gx), int(gy), int(dw), int(dh),
-                           SWP_NOACTIVATE | SWP_SHOWWINDOW)
-            _clip_scrcpy_window(hwnd, dw, dh, _clip_radius(host))
-            overlay = getattr(self, "_qt_scrcpy_overlay", None)
+            now_rect = _RECT()
+            u.GetWindowRect(hwnd, ctypes.byref(now_rect))
+            size_changed = (now_rect.right - now_rect.left != dw
+                            or now_rect.bottom - now_rect.top != dh)
+            if (now_rect.left, now_rect.top) != (gx, gy) or size_changed:
+                flags = SWP_NOACTIVATE
+                if not u.IsWindowVisible(hwnd):
+                    flags |= SWP_SHOWWINDOW
+                u.SetWindowPos(hwnd, HWND_TOP, int(gx), int(gy), int(dw), int(dh),
+                               flags)
+                if size_changed:
+                    # Region clipping is expensive; re-apply only when the
+                    # video surface actually changed size.
+                    _clip_scrcpy_window(hwnd, dw, dh, _clip_radius(host))
             if overlay is not None and overlay.isVisible():
-                overlay.resize(host.width(), host.height())
-                overlay.move(host.mapToGlobal(QPoint(0, 0)))
-                # The frame must stay ABOVE the video: raise it last.
-                u.SetWindowPos(int(overlay.winId()), HWND_TOP, 0, 0, 0, 0,
-                               SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                hpos = host.mapToGlobal(QPoint(0, 0))
+                opos = overlay.pos()
+                if (overlay.width(), overlay.height()) != (host.width(), host.height()) \
+                        or (opos.x(), opos.y()) != (hpos.x(), hpos.y()):
+                    overlay.resize(host.width(), host.height())
+                    overlay.move(hpos)
+                # Keep the frame directly above the video (insert-after
+                # scrcpy, never above other apps).  Skip when already there.
+                ohwnd = int(overlay.winId())
+                if ohwnd and u.GetWindow(ohwnd, 3) != hwnd:
+                    u.SetWindowPos(ohwnd, hwnd, 0, 0, 0, 0,
+                                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
             self._qt_ensure_mirror_focus()
             now = time.time()
             if now - getattr(self, "_qt_mirror_last_debug", 0.0) > 0.5:
@@ -597,6 +619,7 @@ def install_scrcpy(MainWindow) -> None:
     MainWindow._qt_scrcpy_host = None
     MainWindow._qt_scrcpy_timer = None
     MainWindow._qt_scrcpy_overlay = None
+    MainWindow._qt_scrcpy_settle_until = 0.0
     MainWindow._qt_dashboard_active = True
     MainWindow._qt_mirror_last_debug = 0.0
     MainWindow._qt_mirror_focus_log = 0.0
