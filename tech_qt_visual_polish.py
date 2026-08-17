@@ -124,11 +124,18 @@ def _normalise_sidebar(self) -> None:
     if theme is not None:
         theme.setText("Appearance")
         theme.setToolTip("Change color palette, display mode, and UI font")
-        theme.setIcon(load_icon("settings"))
+        theme.setIcon(QIcon())
         theme.setCheckable(False)
-        theme.setMinimumHeight(30)
-        theme.setMaximumHeight(30)
+        theme.setMinimumHeight(24)
+        theme.setMaximumHeight(24)
         theme.setContentsMargins(0, 0, 0, 0)
+        theme.setStyleSheet(
+            "QPushButton { background:transparent; border:0; color:#9a9a9a;"
+            " min-height:24px; max-height:24px; padding:0 2px; margin:0;"
+            " font-size:8.5pt; font-weight:600; text-align:left; }"
+            "QPushButton:hover { color:#d8d8d8; }"
+            "QPushButton:pressed { color:#7fb7ff; }"
+        )
 
     # Keep one USB guide and one How-to guide. Do not add gaps between action
     # buttons; the guides themselves provide the only lower information area.
@@ -156,16 +163,18 @@ def _normalise_sidebar(self) -> None:
     if header is not None:
         version = getattr(self, "_qt_sidebar_version", "1.7.8")
         header.setText(
-            f'<span style="color:#2388ff;font-size:20pt;font-weight:800;">GELOTECH</span>'
-            f'<span style="color:#d8d8d8;font-size:10pt;font-weight:800;"> TOOL</span><br>'
-            f'<span style="color:#d0d0d0;font-size:8pt;font-weight:700;">v{version} - Angelo Estrada Espinosa</span><br>'
-            f'<span style="color:#9a9a9a;font-size:8pt;">© 2026 GeloTech</span><br>'
-            f'<a href="https://gsmcodeph.com" style="color:#7fb7ff;font-size:8pt;">Gsmcodeph.com</a><br>'
-            f'<a href="https://facebook.com/gelotechxyz" style="color:#7fb7ff;font-size:8pt;">facebook.com/gelotechxyz</a>'
+            '<div style="margin:0;">'
+            '<p style="margin:0 0 2px 0;"><span style="color:#2388ff;font-size:20pt;font-weight:800;">GELOTECH</span>'
+            '<span style="color:#d8d8d8;font-size:10pt;font-weight:800;"> TOOL</span></p>'
+            f'<p style="margin:0 0 2px 0;"><span style="color:#d0d0d0;font-size:8pt;font-weight:700;">v{version} - Angelo Estrada Espinosa</span></p>'
+            '<p style="margin:0 0 5px 0;"><span style="color:#9a9a9a;font-size:8pt;">© 2026 GeloTech</span></p>'
+            '<p style="margin:0 0 2px 0;"><a href="https://gsmcodeph.com" style="color:#8fc1ff;font-size:9pt;font-weight:700;text-decoration:none;">Gsmcodeph.com</a></p>'
+            '<p style="margin:0;"><a href="https://facebook.com/gelotechxyz" style="color:#8fc1ff;font-size:9pt;font-weight:700;text-decoration:none;">facebook.com/gelotechxyz</a></p>'
+            '</div>'
         )
         header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setOpenExternalLinks(True)
-        header.setMaximumHeight(94)
+        header.setMaximumHeight(130)
         header.setContentsMargins(0, 0, 0, 0)
 
 
