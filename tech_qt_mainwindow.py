@@ -420,34 +420,29 @@ class MainWindow(QMainWindow):
     def _dns_permission_prompt(self, action, host=None, detail=""):
         if action == "apply":
             guidance = (
-                "The phone blocks ADB from changing Private DNS "
+                "Xiaomi blocks ADB from changing Private DNS "
                 "(WRITE_SECURE_SETTINGS).\n\n"
-                "To fix it on Xiaomi / MIUI / HyperOS:\n"
-                "1. Open Settings > My Device > All specs.\n"
-                "2. Tap the MIUI/HyperOS version 7 times to unlock Developer options.\n"
-                "3. Go to Settings > Additional settings > Developer options.\n"
-                "4. Enable \u201cUSB debugging\u201d and \u201cUSB debugging (Security settings)\u201d.\n"
-                "5. Reconnect the phone and tap Retry.\n\n"
-                "Other brands may use a similar toggle (e.g. \u201cAllow modifying "
-                "system settings via USB\u201d) in their Developer options.\n\n"
+                "Apply it manually on the phone instead:\n"
+                "1. Open Settings > Network & internet > Private DNS.\n"
+                "2. Select \u201cPrivate DNS provider hostname\u201d.\n"
+                "3. Enter exactly:\n"
+                "   " + (host or "your DNS provider hostname") + "\n"
+                "4. Tap Save.\n\n"
                 "Details: " + detail
             )
-            title = "Private DNS Permission"
+            title = "Apply DNS Manually"
         else:
             guidance = (
-                "The phone blocks ADB from disabling Private DNS "
+                "Xiaomi blocks ADB from disabling Private DNS "
                 "(WRITE_SECURE_SETTINGS).\n\n"
-                "To fix it on Xiaomi / MIUI / HyperOS:\n"
-                "1. Open Settings > My Device > All specs.\n"
-                "2. Tap the MIUI/HyperOS version 7 times to unlock Developer options.\n"
-                "3. Go to Settings > Additional settings > Developer options.\n"
-                "4. Enable \u201cUSB debugging\u201d and \u201cUSB debugging (Security settings)\u201d.\n"
-                "5. Reconnect the phone and tap Retry.\n\n"
+                "Disable it manually on the phone instead:\n"
+                "1. Open Settings > Network & internet > Private DNS.\n"
+                "2. Select \u201cOff\u201d.\n\n"
                 "Details: " + detail
             )
-            title = "Private DNS Permission"
+            title = "Disable DNS Manually"
         if hasattr(self, "dns_status"):
-            self.dns_status.setText("Private DNS blocked by phone security settings.")
+            self.dns_status.setText("Apply Private DNS manually on the phone.")
         retry = QMessageBox.warning(self, title, guidance, QMessageBox.Retry | QMessageBox.Cancel, QMessageBox.Retry)
         if retry == QMessageBox.Retry:
             if action == "apply":
