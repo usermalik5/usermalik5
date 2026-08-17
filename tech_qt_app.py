@@ -32,7 +32,7 @@ from tech_qt_visual_polish import install_visual_polish
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("GeloTech Tool")
-    app.setApplicationVersion("1.7.8")
+    app.setApplicationVersion("2.0")
     apply_theme(app, DEFAULT_THEME, True, DEFAULT_UI_FONT)
     install_cleaner_parity(MainWindow)
     install_icon_cache_lookup(MainWindow)

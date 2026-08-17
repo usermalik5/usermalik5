@@ -1,6 +1,6 @@
 # GeloTechTool
 
-**GeloTechTool v1.7.8** is a Windows Android maintenance and debloating utility built around **PySide6 / Qt6**. The Qt application is now the official desktop UI and starts from `tech_qt_app.py`.
+**GeloTechTool v2.0** is a Windows Android maintenance and debloating utility built around **PySide6 / Qt6**. The Qt application is now the official desktop UI and starts from `tech_qt_app.py`.
 
 ## What it does
 
@@ -105,6 +105,6 @@ The PyArmor Trial file-size limit is a release constraint; do not use an un-obfu
 
 ## Download
 
-Latest public release: [GeloTechTool v1.7.8](https://github.com/usermalik5/usermalik5/releases/latest)
+Latest public release: [GeloTechTool v2.0](https://github.com/usermalik5/usermalik5/releases/latest)
 
 Windows only. The private source repository is for development; the public download repository hosts user-facing releases.

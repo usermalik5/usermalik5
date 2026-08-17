@@ -670,6 +670,7 @@ def install_final_qt_fixes(MainWindow):
     MainWindow._build_shell = _build_shell
     MainWindow._nav_changed = _nav_changed
     MainWindow._show_accounts = _show_accounts
+    MainWindow._qt_dashboard_page_changed = _qt_dashboard_page_changed
     MainWindow._set_device_action_state = _set_device_action_state
     MainWindow._refresh_monitor = _refresh_monitor
     MainWindow._qt_select_all = _qt_select_all

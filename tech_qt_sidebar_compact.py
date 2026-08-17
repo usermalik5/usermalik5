@@ -37,7 +37,7 @@ def _compact_sidebar(self) -> None:
                 break
 
     if header is not None:
-        version = getattr(self, "_qt_sidebar_version", "1.7.8")
+        version = getattr(self, "_qt_sidebar_version", "2.0")
         header.setText(
             '<div style="margin:0;">'
             '<p style="margin:0 0 2px 0;"><span style="color:#2388ff; font-size:20pt; font-weight:800;">GELOTECH</span>'
@@ -99,7 +99,7 @@ def install_sidebar_compact(MainWindow) -> None:
 
     def init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
-        self._qt_sidebar_version = "1.7.8"
+        self._qt_sidebar_version = "2.0"
         _compact_sidebar(self)
 
     MainWindow.__init__ = init
