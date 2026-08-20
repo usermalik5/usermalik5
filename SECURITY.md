@@ -3,7 +3,7 @@
 ## Supported Versions
 
 Only the latest distributed build is supported. Data-only updates (database /
-settings pushed to the private repo) are supported for builds that include the
+settings pushed to the Cloudflare DB/KV environments) are supported for builds that include the
 embedded update system.
 
 | Build | Supported |
